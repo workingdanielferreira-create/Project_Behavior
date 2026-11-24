@@ -1,7 +1,7 @@
 'use strict';
 /* Real character kits: turns window.PB3_KITS (built from characters/ by tools/build_kits.py, see run_v3.bat) into
    V3 kits, replacing the hand-made stand-ins. Only the glue the V3 sim needs is derived here; the FX themselves,
-   their damage, knockback and timing are played by FX Studio's own runtime (fx2d.js).
+   their damage, knockback and timing are played by FX Studio's own runtime, laid in 3D (fx3d.js / fxlive.js).
    2D sizes: the 2D game's fighters stand 28 px; a V3 body is BODY (88) px, so 2D distances x PX2D. */
 const PX2D=BODY/28;
 const REAL_KITS=window.PB3_KITS||{};
@@ -20,7 +20,7 @@ function realKit(R){
   const dur=a=>Math.max(120,Math.round((T[a].frames||1)*(T[a].frame_ms||16)));
   const cfg=a=>AS[a]||{};
   const def=(a,extra)=>Object.assign({n2d:a,name:a.replace(/_/g,' '),dur:dur(a),hits:[],fx:[],fx2d:true,frames:T[a].frames||1,frameMs:T[a].frame_ms||16,
-    mcd:+cfg(a).cooldown_ms||0},extra||{});
+    mcd:+cfg(a).cooldown_ms||0,move3d:cfg(a).move3d&&cfg(a).move3d.enabled?cfg(a).move3d:null},extra||{});   // move3d: FX Studio 3D movement (fxlive.js)
   const melee=pr.uses_melee!==false;
   const reach=clamp((+st.basic_attack_radius||(melee?120:400))*(melee?1:PX2D*.5),70,melee?260:900);
   const acts=Object.keys(T).filter(a=>!SKIP_ACTIONS[a]);

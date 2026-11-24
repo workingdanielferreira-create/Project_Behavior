@@ -6,11 +6,11 @@ Self-contained like `v2/`: nothing outside `v3/` is touched.
 ## Update
 
 `update_v3.bat` (here) or `Update V3.bat` (game folder) runs `tools/update_v3.py`: downloads the newest
-commit on `main` and writes only the V3 parts that changed — `v3/` (game + Rig Forge 3D), `Rig Forge 3D.bat`,
-`Update V3.bat`, `tools/fx/studio/` (FX runtime V3 uses) and `characters/`. Local edits to `characters/`
+commit on `main` and writes only the V3 parts that changed — `v3/` (game + Rig Forge 3D + FX Studio 3D), `Rig Forge 3D.bat`,
+`FX Studio 3D.bat`, `Update V3.bat`, `tools/fx/studio/` (FX runtime V3 uses) and `characters/`. Local edits to `characters/`
 files (e.g. a .glb saved from Rig Forge 3D) are kept, using the same `.sync_state.json` record as
 `update_latest.py`. The 2D game files are left to `update_latest.bat`. Afterwards it asks:
-1 = V3 game, 2 = Rig Forge 3D, Enter = nothing. Installed commit: `.last_update_v3.json`.
+1 = V3 game, 2 = Rig Forge 3D, 3 = FX Studio 3D, Enter = nothing. Installed commit: `.last_update_v3.json`.
 
 ## Run
 
@@ -37,8 +37,7 @@ or acts; **Guard** = blocks every hit, parries by chance; **Fight back** = its c
 character and its height (an air dummy hangs there). Saved with the settings. In training nobody is K.O.'d (HP refills
 1.5 s after the last hit), a knocked-back stand / guard dummy drifts home, and the top readout shows the combo (hits
 no more than 1.1 s apart), its damage, the best combo, the last hit and damage per second. Your target is the nearest
-dummy: that's the one your FX hit (FX Studio's runtime has one hurt box); shots and the stand-in kits' melee reach
-every dummy. Pause → Training settings edits the dummies live (Back rebuilds them, your fighter keeps its state);
+dummy; FX hit every dummy they touch (FX Studio 3D, 2026-11-24), and so do shots and the stand-in kits' melee. Pause → Training settings edits the dummies live (Back rebuilds them, your fighter keeps its state);
 Restart training starts over. With no dummies your fighter only acts on your inputs and faces the way you move.
 
 Menus work with the mouse or the keyboard:
@@ -70,7 +69,8 @@ Settings and teams are saved between sessions.
 | `motion.js` | drift & snap motion |
 | `gravity.js` | jumps: R = jump / double jump, F = fast fall, gravity; flight (R / F climb / descend) only for kits that can fly |
 | `combat.js` | actions, triggers, hits, damage, stun, K.O., reactions, tagging, projectiles |
-| `fx2d.js` | real kits' 2D FX: FX Studio's Player per fighter, drawn on camera-facing cards in the 3D scene |
+| `fx3d.js` | **FX 3D runtime** (shared with FX Studio 3D): FX Studio's 2D FX laid on cards placed in 3D, 3D anchors from the bones, every-enemy hits, `move3d` planner |
+| `fxlive.js` | real kits' FX in the fight (one `FX3D.Runner` per fighter) + per-action 3D body movement (`move3d`) |
 | `parry.js` | parry / deflect: Ctrl+Space timing windows, perfect-parry stagger + counter, shot reflect / deflect, AI rolls |
 | `fxlib.js` | **FX animation**: every action effect (`runFx`) |
 | `fighter.js` | fighter creation, per-tick update, altitude, wall / ground splats |
@@ -337,16 +337,10 @@ Rig Forge last saved is what you fight with.
   with each action's length (frames × frame ms), attack chain, cooldowns, trigger conditions
   (`realkits.js realCond`), dodge and movement style (orbit / chase).
 - **The FX:** played by FX Studio's own runtime (`../tools/fx/studio/fxkit.js` and its style
-  files, loaded unchanged). They keep their 2D look, timing, damage, knockback and re-hits.
-  `fx2d.js` runs one `FXK.Player` per fighter in a 2D space centred on its body, with
-  2D x = camera right, 2D y = camera down, and 28 px = one body.
-  - The enemy sits in that space where it appears from the camera, so shots fly at it and
-    hits land where they touch.
-  - The drawing is painted onto two camera-facing cards in the 3D scene: the 2D "behind"
-    layer just behind the body, "front" just in front. Perspective, fog and anything in
-    front of them still apply.
-- **Not ported yet:** unique abilities, states, transformations, blinks, travel movements
-  and intercepts.
+  files, loaded unchanged). They keep their 2D anime look, timing, damage, knockback and re-hits, laid in the 3D
+  world by `fx3d.js` (see "FX Studio 3D" below). 28 px = one 1.8 m body.
+- **Not ported yet:** unique abilities, states, transformations, blinks, the 2D travel movements (FX Studio 3D's
+  `move3d` replaces them in 3D) and intercepts.
 - **Bodies:** the .glb test body (or the kit's own .glb), toon-shaded in the character's palette colours (see 3D bodies).
 
 If `data/kits.gen.js` is missing, the old hand-made stand-in kits in `kits.js` are used.
@@ -371,3 +365,58 @@ Gameplay rules are Playtest 2's, plus:
     `build_kits.py`; the toggle will live in the future FX Studio 3D). None has it yet. Flyers: hold R / F to climb /
     descend, let go to stay at that height; the AI picks their heights freely; Space + R / F snaps straight up / down.
   - Jump clips: rising = `jump`, falling = `fall`, touch-down = `land` (body clips, fallbacks in `rig_spec.json`).
+
+## FX Studio 3D (Daniel 2026-11-24)
+
+`FX Studio 3D.bat` (repo root) opens `v3/tools/fxstudio3d.html` in Edge. It does for V3 what FX Studio did for 2D:
+per action, the FX (look, timing, where they start, how they lie in 3D, their movement and damage) and how the body
+moves through the action. Daniel's choices: a new page that reads / writes the character's own `<name>.fxkit.json`
+(the 2D data stays shared, 3D settings sit beside it); the FX keep their **2D anime look** but fit the 3D world
+(2.5D: FX Studio's own drawings laid on cards placed in 3D, no new 3D FX); an effect hits **every enemy it touches**.
+
+- **Characters folder…** once (remembered; Reconnect on a new visit): every folder with a `.fxkit.json` is listed.
+  The fighter wears the shared body (`ual_swordsman.glb`) with its own clips (`<name>.glb`, retargeted as in V3), in
+  its palette colour; a grey dummy stands as the target (distance / angle / height, or drag it).
+- **Preview**: Play / scrub / ◀ ▶ frames / loop / speed; the timeline shows each effect's frames and the body
+  movement; after the action it runs 0.7 s more so shots finish. Hits on the dummy flash it and show the damage.
+  Stage toggles: **Planes** (an outline of the plane each live effect lies in: yellow side, green flat, blue ground,
+  violet billboard), **Anchors** (the body's FX anchor points), **Path** (the body's movement), Camera presets.
+- **Actions**: every action in the FX file's `timing`, its length (frames × ms) and cooldown.
+- **FX of this action**: on / off, **+ Add from preset** (FX Studio's 184 presets), **+ Blank** (any kind),
+  **Copy from** another action, Duplicate, Delete, Go to start.
+- **Start spot & 3D placement** (per effect, `effects[i].fx3d`, see below), **Look & timing**, **FX movement**,
+  **Damage** (incl. hit depth), **All look settings** (every `params` value, filterable) and **Effect JSON**
+  (the whole effect, for anything the panels don't show).
+- **Action movement** (per action, `action_settings[a].move3d`, see below).
+- **Character**: **Can fly** (`flight.enabled`, gravity.js).
+- **Save** (Ctrl+S) writes the `.fxkit.json` back (Edge / Chrome; other browsers download it). Undo / Redo (Ctrl+Z /
+  Ctrl+Y), Space = play, ← → = frames. `run_v3.bat` repacks the characters, so the game plays what was saved.
+
+**How the 2D FX live in 3D (`v3/js/fx3d.js`, shared by the game and the studio).** Each action gets its own lane: an
+`FXK.Player` in a 2D frame locked when the action starts (origin = body centre, 2D x = level toward the target,
+2D y = down). Shots keep flying where they were fired; FX on the body follow it. Anchors (`haR`, `wtip`, `head` ...)
+are read from the 3D bones (RIG_SPEC section 3 map; Rig Forge 3D's own `pb_rig3d` anchors; `bone:<Name>`), 2D-only
+anchors (coat tails, extra lines) fall back to the 2D drawing's point. Each effect is painted onto its own card
+(per spawn point) laid by its `fx3d` block:
+
+| `fx3d` key | Meaning (default) |
+|---|---|
+| `lay` | `auto` (glow / particles / pulse / ghost → billboard, the rest → side), `side` = upright through the aim line, `flat` = level at its height, `ground` = on the floor, `billboard` = faces the camera |
+| `tilt_deg` / `yaw_deg` / `pitch_deg` | roll about the aim line (90 lays a side effect level), turn about up, tip up / down (0) |
+| `pivot` | turn about `spawn` (its start point) or `figure` (the body centre) |
+| `anchor` | where it starts on the 3D body, overriding the effect's 2D anchor ("" = its own) |
+| `offset` | [forward, up, side] metres added to where it lies ([0, 0, 0]) |
+| `size_pct` | drawn size (100) |
+| `ink_px` | dark cel outline round the drawing, card pixels (0 = none) |
+| `depth_m` | an enemy body within this many metres of the effect's plane can be hit (0.8; billboard x2) |
+
+Hits: every enemy within `depth_m` (+ its body) of the plane is tested in that plane with FX Studio's own rules
+(`FXK.resolveHits`, exported for this), each enemy with its own hit count, so a slash can cut through a crowd and a
+non-piercing shot stops at the first. In training every dummy can be hit.
+
+**Action movement (`action_settings[a].move3d`, fxlive.js in the game).** `enabled`; start: `start_mode` stay / blink /
+dash (`start_ms`) to a spot `start_dist_m` from the target at `start_angle_deg` (0 = the fighter's side of the target,
+180 = behind it, mirrored by `side`) and `start_height_m`; then `path` none / line / leap / arc / zigzag / flank /
+hit_retreat from `from_frame` to `to_frame` (-1 = the end) to the end spot (`end_dist_m`, `end_angle_deg`,
+`end_height_m`), shaped by `arc_m` / `zigs`, eased by `ease`; `face` target / travel. While it runs, the clip's root
+motion, the lunge, drift and gravity stand aside; afterwards a ground fighter falls back down. Solo + Battle.

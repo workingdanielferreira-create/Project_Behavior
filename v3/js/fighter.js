@@ -35,7 +35,8 @@ function updFighter(f){
   if(f.leap>0){f.leap--;f.leapT=f.leapT||f.leap+1;const u=1-f.leap/f.leapT;if(f.leap<=0)f.leapT=0;f.x=f.leapFrom[0]+(f.leapTo[0]-f.leapFrom[0])*u;f.y=f.leapFrom[1]+(f.leapTo[1]-f.leapFrom[1])*u;f.h=Math.sin(u*Math.PI)*5;}else f.h=0;
   // action timeline
   if(f.act){const a=f.act;const tms=a.t*TICK;
-    if(a.def.lunge)while(a.li<a.def.lunge.length&&a.def.lunge[a.li][0]<=tms){const L=a.def.lunge[a.li++];const d=Math.hypot(e.x-f.x,e.y-f.y);const want=Math.min(L[1],Math.max(0,d-f.k.reach*.55));if(want>15){const ang=Math.atan2(e.y-f.y,e.x-f.x);f.snapCd=0;snapTo(f,f.x+Math.cos(ang)*want,f.y+Math.sin(ang)*want,false,true,e.z);}}
+    if(f.mv3)mv3Step(f,a);   // FX Studio 3D movement (fxlive.js)
+    if(a.def.lunge&&!a.def.move3d)while(a.li<a.def.lunge.length&&a.def.lunge[a.li][0]<=tms){const L=a.def.lunge[a.li++];const d=Math.hypot(e.x-f.x,e.y-f.y);const want=Math.min(L[1],Math.max(0,d-f.k.reach*.55));if(want>15){const ang=Math.atan2(e.y-f.y,e.x-f.x);f.snapCd=0;snapTo(f,f.x+Math.cos(ang)*want,f.y+Math.sin(ang)*want,false,true,e.z);}}
     while(a.fi<a.def.fx.length&&a.def.fx[a.fi][0]<=tms){const F=a.def.fx[a.fi++];runFx(f,F[1],F[2]);if(!f.act)break;}
     if(f.act===a&&a.def.hits)while(a.hi<a.def.hits.length&&a.def.hits[a.hi][0]<=tms){const h=a.def.hits[a.hi++];if(training&&f.side===0&&h[3]>0)trainDummies().forEach(t=>hitResolve(f,t,h));else hitResolve(f,e,h);if(!f.act)break;}
     if(f.act===a){a.t++;if(a.t*TICK>=a.def.dur){endAct(f);}}}
@@ -49,7 +50,7 @@ function updFighter(f){
       else if(d>4){mx=dx/d;my=dy/d;drift=f.k.speed*(sty?sty[2]:(SPEEDMUL[it]||1))*(burst()?1.15:1)*Math.min(1,d/(['engage','pressure','punish'].includes(it)?30:90));}}
     // ranged kiting: too close -> snap away
     if(!f.k.melee&&free&&Math.hypot(e.x-f.x,e.y-f.y)<130&&f.snapCd<=tick&&Math.random()<.2){const a=Math.atan2(f.y-e.y,f.x-e.x)+rnd(-.7,.7);snapTo(f,f.x+Math.cos(a)*360,f.y+Math.sin(a)*360,Math.random()<f.k.blink);}}
-  if(f.act&&f.act.kind!=='ult')drift*=.25;if(f.stun>0||f.gone>0)drift=0;
+  if(f.act&&f.act.kind!=='ult')drift*=.25;if(f.stun>0||f.gone>0||f.mv3)drift=0;
   // stutter-step footwork: a quick step, then a planted stance (no gliding)
   if(drift>0&&!f.snap){drift*=(f.spdMul||1);const cyc=.24,mv=.1;const prev=f.stepT;f.stepT=(f.stepT+DT)%cyc;const moving=f.stepT<mv;
     if(f.z>10){f.x+=mx*drift*DT;f.y+=my*drift*DT;}   // in the air: steady drift, no footwork
@@ -61,7 +62,7 @@ function updFighter(f){
   if(f.x<20||f.x>W-20){const sp=Math.abs(f.vx);f.x=clamp(f.x,20,W-20);if(sp>700&&f.stun>0){wallSplat(f);}f.vx*=-.3;}
   if(f.y<20||f.y>H-20){const sp=Math.abs(f.vy);f.y=clamp(f.y,20,H-20);if(sp>700&&f.stun>0){wallSplat(f);}f.vy*=-.3;}
   // facing
-  if(!f.snap||f.act){const want=e.phantom?(mx||my?Math.atan2(my,mx):f.face):Math.atan2(e.y-f.y,e.x-f.x);let d=((want-f.face+Math.PI)%TAU+TAU)%TAU-Math.PI;f.face+=d*.35;}
+  if(!f.snap||f.act){const want=f.mv3&&f.mv3.plan.face==='travel'&&f.mv3.dir!=null?f.mv3.dir:e.phantom?(mx||my?Math.atan2(my,mx):f.face):Math.atan2(e.y-f.y,e.x-f.x);let d=((want-f.face+Math.PI)%TAU+TAU)%TAU-Math.PI;f.face+=d*.35;}
   // attacks
   if(!handson&&!(f.side===0&&f.manualNoAttack))tryAttack(f,e,false);
   autoReact(f,e);
@@ -84,7 +85,7 @@ function updAltitude(f,e){
   else want=f.zPref;
   if(!f.k.melee&&it!=='punish')want=Math.max(want,e.z+180);
   want=clamp(want,0,ZMAX);const rawWant=want;want=Math.min(want,ceil);f.zWant=want;f.zWantRaw=rawWant;
-  if(f.snap||f.leap>0)return;
+  if(f.snap||f.leap>0||f.mv3)return;
   if(f.stun>0||f.vz>900||f.vz<-900){f.vz-=2600*DT;f.z+=f.vz*DT;if(f.z<=0){if(f.vz<-1500&&f.stun>0)groundSplat(f);f.z=0;f.vz=f.vz<-700?-f.vz*.22:0;}if(f.z>ZMAX+200){f.z=ZMAX+200;f.vz=Math.min(0,f.vz);}return;}
   const dz=want-f.z;const manual=f.side===0&&f.manualZ!=null;
   // big height change = a 3D snap

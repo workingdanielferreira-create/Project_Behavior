@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FX Studio 3D</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* FX Studio 3D (V3): a character's actions on its 3D body, their FX (FX Studio's 2D anime FX laid in 3D), where they
+   start and lie, their damage, and how the body moves through the action. Stage + timeline left, settings right. */
+:root {
+  --bg: #0d1120; --panel: #151b2e; --line: #29314a; --fg: #e6e9f2; --muted: #98a1b8;
+  --accent: #8aa6ff; --accent-soft: #1e2847; --stage: #0a0e1a; --ok: #5fd39a; --warn: #ff9a6b; --key: #ffc04a;
+  --anchor: #3de0ff; --move: #ff7ad9;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #eef0f5; --panel: #ffffff; --line: #d5d9e4; --fg: #141a2b; --muted: #5b6479;
+  --accent: #1d3f9a; --accent-soft: #e2e8f8; --stage: #dfe3ec; --ok: #1f7a4d; --warn: #a2461c; --key: #b07600;
+  --anchor: #0e8fae; --move: #b0247f; color-scheme: light;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  --bg: #eef0f5; --panel: #ffffff; --line: #d5d9e4; --fg: #141a2b; --muted: #5b6479;
+  --accent: #1d3f9a; --accent-soft: #e2e8f8; --stage: #dfe3ec; --ok: #1f7a4d; --warn: #a2461c; --key: #b07600;
+  --anchor: #0e8fae; --move: #b0247f; color-scheme: light } }
+html, body { height: 100%; margin: 0; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 14px; }
+.app { box-sizing: border-box; min-height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 390px;
+  grid-template-rows: auto minmax(0, 1fr); gap: 12px; padding-block: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+@media (max-width: 960px) { .app { grid-template-columns: minmax(0, 1fr); } }
+.bar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bar h1 { font-family: var(--display); font-size: 20px; margin: 0 8px 0 0; letter-spacing: -.01em; }
+#status { font-family: var(--mono); font-size: 12px; color: var(--ok); margin-left: auto; min-width: 0; overflow-wrap: anywhere; }
+#status.warn { color: var(--warn); }
+.left { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  height: calc(100vh - 250px); min-height: 380px; }
+@media (max-width: 960px) { .stage { height: 60vh; } }
+#view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+#over { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.hud { position: absolute; left: 12px; top: 10px; font-family: var(--mono); font-size: 12px; color: #a9b3cc; line-height: 1.5;
+  pointer-events: none; text-shadow: 0 1px 2px #000; }
+.hud b { color: #fff; font-weight: 500; }
+.lbl { position: absolute; font-family: var(--mono); font-size: 10px; color: var(--anchor); transform: translate(6px, -50%);
+  white-space: nowrap; text-shadow: 0 1px 2px #000; }
+.num { position: absolute; font-family: var(--display); font-weight: 700; font-size: 20px; color: #ffd54a; transform: translate(-50%, -50%);
+  text-shadow: 0 2px 0 #000, 0 0 8px #000; transition: none; }
+.drop { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
+  color: var(--muted); padding: 24px; line-height: 1.6; }
+.vbar { position: absolute; right: 10px; top: 10px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 70%; }
+.timeline { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.tl-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tl-row .grow { flex: 1; min-width: 120px; }
+#frameOut { font-family: var(--mono); font-size: 12px; color: var(--muted); min-width: 190px; }
+.bars { position: relative; border: 1px solid var(--line); border-radius: 6px; min-height: 22px; }
+.bars .b { position: absolute; height: 16px; border-radius: 4px; background: var(--accent-soft); border: 1px solid var(--accent);
+  font-size: 10px; font-family: var(--mono); color: var(--fg); overflow: hidden; white-space: nowrap; padding: 0 4px; box-sizing: border-box;
+  cursor: pointer; line-height: 14px; }
+.bars .b.sel { background: var(--accent); color: var(--bg); }
+.bars .b.off { opacity: .4; }
+.bars .b.mv { border-color: var(--move); background: transparent; color: var(--move); cursor: default; }
+.bars .ph { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--key); pointer-events: none; }
+.side { display: flex; flex-direction: column; gap: 10px; min-width: 0; overflow: auto; max-height: calc(100vh - 70px); }
+@media (max-width: 960px) { .side { max-height: none; } }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+section > h2 { font-family: var(--display); font-size: 15px; margin: 0; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; }
+section > h2::before { content: "▾"; font-size: 12px; width: 12px; color: var(--muted); transition: transform .12s; }
+section.folded > h2::before { transform: rotate(-90deg); }
+section.folded > :not(h2) { display: none !important; }
+section > h2 small { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--muted); margin-left: auto; }
+.row { display: grid; grid-template-columns: 128px minmax(0, 1fr); align-items: center; gap: 8px; }
+.row > label { font-size: 12px; color: var(--muted); }
+.row .pair { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.row .pair input[type=range] { flex: 1; min-width: 0; }
+.row .pair input[type=number] { width: 72px; }
+.xyz { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.note { font-size: 12px; color: var(--muted); line-height: 1.45; margin: 0; }
+.btns { display: flex; flex-wrap: wrap; gap: 6px; }
+button, select, input[type=text], input[type=number], textarea {
+  font: inherit; font-size: 13px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; min-width: 0; }
+input[type=number], textarea { font-family: var(--mono); font-size: 12px; }
+button { cursor: pointer; background: var(--accent-soft); }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+button[aria-pressed=true] { background: var(--accent); color: var(--bg); }
+button:disabled, select:disabled, input:disabled { opacity: .5; cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input[type=color] { width: 44px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; }
+.list { display: flex; flex-direction: column; gap: 2px; max-height: 230px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 3px; }
+.list .it { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+.list .it:hover { background: var(--accent-soft); }
+.list .it.sel { background: var(--accent); color: var(--bg); }
+.list .it .m { font-family: var(--mono); font-size: 11px; opacity: .75; margin-left: auto; white-space: nowrap; }
+.list .it input { margin: 0; }
+.params { display: flex; flex-direction: column; gap: 4px; max-height: 340px; overflow: auto; padding-right: 2px; }
+.params .row { grid-template-columns: 150px minmax(0, 1fr); }
+textarea { width: 100%; box-sizing: border-box; min-height: 180px; resize: vertical; }
+h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 4px 0 0; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <h1>FX Studio 3D</h1>
+    <button id="dirBtn" type="button" title="Pick the game's characters folder (remembered)">Characters folder…</button>
+    <button id="reconnect" type="button" hidden>Reconnect</button>
+    <select id="charSel" aria-label="Character" disabled><option>— pick the characters folder —</option></select>
+    <button id="save" class="primary" type="button" disabled title="Ctrl+S: write the character's .fxkit.json">Save</button>
+    <button id="undo" type="button" title="Ctrl+Z" disabled>Undo</button>
+    <button id="redo" type="button" title="Ctrl+Y" disabled>Redo</button>
+    <span id="status" role="status">Pick the characters folder to start.</span>
+    <input id="dirInput" type="file" webkitdirectory multiple hidden>
+  </header>
+
+  <div class="left">
+    <div class="stage">
+      <canvas id="view" aria-label="3D preview"></canvas>
+      <div id="over"></div>
+      <div class="hud" id="hud"></div>
+      <div class="vbar">
+        <select id="gizmo" aria-label="Drag with the mouse" title="What the arrows on the stage move">
+          <option value="">Drag: nothing</option><option value="fx">Drag: FX start spot</option><option value="dummy">Drag: target dummy</option>
+        </select>
+        <button id="vPlanes" type="button" aria-pressed="true" title="Outline the plane each live FX lies in">Planes</button>
+        <button id="vAnchors" type="button" aria-pressed="false" title="Show the body's FX anchors">Anchors</button>
+        <button id="vPath" type="button" aria-pressed="true" title="Show the body's movement path">Path</button>
+        <select id="camSel" aria-label="Camera"><option value="">Camera…</option><option value="side">Side</option><option value="front">Behind fighter</option><option value="top">Top</option><option value="three">3/4</option></select>
+      </div>
+      <div class="drop" id="drop">Pick the <b>characters</b> folder (top left) — every character with an FX file is listed.<br>Then choose a character and an action.</div>
+    </div>
+    <div class="timeline">
+      <div class="tl-row">
+        <button id="play" type="button" aria-pressed="false" title="Space">Play</button>
+        <button id="stepB" type="button" title="← one frame">◀</button>
+        <button id="stepF" type="button" title="→ one frame">▶</button>
+        <input id="scrub" class="grow" type="range" min="0" max="100" value="0" aria-label="Action time">
+        <span id="frameOut">—</span>
+        <label class="note"><input id="loop" type="checkbox" checked> loop</label>
+        <select id="speed" aria-label="Speed"><option value="1">100%</option><option value="0.5">50%</option><option value="0.25">25%</option><option value="0.1">10%</option></select>
+      </div>
+      <div class="bars" id="bars"></div>
+    </div>
+  </div>
+
+  <aside class="side" id="side">
+    <section id="secChar"><h2>Character <small id="charOut"></small></h2>
+      <div class="row"><label for="flight">Can fly</label><div class="pair"><input id="flight" type="checkbox"><span class="note">stays in the air (R / F climb / descend); off = jumps + gravity</span></div></div>
+      <p class="note" id="bodyOut"></p>
+    </section>
+
+    <section id="secActs"><h2>Actions <small id="actOut"></small></h2>
+      <div class="list" id="acts"></div>
+      <div class="row"><label>Length</label><div class="pair"><input id="aFrames" type="number" min="1" step="1" title="frames"> × <input id="aFms" type="number" min="1" step="1" title="ms per frame"> ms</div></div>
+      <div class="row"><label for="aCool">Cooldown (ms)</label><input id="aCool" type="number" min="0" step="50"></div>
+    </section>
+
+    <section id="secDummy"><h2>Target dummy</h2>
+      <div class="row"><label>Distance (m)</label><div class="pair"><input id="dDist" type="range" min="0.5" max="14" step="0.1"><input id="dDistN" type="number" step="0.1"></div></div>
+      <div class="row"><label>Angle (°)</label><div class="pair"><input id="dAng" type="range" min="-180" max="180" step="1"><input id="dAngN" type="number" step="1"></div></div>
+      <div class="row"><label>Height (m)</label><div class="pair"><input id="dH" type="range" min="0" max="8" step="0.1"><input id="dHN" type="number" step="0.1"></div></div>
+      <p class="note" id="hitOut">Hits on the dummy show here while it plays.</p>
+    </section>
+
+    <section id="secMove"><h2>Action movement <small>body, in 3D</small></h2>
+      <p class="note">Where the fighter stands when the action begins and where it ends up, round the target. Angle 0 = on the fighter's side of the target, 180 = behind it.</p>
+      <div id="moveForm"></div>
+    </section>
+
+    <section id="secFx"><h2>FX of this action <small id="fxCount"></small></h2>
+      <div class="list" id="fxList"></div>
+      <div class="btns">
+        <select id="preset" aria-label="Add from preset"><option value="">+ Add from preset…</option></select>
+        <select id="newPrim" aria-label="Add a blank effect"><option value="">+ Blank…</option></select>
+        <select id="copyFrom" aria-label="Copy an effect from another action"><option value="">Copy from…</option></select>
+      </div>
+      <div class="btns"><button id="fxDup" type="button">Duplicate</button><button id="fxDel" type="button">Delete</button><button id="fxGo" type="button" title="Jump to its start frame">Go to start</button></div>
+    </section>
+
+    <section id="secPlace"><h2>Start spot &amp; 3D placement <small id="placeOut"></small></h2>
+      <p class="note">The effect keeps its 2D anime drawing; this lays it in the 3D world. <b>Side</b> = the upright plane through the aim line, <b>Flat</b> = level at its height, <b>Ground</b> = on the floor, <b>Billboard</b> = faces the camera.</p>
+      <div id="placeForm"></div>
+      <div class="btns"><button id="place0" type="button">Reset 3D placement</button></div>
+    </section>
+
+    <section id="secLook"><h2>Look &amp; timing</h2><div id="lookForm"></div></section>
+    <section id="secMotion" class="folded"><h2>FX movement</h2><div id="motionForm"></div></section>
+    <section id="secHit"><h2>Damage</h2><div id="hitForm"></div></section>
+    <section id="secAll" class="folded"><h2>All look settings <small id="allOut"></small></h2>
+      <input id="pFilter" type="text" placeholder="Filter settings…" aria-label="Filter settings">
+      <div class="params" id="params"></div>
+    </section>
+    <section id="secJson" class="folded"><h2>Effect JSON <small>everything</small></h2>
+      <p class="note">The whole effect as stored (2D data + the fx3d block). Edit and Apply for anything the panels don't show (keys, entry sets, intercept, escort …).</p>
+      <textarea id="json" spellcheck="false"></textarea>
+      <div class="btns"><button id="jsonApply" type="button">Apply</button></div>
+    </section>
+  </aside>
+</div>
+
+<script src="../lib/three.min.js"></script>
+<script src="../lib/GLTFLoader.js"></script>
+<script src="../lib/OrbitControls.js"></script>
+<script src="../lib/TransformControls.js"></script>
+<script src="../js/keytween.js"></script>
+<script src="../js/retarget.js"></script>
+<script src="../js/weapons3d.js"></script>
+<!-- FX Studio's own 2D FX runtime, loaded unchanged (as in the game) -->
+<script src="../../tools/fx/studio/fxkit.js"></script>
+<script src="../../tools/fx/studio/swordfx.js"></script>
+<script src="../../tools/fx/studio/hitfx.js"></script>
+<script src="../../tools/fx/studio/strikefx.js"></script>
+<script src="../../tools/fx/studio/kickfx.js"></script>
+<script src="../../tools/fx/studio/powerfx.js"></script>
+<script src="../../tools/fx/studio/gunfx.js"></script>
+<script src="../../tools/fx/studio/weaponfx.js"></script>
+<script src="../../tools/fx/studio/crescentfx.js"></script>
+<script src="../../tools/fx/studio/slashline.js"></script>
+<script src="../../tools/fx/studio/defendfx.js"></script>
+<script src="../../tools/fx/studio/presets.js"></script>
+<script src="../js/fx3d.js"></script>
+<script>
+'use strict';
+(function () {
+const $ = id => document.getElementById(id);
+const TICK = 16, TAIL_MS = 700, BODY_NAME = 'ual_swordsman';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const clone = o => JSON.parse(JSON.stringify(o));
+function status(t, warn) { const s = $('status'); s.textContent = t; s.classList.toggle('warn', !!warn); }
+
+/* ---------------------------------------------------------------- state */
+const S = {dir: null, files: null, chars: [], name: '', F: null, CH: null, fxFile: '', own: null,
+  act: '', sel: -1, playing: false, acc: 0, k: 0, simK: -1, actKey: {}, plan: null, hits: [], dmg: 0,
+  dirty: false, undo: [], redo: [], editing: false, runner: null, fighter: null, dummy: null, bodyBuf: null};
+
+/* ---------------------------------------------------------------- 3D stage */
+const cvs = $('view'), renderer = new THREE.WebGLRenderer({canvas: cvs, antialias: true});
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x141834); scene.fog = new THREE.Fog(0x161a38, 30, 90);
+const cam = new THREE.PerspectiveCamera(38, 1, 0.05, 300); cam.position.set(1.5, 2.6, 7.5);
+const orbit = new THREE.OrbitControls(cam, cvs); orbit.target.set(1.1, 1, 0); orbit.update();
+scene.add(new THREE.HemisphereLight(0xb0c0ff, 0x201018, 0.8)); const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(-10, 20, 10); scene.add(sun);
+const gd = new Uint8Array([60, 60, 60, 255, 140, 140, 140, 255, 255, 255, 255, 255]); const grad = new THREE.DataTexture(gd, 3, 1, THREE.RGBAFormat);
+grad.minFilter = grad.magFilter = THREE.NearestFilter; grad.needsUpdate = true;
+{ const fl = new THREE.Mesh(new THREE.CircleGeometry(16, 64), new THREE.MeshToonMaterial({color: 0x232a4d, gradientMap: grad}));
+  fl.rotation.x = -Math.PI / 2; scene.add(fl);
+  const gh = new THREE.GridHelper(32, 32, 0x3a4680, 0x2a3360); gh.position.y = 0.005; scene.add(gh); }
+function resize() { const r = cvs.parentElement.getBoundingClientRect(); if (!r.width) return; renderer.setSize(r.width, r.height, false); cam.aspect = r.width / r.height; cam.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(cvs.parentElement); resize();
+const tc = new THREE.TransformControls(cam, cvs); tc.setSize(0.8); scene.add(tc);
+tc.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if (e.value) beginEdit(); });
+const gizmoObj = new THREE.Object3D(); scene.add(gizmoObj);
+// helpers: ring markers, path line, plane outlines, anchor dots
+function ring(col, r) { const m = new THREE.Mesh(new THREE.RingGeometry(r * 0.82, r, 40), new THREE.MeshBasicMaterial({color: col, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false}));
+  m.rotation.x = -Math.PI / 2; m.renderOrder = 2; scene.add(m); return m; }
+const ringStart = ring(0x3de0ff, 0.45), ringEnd = ring(0xff7ad9, 0.45), ringFighter = ring(0xffffff, 0.35), ringDummy = ring(0xff5a6a, 0.4);
+const pathLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({color: 0xff7ad9, dashSize: 0.18, gapSize: 0.1}));
+scene.add(pathLine);
+const planeLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({vertexColors: true, transparent: true, opacity: 0.8, depthTest: false}));
+planeLines.renderOrder = 9; scene.add(planeLines);
+const anchorDots = new THREE.Group(); scene.add(anchorDots);
+const view = {planes: true, anchors: false, path: true};
+
+/* ---------------------------------------------------------------- body (.glb) */
+const GLB_DROP = /^(idle|run|walk|sprint|attack_normal(_\d+)?|attack_special(_\d+)?|ultimate(_\d+)?|transform|switch_in|switch_out|defend|parry)$/;
+const GLB_FALLBACK = {idle_ultimate: 'idle', defend_reflect: 'defend', defend_recovery: 'stagger', parry: 'defend', switch_in: 'dash', switch_out: 'dodge_back',
+  transform: 'ultimate', dodge_back: 'dodge', dodge_left: 'dodge', dodge_right: 'dodge', walk: 'run', sprint: 'run', dash: 'dodge', jump: 'idle', air: 'idle',
+  air_move: 'air', fall: 'air', land: 'idle', hit_heavy: 'hit_light', hit_air: 'hit_heavy', stagger: 'hit_heavy', knockdown: 'hit_heavy', getup: 'idle'};
+function parseGlb(buf) { return new Promise((res, rej) => new THREE.GLTFLoader().parse(buf.slice(0), '', g => { try { ktExpandAll(g); } catch (e) {} res(g); }, rej)); }
+function skinned(g) { let m = false; g.scene.traverse(o => { if (o.isSkinnedMesh) m = true; }); return m; }
+// one fighter / dummy: the body scene, its clips, toon + ink look, weapons
+async function makeBody(ownGltf, col, melee, weapons) {
+  const b = await parseGlb(S.bodyBuf);
+  let sceneB = b.scene, clips = {};
+  b.animations.forEach(c => { clips[c.name] = c; });
+  if (ownGltf) {
+    if (skinned(ownGltf)) { sceneB = ownGltf.scene; clips = {}; ownGltf.animations.forEach(c => { clips[c.name] = c; }); }
+    else { let mine = {}; try { mine = rtClips(ownGltf.animations, ownGltf.scene, b.scene); } catch (e) { console.error(e); }
+      const keep = {}; for (const n in clips) if (!GLB_DROP.test(n)) keep[n] = clips[n]; clips = Object.assign(keep, mine); }
+  }
+  const root = new THREE.Group(); const model = sceneB; root.add(model); scene.add(root);
+  model.updateMatrixWorld(true); const box = new THREE.Box3().setFromObject(model); const h = Math.max(0.5, box.max.y - box.min.y);
+  model.scale.setScalar(1.8 / h);
+  const mat = new THREE.MeshToonMaterial({color: col, gradientMap: grad, skinning: true});
+  const blade = new THREE.MeshToonMaterial({color: 0xe8f4ff, gradientMap: grad, skinning: true, emissive: new THREE.Color(0x223044)});
+  const inkM = new THREE.MeshToonMaterial({color: 0x05070d, side: THREE.BackSide, skinning: true});
+  inkM.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <project_vertex>', 'transformed += normalize(objectNormal) * 0.012;\n#include <project_vertex>'); };
+  const sk = []; model.traverse(o => { if (o.isSkinnedMesh) sk.push(o); });
+  sk.forEach(o => { const isBlade = /blade/i.test(o.name) || /blade/i.test(o.material && o.material.name || ''); o.material = isBlade ? blade : mat; o.frustumCulled = false;
+    if (isBlade) { const left = /blade_?L/i.test(o.name); const cw = weapons ? (left ? weapons.L : weapons.R) : !left; o.visible = !!melee && pbwOn(cw) && !pbwCustom(cw); }
+    const out = new THREE.SkinnedMesh(o.geometry, inkM); out.bind(o.skeleton, o.bindMatrix); out.frustumCulled = false; out.visible = o.visible; o.parent.add(out); });
+  if (melee && weapons) try { pbwAttach(model, weapons, {blade, hilt: new THREE.MeshToonMaterial({color: 0x2a2f3c, gradientMap: grad}), ink: new THREE.MeshToonMaterial({color: 0x05070d, side: THREE.BackSide})}); } catch (e) {}
+  const mixer = new THREE.AnimationMixer(model), bones = {};
+  return {root, model, clips, mixer, mat, cur: '', act: null,
+    bone: n => { if (!(n in bones)) bones[n] = model.getObjectByName(n) || null; return bones[n]; }};
+}
+function clipName(B, name) { let n = name, g = 0; while (n && !B.clips[n] && g++ < 8) { const m = n.match(/^(attack_normal|attack_special|ultimate)_\d+$/); n = m ? m[1] : GLB_FALLBACK[n]; } return n && B.clips[n] ? n : (B.clips.idle ? 'idle' : Object.keys(B.clips)[0]); }
+// pose a body: clip of `name` at `ms` into an action of length `dur` (0 = natural speed, looped)
+function pose(B, name, ms, dur) {
+  const n = clipName(B, name); if (!n) return; const clip = B.clips[n];
+  if (B.cur !== n) { B.mixer.stopAllAction(); B.act = B.mixer.clipAction(clip); B.act.play(); B.cur = n; }
+  let t = dur > 0 ? Math.min(1, ms / dur) * clip.duration : (ms / 1000) % Math.max(0.01, clip.duration);
+  B.act.time = Math.min(t, clip.duration - 1e-4); B.mixer.update(0); B.root.updateMatrixWorld(true);
+}
+function stripRootMotion(B) {   // the studio's movement drives the body; travelling clips stay in place (as in game when move3d is on)
+  const hips = B.model.getObjectByName('Hips'); if (!hips) return;
+  for (const n in B.clips) { const tr = B.clips[n].tracks.find(t => t.name === 'Hips.position'); if (!tr || tr.values.length < 6) continue;
+    const V = tr.values, N = V.length / 3, x0 = V[0], z0 = V[2], x1 = V[N * 3 - 3], z1 = V[N * 3 - 1];
+    if (Math.hypot(x1 - x0, z1 - z0) < 0.25 / (B.model.scale.x || 1)) continue;
+    for (let i = 0; i < N; i++) { V[i * 3] = x0; V[i * 3 + 2] = z0; } }
+}
+
+/* ---------------------------------------------------------------- characters folder */
+function db(mode, fn) { return new Promise((res, rej) => { const r = indexedDB.open('pb_fxstudio3d', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onerror = () => rej(r.error);
+  r.onsuccess = () => { const d = r.result, tx = d.transaction('kv', mode), q = fn(tx.objectStore('kv')); tx.oncomplete = () => { d.close(); res(q && q.result); }; tx.onerror = () => { d.close(); rej(tx.error); }; }; }); }
+const inFrame = () => { try { return window.self !== window.top; } catch (e) { return true; } };
+async function getText(dirH, name) { const f = await (await dirH.getFileHandle(name)).getFile(); return f.text(); }
+async function getBuf(dirH, name) { const f = await (await dirH.getFileHandle(name)).getFile(); return f.arrayBuffer(); }
+async function scan() {
+  const list = [];
+  if (S.dir) {
+    for await (const h of S.dir.values()) {
+      if (h.kind !== 'directory' || h.name.charAt(0) === '.') continue;
+      let fx = '', glb = false, ch = false;
+      for await (const f of h.values()) { if (f.kind !== 'file') continue;
+        if (/\.fxkit\.json$/i.test(f.name) && (!fx || f.name.toLowerCase() === h.name.toLowerCase() + '.fxkit.json')) fx = f.name;
+        if (f.name.toLowerCase() === h.name.toLowerCase() + '.glb') glb = f.name; if (f.name === 'character.json') ch = true; }
+      if (fx) list.push({name: h.name, fx, glb, ch, h});
+    }
+  } else if (S.files) {
+    const by = {};
+    for (const f of S.files) { const p = (f.webkitRelativePath || f.name).split('/'); if (p.length < 3) continue; const d = p[p.length - 2]; (by[d] || (by[d] = {})); by[d][p[p.length - 1]] = f; }
+    for (const d in by) { const names = Object.keys(by[d]); const fx = names.find(n => n.toLowerCase() === d.toLowerCase() + '.fxkit.json') || names.find(n => /\.fxkit\.json$/i.test(n));
+      if (fx) list.push({name: d, fx, glb: names.find(n => n.toLowerCase() === d.toLowerCase() + '.glb') || false, ch: !!by[d]['character.json'], files: by[d]}); }
+  }
+  list.sort((a, b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1);
+  S.chars = list;
+  const sel = $('charSel'); sel.disabled = !list.length;
+  sel.innerHTML = '<option value="">— choose a character (' + list.length + ') —</option>' + list.map((c, i) => '<option value="' + i + '">' + esc(c.name) + '</option>').join('');
+  status(list.length ? 'Characters folder: ' + list.length + ' characters with an FX file.' + (S.dir ? '' : ' (read-only: Save downloads the file)') : 'No character folders with a .fxkit.json found here.', !list.length);
+  let last = ''; try { last = localStorage.getItem('pbFx3dChar') || ''; } catch (e) {}
+  const i = list.findIndex(c => c.name === last); if (i >= 0 && !S.name) { sel.value = String(i); openChar(i); }
+}
+async function readEntry(c, name) { if (c.h) return getText(c.h, name); return c.files[name].text(); }
+async function readEntryBuf(c, name) { if (c.h) return getBuf(c.h, name); return c.files[name].arrayBuffer(); }
+async function bodyBuffer() {
+  if (S.bodyBuf) return S.bodyBuf;
+  const c = S.chars.find(x => x.name.toLowerCase() === BODY_NAME);
+  if (S.dir) { const d = await S.dir.getDirectoryHandle(BODY_NAME); S.bodyBuf = await getBuf(d, BODY_NAME + '.glb'); return S.bodyBuf; }
+  const f = S.files && S.files.find(x => /(^|\/)ual_swordsman\/ual_swordsman\.glb$/i.test(x.webkitRelativePath || ''));
+  if (f) { S.bodyBuf = await f.arrayBuffer(); return S.bodyBuf; }
+  if (c) { S.bodyBuf = await readEntryBuf(c, BODY_NAME + '.glb'); return S.bodyBuf; }
+  throw new Error('characters/ual_swordsman/ual_swordsman.glb not found');
+}
+$('dirBtn').onclick = () => {
+  if (window.showDirectoryPicker && !inFrame()) window.showDirectoryPicker({id: 'pbchars', mode: 'readwrite'}).then(h => { S.dir = h; S.files = null; db('readwrite', st => st.put(h, 'dir')).catch(() => {}); $('reconnect').hidden = true; scan(); })
+    .catch(e => { if (e && e.name !== 'AbortError') status('Could not open the folder: ' + e.message, true); });
+  else $('dirInput').click();
+};
+$('dirInput').onchange = function () { S.dir = null; S.files = Array.from(this.files || []); scan(); };
+$('reconnect').onclick = () => { if (!S.dir) return; S.dir.requestPermission({mode: 'readwrite'}).then(p => { if (p === 'granted') { $('reconnect').hidden = true; scan(); } }); };
+if (window.showDirectoryPicker && window.indexedDB && !inFrame()) db('readonly', st => st.get('dir')).then(h => {
+  if (!h || !h.queryPermission) return; S.dir = h;
+  return h.queryPermission({mode: 'readwrite'}).then(p => { if (p === 'granted') scan(); else { const b = $('reconnect'); b.textContent = 'Reconnect “' + h.name + '”'; b.hidden = false; status('Last folder: ' + h.name + ' — click Reconnect.'); } });
+}).catch(() => {});
+$('charSel').onchange = function () { if (this.value === '') return; if (S.dirty && !confirm('Discard unsaved changes to ' + S.name + '?')) { this.value = String(S.chars.findIndex(c => c.name === S.name)); return; } openChar(+this.value); };
+
+async function openChar(i) {
+  const c = S.chars[i]; if (!c) return;
+  status('Opening ' + c.name + '…');
+  try {
+    const F = JSON.parse(await readEntry(c, c.fx));
+    let CH = null; if (c.ch) try { CH = JSON.parse(await readEntry(c, 'character.json')); } catch (e) {}
+    await bodyBuffer();
+    let own = null; if (c.glb) try { own = await parseGlb(await readEntryBuf(c, c.glb)); } catch (e) { console.error(e); }
+    clearScene();
+    S.F = F; S.CH = CH; S.name = c.name; S.entry = c; S.fxFile = c.fx; S.own = own; S.dirty = false; S.undo = []; S.redo = [];
+    const pal = (CH && CH.palette) || {}, melee = !(CH && CH.predicates && CH.predicates.uses_melee === false);
+    const meta = own && own.scene.userData && own.scene.userData.pb_body || {}, rig = own && own.scene.userData && own.scene.userData.pb_rig3d || {};
+    S.anchors3d = rig.anchors || null;
+    S.fighter = await makeBody(own, new THREE.Color(pal.body || '#8a8fb0').getHex(), melee, meta.weapons || null);
+    S.dummy = await makeBody(null, 0x6a7088, false, null);
+    stripRootMotion(S.fighter);
+    S.runner = new FX3D.Runner({fx: F, palette: pal, anchors3d: S.anchors3d, scene,
+      onHit: (ref, dmg, kb, inst) => onHit(dmg, kb, inst), onHitstop: () => {}, onShake: () => {}});
+    try { localStorage.setItem('pbFx3dChar', c.name); } catch (e) {}
+    $('drop').hidden = true; $('save').disabled = false;
+    $('charOut').textContent = c.name; $('flight').checked = !!(F.flight && F.flight.enabled);
+    $('bodyOut').textContent = 'Body: ' + BODY_NAME + (own ? (skinned(own) ? ' → its own ' + c.glb : ' + its clips from ' + c.glb) : ' (no ' + c.name + '.glb: the body\'s stock clips play)') +
+      ' · ' + (melee ? 'melee' : 'ranged') + (S.anchors3d ? ' · ' + Object.keys(S.anchors3d).length + ' Rig Forge 3D anchors' : '');
+    const acts = actions(); selAction(acts.indexOf('attack_normal') >= 0 ? 'attack_normal' : acts[0] || 'idle');
+    status('Opened ' + c.name + ' (' + (F.effects || []).length + ' effects).');
+  } catch (e) { console.error(e); status('Could not open ' + c.name + ': ' + e.message, true); }
+}
+function clearScene() {
+  if (S.runner) S.runner.clear(); S.runner = null; tc.detach();
+  [S.fighter, S.dummy].forEach(B => { if (B) scene.remove(B.root); }); S.fighter = S.dummy = null;
+}
+
+/* ---------------------------------------------------------------- save / undo */
+function snapshot() { return JSON.stringify(S.F); }
+function pushUndo() { if (!S.F) return; S.undo.push(snapshot()); if (S.undo.length > 80) S.undo.shift(); S.redo = []; syncUndo(); }
+function beginEdit() { if (!S.editing) { pushUndo(); S.editing = true; } clearTimeout(beginEdit.t); beginEdit.t = setTimeout(() => { S.editing = false; }, 700); }
+function syncUndo() { $('undo').disabled = !S.undo.length; $('redo').disabled = !S.redo.length; $('save').textContent = S.dirty ? 'Save •' : 'Save'; }
+function changed(structural) {
+  S.dirty = true; syncUndo(); if (S.runner) S.runner.reload(S.F); S.simK = -1; S.plan = null;
+  if (structural) { buildActs(); buildFxList(); buildForms(); } else { buildBars(); syncJson(); updateCounts(); }
+}
+function restore(js) { const cur = curFx(), id = cur && cur.id; S.F = JSON.parse(js);
+  S.sel = (S.F.effects || []).findIndex(e => id && e.id === id); if (S.sel < 0) { const l = fxOf(S.act); S.sel = l.length ? l[l.length - 1][1] : -1; } S.dirty = true; if (S.runner) S.runner.reload(S.F); S.simK = -1; S.plan = null; buildActs(); buildFxList(); buildForms(); syncUndo(); }
+$('undo').onclick = () => { if (!S.undo.length) return; S.redo.push(snapshot()); restore(S.undo.pop()); };
+$('redo').onclick = () => { if (!S.redo.length) return; S.undo.push(snapshot()); restore(S.redo.pop()); };
+async function save() {
+  if (!S.F) return;
+  const txt = JSON.stringify(S.F, null, 1) + '\n';
+  try {
+    if (S.entry && S.entry.h) { const h = await S.entry.h.getFileHandle(S.fxFile, {create: true}); const w = await h.createWritable(); await w.write(txt); await w.close();
+      S.dirty = false; syncUndo(); status('Saved ' + S.name + '/' + S.fxFile + '. Run V3 (run_v3.bat repacks the characters) to fight with it.'); }
+    else { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], {type: 'application/json'})); a.download = S.fxFile; a.click();
+      S.dirty = false; syncUndo(); status('Downloaded ' + S.fxFile + ' — put it in characters/' + S.name + '/.'); }
+  } catch (e) { status('Could not save: ' + e.message, true); }
+}
+$('save').onclick = save;
+$('flight').onchange = function () { pushUndo(); S.F.flight = Object.assign({}, S.F.flight || {}, {enabled: this.checked}); changed(false); };
+
+/* ---------------------------------------------------------------- actions */
+function actions() { const T = (S.F && S.F.timing) || {}; return Object.keys(T); }
+function timing(a) { const t = ((S.F && S.F.timing) || {})[a] || {}; return {frames: Math.max(1, +t.frames || 1), fms: Math.max(1, +t.frame_ms || TICK)}; }
+function actDur(a) { const t = timing(a); return Math.round(t.frames * t.fms); }
+function aset(a, make) { const A = S.F.action_settings || (make ? (S.F.action_settings = {}) : {}); return A[a] || (make ? (A[a] = {}) : null); }
+function fxOf(a) { return (S.F.effects || []).map((e, i) => [e, i]).filter(p => p[0].action === a); }
+function buildActs() {
+  const box = $('acts'); box.innerHTML = '';
+  actions().forEach(a => { const n = fxOf(a).length, m = aset(a) && aset(a).move3d && aset(a).move3d.enabled;
+    const d = document.createElement('div'); d.className = 'it' + (a === S.act ? ' sel' : ''); d.tabIndex = 0;
+    d.innerHTML = '<span>' + esc(a) + '</span><span class="m">' + (m ? '↝ ' : '') + n + ' fx · ' + actDur(a) + ' ms</span>';
+    d.onclick = () => selAction(a); d.onkeydown = e => { if (e.key === 'Enter') selAction(a); }; box.appendChild(d); });
+  $('actOut').textContent = actions().length + ' actions';
+  const t = timing(S.act); $('aFrames').value = t.frames; $('aFms').value = t.fms;
+  const as = aset(S.act); $('aCool').value = as ? +as.cooldown_ms || 0 : 0;
+}
+function selAction(a) { S.act = a; const list = fxOf(a); S.sel = list.length ? list[0][1] : -1; S.k = 0; S.simK = -1; S.plan = null; S.acc = 0;
+  buildActs(); buildFxList(); buildForms(); }
+$('aFrames').onchange = function () { const v = Math.max(1, Math.round(+this.value || 1)); pushUndo(); (S.F.timing[S.act] || (S.F.timing[S.act] = {})).frames = v; changed(true); };
+$('aFms').onchange = function () { const v = Math.max(1, +this.value || TICK); pushUndo(); (S.F.timing[S.act] || (S.F.timing[S.act] = {})).frame_ms = v; changed(true); };
+$('aCool').onchange = function () { pushUndo(); aset(S.act, true).cooldown_ms = Math.max(0, +this.value || 0); changed(false); };
+
+/* ---------------------------------------------------------------- FX list */
+function fxLabel(e) { const P = e.params || {}; return (e.prim === 'technique' && P.style ? P.style : e.prim) + ' · f' + (+e.start_frame || 0) + ((+e.end_frame >= 0) ? '–' + e.end_frame : '+'); }
+function buildFxList() {
+  const box = $('fxList'); box.innerHTML = ''; const list = S.F ? fxOf(S.act) : [];
+  list.forEach(([e, i]) => { const d = document.createElement('div'); d.className = 'it' + (i === S.sel ? ' sel' : ''); d.tabIndex = 0;
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = e.enabled !== false; cb.title = 'On / off';
+    cb.onclick = ev => { ev.stopPropagation(); pushUndo(); e.enabled = cb.checked; changed(true); };
+    d.appendChild(cb); const sp = document.createElement('span'); sp.textContent = e.name || e.prim; d.appendChild(sp);
+    const m = document.createElement('span'); m.className = 'm'; m.textContent = fxLabel(e) + ((e.battle || {}).deals_damage ? ' · ⚔' : ''); d.appendChild(m);
+    d.onclick = () => { S.sel = i; buildFxList(); buildForms(); }; d.onkeydown = ev => { if (ev.key === 'Enter') d.onclick(); }; box.appendChild(d); });
+  $('fxCount').textContent = list.length + ' effect' + (list.length === 1 ? '' : 's');
+  // copy-from list: effects of the other actions
+  const cf = $('copyFrom'); cf.innerHTML = '<option value="">Copy from…</option>' + (S.F ? (S.F.effects || []).map((e, i) => e.action === S.act ? '' : '<option value="' + i + '">' + esc((e.action || '?') + ' · ' + (e.name || e.prim)) + '</option>').join('') : '');
+  buildBars();
+}
+function newId() { return 'E' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36); }
+function addEffects(list) { pushUndo(); S.F.effects = S.F.effects || []; let last = -1;
+  list.forEach(src => { const e = clone(src); e.id = newId(); e.action = S.act; e.enabled = true; delete e._c3; S.F.effects.push(FXK.normalize(e)); last = S.F.effects.length - 1; });
+  S.sel = last; changed(true); }
+{ const sel = $('preset'), groups = {};
+  (window.FX_PRESETS || []).forEach((p, i) => { const g = typeof p.group === 'string' ? p.group : 'Other'; (groups[g] || (groups[g] = [])).push([p, i]); });
+  for (const g in groups) sel.insertAdjacentHTML('beforeend', '<optgroup label="' + esc(g) + '">' + groups[g].map(([p, i]) => '<option value="' + i + '" title="' + esc(p.desc || '') + '">' + esc(p.name) + '</option>').join('') + '</optgroup>');
+  sel.onchange = function () { const p = (window.FX_PRESETS || [])[+this.value]; this.value = ''; if (!p || !S.F) return;
+    addEffects(p.effects.map(e => Object.assign({name: p.name}, e))); status('Added preset “' + p.name + '” to ' + S.act + '.'); };
+  $('newPrim').insertAdjacentHTML('beforeend', FXK.PRIMS.map(p => '<option>' + p + '</option>').join(''));
+  $('newPrim').onchange = function () { const p = this.value; this.value = ''; if (!p || !S.F) return; addEffects([FXK.newEffect(p, S.act)]); };
+  $('copyFrom').onchange = function () { const e = S.F && S.F.effects[+this.value]; this.value = ''; if (e) addEffects([Object.assign(clone(e), {name: (e.name || e.prim) + ' copy'})]); }; }
+$('fxDup').onclick = () => { const e = curFx(); if (e) addEffects([Object.assign(clone(e), {name: (e.name || e.prim) + ' copy'})]); };
+$('fxDel').onclick = () => { const e = curFx(); if (!e || !confirm('Delete “' + (e.name || e.prim) + '”?')) return; pushUndo(); S.F.effects.splice(S.sel, 1); const l = fxOf(S.act); S.sel = l.length ? l[0][1] : -1; changed(true); };
+$('fxGo').onclick = () => { const e = curFx(); if (!e) return; const t = timing(S.act); seek(Math.round(Math.max(0, +e.start_frame || 0) * t.fms / TICK) + 1); };
+function curFx() { return S.F && S.sel >= 0 ? S.F.effects[S.sel] : null; }
+
+/* ---------------------------------------------------------------- forms */
+function getP(o, p) { return p.split('.').reduce((a, k) => a == null ? undefined : a[k], o); }
+function setP(o, p, v) { const ks = p.split('.'); let a = o; for (let i = 0; i < ks.length - 1; i++) { if (a[ks[i]] == null || typeof a[ks[i]] !== 'object') a[ks[i]] = {}; a = a[ks[i]]; } a[ks[ks.length - 1]] = v; }
+/* spec rows: {l: label, p: path, t: num | rng | chk | sel | col | txt | xyz, o: options, min, max, step, h: hint, show(view)} */
+function form(box, spec, view, write, after) {
+  box.innerHTML = '';
+  spec.forEach(r => {
+    if (r.show && !r.show(view)) return;
+    if (r.t === 'h') { box.insertAdjacentHTML('beforeend', '<h3>' + esc(r.l) + '</h3>'); return; }
+    const row = document.createElement('div'); row.className = 'row'; const id = 'f_' + Math.random().toString(36).slice(2);
+    row.innerHTML = '<label for="' + id + '"' + (r.h ? ' title="' + esc(r.h) + '"' : '') + '>' + esc(r.l) + '</label>'; let v = getP(view, r.p), el;
+    const put = (val, struct) => { beginEdit(); write(r.p, val); changed(false); if (after) after(r, val); if (struct) buildForms(); };
+    if (r.t === 'chk') { el = document.createElement('input'); el.type = 'checkbox'; el.id = id; el.checked = !!v; el.onchange = () => put(el.checked, r.s); row.appendChild(el); }
+    else if (r.t === 'sel') { el = document.createElement('select'); el.id = id; (typeof r.o === 'function' ? r.o(view) : r.o).forEach(o => { const [val, lab] = Array.isArray(o) ? o : [o, o];
+        el.insertAdjacentHTML('beforeend', '<option value="' + esc(val) + '">' + esc(lab) + '</option>'); });
+      el.value = v == null ? '' : String(v); if (el.value !== String(v == null ? '' : v) && v != null) el.insertAdjacentHTML('afterbegin', '<option>' + esc(v) + '</option>'), el.value = String(v);
+      el.onchange = () => put(el.value, r.s); row.appendChild(el); }
+    else if (r.t === 'col') { el = document.createElement('input'); el.type = 'color'; el.id = id; el.value = /^#[0-9a-f]{6}$/i.test(v || '') ? v : '#ffffff'; el.oninput = () => put(el.value); row.appendChild(el); }
+    else if (r.t === 'txt') { el = document.createElement('input'); el.type = 'text'; el.id = id; el.value = v == null ? '' : v; el.onchange = () => put(el.value); row.appendChild(el); }
+    else if (r.t === 'xyz') { const w = document.createElement('div'); w.className = 'xyz'; const arr = (v || [0, 0, 0]).slice();
+      ['fwd', 'up', 'side'].forEach((ax, i) => { const n = document.createElement('input'); n.type = 'number'; n.step = r.step || 0.05; n.value = (+arr[i] || 0).toFixed(3); n.title = ax + ' (m)'; n.setAttribute('aria-label', r.l + ' ' + ax);
+        if (!i) n.id = id; n.onchange = () => { arr[i] = +n.value || 0; put(arr.slice()); }; w.appendChild(n); }); row.appendChild(w); el = w; }
+    else if (r.t === 'rng') { const w = document.createElement('div'); w.className = 'pair'; const s = document.createElement('input'); s.type = 'range'; s.min = r.min; s.max = r.max; s.step = r.step || 1; s.value = +v || 0;
+      const n = document.createElement('input'); n.type = 'number'; n.step = r.step || 1; n.value = +v || 0; n.id = id;
+      s.oninput = () => { n.value = s.value; put(+s.value); }; n.onchange = () => { s.value = n.value; put(+n.value || 0); }; w.append(s, n); row.appendChild(w); el = w; }
+    else { el = document.createElement('input'); el.type = 'number'; el.id = id; el.step = r.step || 'any'; if (r.min != null) el.min = r.min; el.value = v == null ? '' : v; el.onchange = () => put(el.value === '' ? 0 : +el.value, r.s); row.appendChild(el); }
+    box.appendChild(row);
+  });
+}
+const writeFx = (p, v) => { const e = curFx(); if (!e) return; setP(e, p, v); if (p === 'prim') { e.params = {}; FXK.normalize(e); } };
+function fxView(e) { const v = FXK.normalize(clone(e)); v.fx3d = FX3D.cfg3d(e); return v; }
+function anchorOpts() {
+  const o = [['', '— the effect\'s own anchor —'], ['figure', 'figure (body centre)'], ['target', 'target'], ['root', 'root (ground under the body)']];
+  Object.keys(FX3D.ANCHORS).forEach(k => { if (k !== 'root') o.push([k, k + ' · ' + FX3D.ANCHORS[k][0]]); });
+  if (S.anchors3d) Object.keys(S.anchors3d).forEach(k => { if (!FX3D.ANCHORS[k]) o.push([k, k + ' · Rig Forge 3D (' + S.anchors3d[k].bone + ')']); });
+  ['Hips', 'Spine', 'Spine2', 'Head', 'RightHand', 'LeftHand', 'RightFoot', 'LeftFoot', 'Weapon_R', 'WeaponTip_R', 'Weapon_L', 'WeaponTip_L'].forEach(b => o.push(['bone:' + b, 'bone ' + b]));
+  return o;
+}
+const PLACE = [
+  {l: 'Start at', p: 'fx3d.anchor', t: 'sel', o: anchorOpts, h: 'Where it starts on the 3D body (else the effect\'s own 2D anchor, read from the matching bone)'},
+  {l: 'Lies', p: 'fx3d.lay', t: 'sel', o: [['auto', 'auto (glow / particles / rings face the camera)'], ['side', 'side · upright through the aim line'], ['flat', 'flat · level at its height'], ['ground', 'ground · on the floor'], ['billboard', 'billboard · faces the camera']]},
+  {l: 'Tilt (°)', p: 'fx3d.tilt_deg', t: 'rng', min: -180, max: 180, h: 'Roll about the aim line: 90 lays a side plane level (a horizontal sweep)'},
+  {l: 'Yaw (°)', p: 'fx3d.yaw_deg', t: 'rng', min: -180, max: 180, h: 'Turn about the up axis'},
+  {l: 'Pitch (°)', p: 'fx3d.pitch_deg', t: 'rng', min: -90, max: 90, h: 'Tip the plane up / down'},
+  {l: 'Turn about', p: 'fx3d.pivot', t: 'sel', o: [['spawn', 'its start point'], ['figure', 'the body centre']]},
+  {l: 'Offset (m)', p: 'fx3d.offset', t: 'xyz', h: 'fwd = toward the target, up, side (m). Or Drag: FX start spot on the stage'},
+  {l: 'Size (%)', p: 'fx3d.size_pct', t: 'rng', min: 10, max: 400},
+  {l: 'Ink edge (px)', p: 'fx3d.ink_px', t: 'rng', min: 0, max: 6, step: 0.5, h: 'A dark cel outline round the drawing (0 = none)'},
+];
+const LOOK = [
+  {l: 'Name', p: 'name', t: 'txt'},
+  {l: 'Kind', p: 'prim', t: 'sel', o: () => FXK.PRIMS, s: true},
+  {l: 'Style', p: 'params.style', t: 'sel', o: () => FXK.TECH_STYLES, s: true, show: v => v.prim === 'technique'},
+  {l: 'Shape', p: 'params.shape', t: 'sel', o: ['orb', 'bolt', 'blade'], show: v => v.prim === 'sprite'},
+  {l: 'Colour', p: 'color.mode', t: 'sel', o: ['palette', 'gradient', 'custom', 'cycle'], s: true},
+  {l: 'Colour 1', p: 'color.c1', t: 'col', show: v => v.color.mode !== 'palette'},
+  {l: 'Colour 2', p: 'color.c2', t: 'col', show: v => v.color.mode !== 'palette'},
+  {l: 'Layer', p: 'layer', t: 'sel', o: ['front', 'behind']},
+  {l: 'Blend', p: 'blend', t: 'sel', o: ['normal', 'additive']},
+  {l: 'Length', p: 'params.length', t: 'num', show: v => v.params.length != null},
+  {l: 'Radius', p: 'params.radius', t: 'num', show: v => v.params.radius != null},
+  {l: 'Thickness', p: 'params.thickness', t: 'num', show: v => v.params.thickness != null},
+  {l: 'Span', p: 'params.span', t: 'num', show: v => v.params.span != null},
+  {l: 'Swing ticks', p: 'params.swing_ticks', t: 'num', show: v => v.params.swing_ticks != null},
+  {l: 'Hold ticks', p: 'params.hold_ticks', t: 'num', show: v => v.params.hold_ticks != null},
+  {l: 'Timing', t: 'h'},
+  {l: 'Start frame', p: 'start_frame', t: 'num', step: 1, min: 0},
+  {l: 'End frame', p: 'end_frame', t: 'num', step: 1, h: '-1 = to the end of the action'},
+  {l: 'Life (ticks)', p: 'life_ticks', t: 'num', step: 1, min: 0, h: '0 = its window'},
+  {l: 'Count', p: 'emit.count', t: 'num', step: 1, min: 1},
+  {l: 'Every (ticks)', p: 'emit.every_ticks', t: 'num', step: 1, min: 0, h: '0 = once'},
+  {l: 'Fan (°)', p: 'emit.fan_deg', t: 'num'},
+  {l: 'Always on', p: 'always_on', t: 'chk'},
+];
+const MOTION = [
+  {l: 'Moves', p: 'motion.kind', t: 'sel', o: () => FXK.MOTIONS, s: true},
+  {l: 'Aim', p: 'motion.aim', t: 'sel', o: () => FXK.AIMS},
+  {l: 'Angle (°)', p: 'motion.angle_deg', t: 'num'},
+  {l: 'Aim offset (°)', p: 'motion.aim_offset_deg', t: 'num'},
+  {l: 'Speed', p: 'motion.speed', t: 'num'},
+  {l: 'Turn (°/tick)', p: 'motion.turn_deg', t: 'num', show: v => v.motion.kind === 'homing'},
+  {l: 'Amplitude', p: 'motion.amplitude', t: 'num', show: v => v.motion.kind === 'zigzag'},
+  {l: 'Frequency', p: 'motion.freq', t: 'num', show: v => v.motion.kind === 'zigzag'},
+  {l: 'Orbit rx', p: 'motion.orbit_rx', t: 'num', show: v => v.motion.kind === 'orbit'},
+  {l: 'Orbit ry', p: 'motion.orbit_ry', t: 'num', show: v => v.motion.kind === 'orbit'},
+  {l: 'Orbit (°/tick)', p: 'motion.orbit_deg', t: 'num', show: v => v.motion.kind === 'orbit'},
+  {l: 'Out (px)', p: 'motion.out_px', t: 'num', show: v => v.motion.kind === 'boomerang'},
+  {l: 'Return', p: 'motion.return_style', t: 'sel', o: () => FXK.RETURN_STYLES, show: v => v.motion.kind === 'boomerang'},
+  {l: 'Flip to target', p: 'flip.enabled', t: 'chk'},
+];
+const HIT = [
+  {l: 'Deals damage', p: 'battle.deals_damage', t: 'chk', s: true},
+  {l: 'Damage', p: 'battle.damage', t: 'num', show: v => v.battle.deals_damage},
+  {l: 'Knockback', p: 'battle.knockback', t: 'num', show: v => v.battle.deals_damage, h: 'V3: 7+ medium, 13+ heavy, 20+ blowback'},
+  {l: 'Pierce', p: 'battle.pierce', t: 'chk', show: v => v.battle.deals_damage, h: 'Keeps going after a hit'},
+  {l: 'Re-hit (ticks)', p: 'battle.rehit_ticks', t: 'num', step: 1, show: v => v.battle.deals_damage, h: '0 = hits each enemy once'},
+  {l: 'Blockable', p: 'battle.blockable', t: 'chk', show: v => v.battle.deals_damage},
+  {l: 'Deflectable', p: 'battle.deflectable', t: 'chk', show: v => v.battle.deals_damage},
+  {l: 'Hit depth (m)', p: 'fx3d.depth_m', t: 'rng', min: 0.1, max: 6, step: 0.1, show: v => v.battle.deals_damage, h: 'How far from its plane an enemy can stand and still be hit (3D)'},
+];
+const MOVE = [
+  {l: 'Moves the body', p: 'enabled', t: 'chk', s: true},
+  {l: 'Start', t: 'h', show: v => v.enabled},
+  {l: 'Begins', p: 'start_mode', t: 'sel', o: [['stay', 'where it stands'], ['blink', 'blinks to the start spot'], ['dash', 'dashes to the start spot']], s: true, show: v => v.enabled},
+  {l: 'Distance (m)', p: 'start_dist_m', t: 'rng', min: 0, max: 15, step: 0.1, show: v => v.enabled && v.start_mode !== 'stay'},
+  {l: 'Angle (°)', p: 'start_angle_deg', t: 'rng', min: -180, max: 180, show: v => v.enabled && v.start_mode !== 'stay'},
+  {l: 'Height (m)', p: 'start_height_m', t: 'rng', min: 0, max: 8, step: 0.1, show: v => v.enabled && v.start_mode !== 'stay'},
+  {l: 'Dash (ms)', p: 'start_ms', t: 'num', step: 10, show: v => v.enabled && v.start_mode === 'dash'},
+  {l: 'Path', t: 'h', show: v => v.enabled},
+  {l: 'Path', p: 'path', t: 'sel', o: [['none', 'none (stays at the start spot)'], ['line', 'line'], ['leap', 'leap'], ['arc', 'arc (curves to a side)'], ['zigzag', 'zigzag'], ['flank', 'flank (round the target)'], ['hit_retreat', 'hit & retreat (there and back)']], s: true, show: v => v.enabled},
+  {l: 'From frame', p: 'from_frame', t: 'num', step: 1, min: 0, show: v => v.enabled && v.path !== 'none'},
+  {l: 'To frame', p: 'to_frame', t: 'num', step: 1, show: v => v.enabled && v.path !== 'none', h: '-1 = the end of the action'},
+  {l: 'Ends (m)', p: 'end_dist_m', t: 'rng', min: -3, max: 15, step: 0.1, show: v => v.enabled && v.path !== 'none', h: 'Distance from the target where it ends'},
+  {l: 'End angle (°)', p: 'end_angle_deg', t: 'rng', min: -180, max: 180, show: v => v.enabled && v.path !== 'none', h: '0 = this side of the target, 180 = behind it'},
+  {l: 'End height (m)', p: 'end_height_m', t: 'rng', min: 0, max: 8, step: 0.1, show: v => v.enabled && v.path !== 'none'},
+  {l: 'Arc / leap (m)', p: 'arc_m', t: 'rng', min: 0, max: 8, step: 0.1, show: v => v.enabled && ['leap', 'arc', 'zigzag', 'flank'].indexOf(v.path) >= 0},
+  {l: 'Zigs', p: 'zigs', t: 'num', step: 1, min: 1, show: v => v.enabled && v.path === 'zigzag'},
+  {l: 'Side', p: 'side', t: 'sel', o: ['left', 'right', 'random'], show: v => v.enabled},
+  {l: 'Ease', p: 'ease', t: 'sel', o: () => FX3D.MOVE_EASES, show: v => v.enabled && v.path !== 'none'},
+  {l: 'Faces', p: 'face', t: 'sel', o: [['target', 'the target'], ['travel', 'where it travels']], show: v => v.enabled},
+];
+function buildForms() {
+  const e = curFx(), has = !!e;
+  ['secPlace', 'secLook', 'secMotion', 'secHit', 'secAll', 'secJson'].forEach(id => { $(id).style.opacity = has ? '' : '.5'; });
+  if (S.F) {
+    const mv = FX3D.moveCfg(aset(S.act) && aset(S.act).move3d);
+    form($('moveForm'), MOVE, mv, (p, v) => { const as = aset(S.act, true); as.move3d = Object.assign(FX3D.moveCfg(as.move3d), as.move3d || {}); as.move3d[p] = v; }, r => { if (r.s) { buildForms(); buildActs(); } });
+  } else $('moveForm').innerHTML = '';
+  if (!has) { ['placeForm', 'lookForm', 'motionForm', 'hitForm', 'params'].forEach(id => { $(id).innerHTML = '<p class="note">' + (S.F ? 'Pick or add an effect.' : '') + '</p>'; }); $('json').value = ''; buildBars(); return; }
+  const v = fxView(e);
+  form($('placeForm'), PLACE, v, writeFx, () => syncGizmo());
+  form($('lookForm'), LOOK, v, writeFx, (r) => { if (r.s) { buildFxList(); } });
+  form($('motionForm'), MOTION, v, writeFx);
+  form($('hitForm'), HIT, v, writeFx);
+  buildParams(); syncJson(); buildBars(); updateCounts(); syncGizmo();
+}
+function updateCounts() { const e = curFx(); if (!e) return; const c = FX3D.cfg3d(e); $('placeOut').textContent = FX3D.layOf(FXK.normalize(clone(e)), c) + (c.anchor ? ' · ' + c.anchor : ' · ' + (e.anchor || 'figure')); }
+function buildParams() {
+  const e = curFx(); if (!e) return; const v = FXK.normalize(clone(e)), q = $('pFilter').value.trim().toLowerCase();
+  const keys = Object.keys(v.params).sort().filter(k => !q || k.indexOf(q) >= 0);
+  const spec = keys.map(k => { const x = v.params[k], p = 'params.' + k;
+    if (typeof x === 'boolean') return {l: k, p, t: 'chk'};
+    if (typeof x === 'number') return {l: k, p, t: 'num'};
+    if (k === 'style') return {l: k, p, t: 'sel', o: FXK.TECH_STYLES, s: true};
+    if (/^#[0-9a-f]{6}$/i.test(x)) return {l: k, p, t: 'col'};
+    return {l: k, p, t: 'txt'}; });
+  form($('params'), spec, v, (p, val) => { const ee = curFx(); if (ee) setP(ee, p, typeof v.params[p.slice(7)] === 'string' || typeof val !== 'string' ? val : val); }, r => { if (r.s) buildForms(); });
+  $('allOut').textContent = keys.length + ' settings';
+}
+$('pFilter').oninput = buildParams;
+function syncJson() { const e = curFx(); if (e && document.activeElement !== $('json')) $('json').value = JSON.stringify(e, null, 1); }
+$('json').onblur = () => {};
+$('jsonApply').onclick = () => { const e = curFx(); if (!e) return; let o; try { o = JSON.parse($('json').value); } catch (err) { status('JSON: ' + err.message, true); return; }
+  pushUndo(); S.F.effects[S.sel] = o; changed(true); status('Effect updated from JSON.'); };
+$('place0').onclick = () => { const e = curFx(); if (!e) return; pushUndo(); delete e.fx3d; changed(true); };
+document.querySelectorAll('section > h2').forEach(h => { h.tabIndex = 0; h.onclick = () => h.parentElement.classList.toggle('folded'); h.onkeydown = e => { if (e.key === 'Enter') h.onclick(); }; });
+
+/* ---------------------------------------------------------------- timeline bars */
+function totalMs() { return actDur(S.act) + TAIL_MS; }
+function buildBars() {
+  const box = $('bars'); box.innerHTML = ''; if (!S.F) return;
+  const t = timing(S.act), tot = totalMs(), list = fxOf(S.act), pct = ms => (ms / tot * 100).toFixed(2) + '%';
+  let row = 0;
+  const mv = FX3D.moveCfg(aset(S.act) && aset(S.act).move3d);
+  if (mv.enabled) { const b = document.createElement('div'); b.className = 'b mv'; const s = 0, e2 = (mv.to_frame < 0 ? t.frames : mv.to_frame) * t.fms;
+    b.style.left = pct(s); b.style.width = pct(Math.max(t.fms, e2 - s)); b.style.top = '2px'; b.textContent = '↝ body ' + mv.path; box.appendChild(b); row = 1; }
+  list.forEach(([e, i], j) => { const s = Math.max(0, +e.start_frame || 0) * t.fms, en = (+e.end_frame >= 0 ? (+e.end_frame + 1) : t.frames) * t.fms;
+    const b = document.createElement('div'); b.className = 'b' + (i === S.sel ? ' sel' : '') + (e.enabled === false ? ' off' : '');
+    b.style.left = pct(s); b.style.width = pct(Math.max(t.fms, en - s)); b.style.top = (2 + (row + j) * 18) + 'px'; b.textContent = e.name || e.prim; b.title = (e.name || e.prim) + ' · frames ' + fxLabel(e);
+    b.onclick = () => { S.sel = i; buildFxList(); buildForms(); }; box.appendChild(b); });
+  box.style.height = (6 + (row + list.length) * 18) + 'px';
+  const end = document.createElement('div'); end.className = 'ph'; end.style.left = pct(actDur(S.act)); end.style.background = 'var(--line)'; box.appendChild(end);
+  const ph = document.createElement('div'); ph.className = 'ph'; ph.id = 'ph'; box.appendChild(ph);
+  $('scrub').max = Math.ceil(tot / TICK);
+}
+
+/* ---------------------------------------------------------------- dummy + simulation */
+const DUM = {dist: 2.4, ang: 0, h: 0};
+try { Object.assign(DUM, JSON.parse(localStorage.getItem('pbFx3dDummy') || '{}')); } catch (e) {}
+function dummyFeet() { return new THREE.Vector3(Math.cos(DUM.ang * Math.PI / 180) * DUM.dist, DUM.h, -Math.sin(DUM.ang * Math.PI / 180) * DUM.dist); }
+function syncDummyUi() { [['dDist', 'dist'], ['dAng', 'ang'], ['dH', 'h']].forEach(([id, k]) => { $(id).value = DUM[k]; $(id + 'N').value = (+DUM[k]).toFixed(id === 'dAng' ? 0 : 1); });
+  try { localStorage.setItem('pbFx3dDummy', JSON.stringify(DUM)); } catch (e) {} }
+[['dDist', 'dist'], ['dAng', 'ang'], ['dH', 'h']].forEach(([id, k]) => { const f = v => { DUM[k] = +v || 0; syncDummyUi(); S.simK = -1; S.plan = null; };
+  $(id).oninput = function () { f(this.value); }; $(id + 'N').onchange = function () { f(this.value); }; });
+syncDummyUi();
+function plan() {
+  if (S.plan) return S.plan; const mv = aset(S.act) && aset(S.act).move3d, t = timing(S.act);
+  S.plan = mv && mv.enabled ? FX3D.movePlan(mv, new THREE.Vector3(0, 0, 0), dummyFeet(), t.frames, t.fms, () => 0.3) : null;
+  return S.plan;
+}
+const _f = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3();
+let lastFace = 0;
+function stepSim(k, fast) {   // tick k of the action (0 = its first)
+  const B = S.fighter, Dm = S.dummy, ms = k * TICK, dur = actDur(S.act), P = plan(), T = dummyFeet();
+  const feet = P ? P.at(Math.min(ms, P.total)) : _f.set(0, 0, 0);
+  // facing
+  let face;
+  if (P && P.face === 'travel') { const a = P.at(Math.max(0, ms - TICK)), b = P.at(ms + TICK); const dx = b.x - a.x, dz = b.z - a.z; face = Math.hypot(dx, dz) > 1e-3 ? Math.atan2(dx, dz) : lastFace; }
+  else { const dx = T.x - feet.x, dz = T.z - feet.z; face = Math.hypot(dx, dz) > 1e-3 ? Math.atan2(dx, dz) : lastFace; }
+  lastFace = face;
+  B.root.position.copy(feet); B.root.rotation.y = face;
+  pose(B, ms < dur ? S.act : 'idle', ms < dur ? ms : ms - dur, ms < dur ? dur : 0);
+  Dm.root.position.copy(T); Dm.root.rotation.y = Math.atan2(feet.x - T.x, feet.z - T.z); pose(Dm, 'idle', ms, 0);
+  if (!fast || k === S.k) { /* keep */ }
+  const t = timing(S.act);
+  S.runner.tick({centre: _c.copy(feet).setY(feet.y + 0.9), feet: feet.clone(), facing: new THREE.Vector3(Math.sin(face), 0, Math.cos(face)), bone: B.bone,
+    target: {centre: _d.copy(T).setY(T.y + 0.9)}, enemies: [{centre: _d.clone(), r: 0.45, ref: 'dummy'}],
+    action: ms < dur ? {key: S.actKey, name: S.act, frames: t.frames, frameMs: t.fms} : null, moving: false, gone: false,
+    frame: Math.min(t.frames - 1, Math.floor(ms / t.fms)), groundY: 0});
+}
+function simTo(k) {
+  if (!S.runner || !S.fighter) return;
+  if (S.simK < 0 || k < S.simK) { S.runner.reset(); S.actKey = {}; S.simK = -1; S.hits = []; S.dmg = 0; S.fast = true; S.plan = null; }
+  S.fast = k - S.simK > 2;
+  while (S.simK < k) { S.simK++; S.k = S.simK; stepSim(S.simK, S.fast && S.simK < k); }
+  S.fast = false; S.k = k;
+}
+function seek(k) { setPlaying(false); simTo(Math.max(0, Math.min(k, Math.ceil(totalMs() / TICK)))); }
+function onHit(dmg, kb, inst) {
+  S.hits.push({k: S.simK, dmg, kb, name: (inst.src || inst.fx).name}); S.dmg += dmg;
+  S.flash = 0.18;
+  if (!S.fast) { const n = document.createElement('div'); n.className = 'num'; n.textContent = Math.round(dmg * 10) / 10; n.dataset.t0 = performance.now(); $('over').appendChild(n); }
+}
+
+/* ---------------------------------------------------------------- playback controls */
+function setPlaying(p) { S.playing = p; $('play').textContent = p ? 'Pause' : 'Play'; $('play').setAttribute('aria-pressed', String(p)); S.acc = 0; }
+$('play').onclick = () => { if (!S.runner) return; if (!S.playing && S.k >= Math.ceil(totalMs() / TICK)) simTo(0); setPlaying(!S.playing); };
+$('stepB').onclick = () => { const t = timing(S.act); seek(S.k - Math.max(1, Math.round(t.fms / TICK))); };
+$('stepF').onclick = () => { const t = timing(S.act); seek(S.k + Math.max(1, Math.round(t.fms / TICK))); };
+$('scrub').oninput = function () { seek(+this.value); };
+$('vPlanes').onclick = function () { view.planes = !view.planes; this.setAttribute('aria-pressed', String(view.planes)); };
+$('vAnchors').onclick = function () { view.anchors = !view.anchors; this.setAttribute('aria-pressed', String(view.anchors)); };
+$('vPath').onclick = function () { view.path = !view.path; this.setAttribute('aria-pressed', String(view.path)); };
+$('camSel').onchange = function () { const T = dummyFeet(), m = new THREE.Vector3(T.x / 2, 1, T.z / 2), d = Math.max(4, T.length() * 1.6 + 3), v = this.value; this.value = '';
+  orbit.target.copy(m); const fwd = new THREE.Vector3(T.x, 0, T.z).normalize(); if (fwd.lengthSq() < 0.5) fwd.set(1, 0, 0); const side = new THREE.Vector3(-fwd.z, 0, fwd.x);
+  if (v === 'side') cam.position.copy(m).addScaledVector(side, d).setY(1.4);
+  else if (v === 'front') cam.position.copy(m).addScaledVector(fwd, -d).setY(2.2);
+  else if (v === 'top') cam.position.copy(m).setY(d * 1.3).add(new THREE.Vector3(0.01, 0, 0));
+  else if (v === 'three') cam.position.copy(m).addScaledVector(side, d * 0.7).addScaledVector(fwd, -d * 0.7).setY(d * 0.45);
+  orbit.update(); };
+$('gizmo').onchange = () => syncGizmo();
+document.addEventListener('keydown', e => {
+  const tag = (e.target && e.target.tagName) || ''; const typing = /INPUT|TEXTAREA|SELECT/.test(tag) && !(e.target.type === 'range' || e.target.type === 'checkbox');
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
+  if (typing) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); (e.shiftKey ? $('redo') : $('undo')).onclick(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); $('redo').onclick(); return; }
+  if (e.key === ' ') { e.preventDefault(); $('play').onclick(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); $('stepB').onclick(); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); $('stepF').onclick(); }
+  else if (e.key === 'Home') { e.preventDefault(); seek(0); }
+});
+window.addEventListener('beforeunload', e => { if (S.dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+/* ---------------------------------------------------------------- gizmo: FX start spot / dummy */
+function laneAxes() { const l = S.runner && S.runner.lanes.find(x => x.active) || (S.runner && S.runner.lanes[0]);
+  if (l) return {X: l.X, Y: l.Y, L: l.L};
+  const T = dummyFeet(), X = new THREE.Vector3(T.x, 0, T.z).normalize(); const Y = new THREE.Vector3(0, 1, 0); return {X, Y, L: new THREE.Vector3().crossVectors(X, Y)}; }
+function fxBase(e) {   // the selected effect's start point on the body now (before its offset)
+  if (!S.runner || !S.runner.ctx) return null; const c = FX3D.cfg3d(e), id = c.anchor || e.anchor || 'figure';
+  if (id === 'target') return dummyFeet().setY(dummyFeet().y + 0.9);
+  return S.runner.anchorWorld(id.replace(/^3d:/, ''), new THREE.Vector3()) || S.runner.ctx.centre.clone();
+}
+function syncGizmo() {
+  const g = $('gizmo').value, e = curFx();
+  if (g === 'dummy' && S.dummy) { gizmoObj.position.copy(dummyFeet()); tc.attach(gizmoObj); tc.showY = true; return; }
+  if (g === 'fx' && e) { const b = fxBase(e); if (!b) { tc.detach(); return; } const c = FX3D.cfg3d(e), A = laneAxes();
+    gizmoObj.position.copy(b).addScaledVector(A.X, c.offset[0]).addScaledVector(A.Y, c.offset[1]).addScaledVector(A.L, c.offset[2]); tc.attach(gizmoObj); return; }
+  tc.detach();
+}
+tc.addEventListener('objectChange', () => {
+  const g = $('gizmo').value;
+  if (g === 'dummy') { const p = gizmoObj.position; DUM.dist = Math.max(0.3, Math.hypot(p.x, p.z)); DUM.ang = Math.round(Math.atan2(-p.z, p.x) * 180 / Math.PI); DUM.h = Math.max(0, p.y); syncDummyUi(); S.simK = -1; S.plan = null; return; }
+  const e = curFx(); if (!e) return; const b = fxBase(e); if (!b) return; const A = laneAxes(), d = gizmoObj.position.clone().sub(b);
+  const off = [d.dot(A.X), d.dot(A.Y), d.dot(A.L)].map(v => Math.round(v * 1000) / 1000);
+  e.fx3d = Object.assign({}, e.fx3d || {}, {offset: off}); S.dirty = true; syncUndo(); if (S.runner) S.runner.reload(S.F); S.simK = -1;
+});
+tc.addEventListener('mouseUp', () => { if ($('gizmo').value === 'fx') { buildForms(); } });
+
+/* ---------------------------------------------------------------- overlays */
+const LAY_COL = {side: [1, 0.85, 0.3], flat: [0.4, 1, 0.6], ground: [0.55, 0.75, 1], billboard: [0.85, 0.6, 1]};
+function drawPlanes() {
+  const pos = [], col = [];
+  if (view.planes && S.runner) S.runner.planes().forEach(p => { const c = LAY_COL[p.lay] || [1, 1, 1], s = 0.5, sel = curFx() && (p.fx.id === curFx().id);
+    const k = sel ? 1 : 0.55, a = p.ax.clone().multiplyScalar(s), b = p.ay.clone().multiplyScalar(s);
+    const q = [p.P.clone().sub(a).sub(b), p.P.clone().add(a).sub(b), p.P.clone().add(a).add(b), p.P.clone().sub(a).add(b)];
+    for (let i = 0; i < 4; i++) { pos.push(...q[i].toArray(), ...q[(i + 1) % 4].toArray()); col.push(...c.map(x => x * k), ...c.map(x => x * k)); }
+    pos.push(...p.P.toArray(), ...p.P.clone().add(a.multiplyScalar(1.6)).toArray()); col.push(1, 1, 1, 1, 1, 1); });
+  const g = planeLines.geometry; g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeBoundingSphere();
+}
+function drawPath() {
+  const P = plan(); pathLine.visible = ringStart.visible = ringEnd.visible = !!P && view.path;
+  if (P && view.path) { const pts = P.samples(60); pathLine.geometry.setFromPoints(pts.map(p => p.clone().setY(p.y + 0.03))); pathLine.computeLineDistances();
+    ringStart.position.copy(P.P0).setY(P.P0.y + 0.02); ringEnd.position.copy(P.E).setY(P.E.y + 0.02); }
+  if (S.fighter) ringFighter.position.copy(S.fighter.root.position).setY(S.fighter.root.position.y + 0.015);
+  if (S.dummy) ringDummy.position.copy(S.dummy.root.position).setY(S.dummy.root.position.y + 0.015);
+}
+const dotGeo = new THREE.SphereGeometry(0.035, 10, 8);
+function toScreen(v) { const p = v.clone().project(cam), r = cvs.getBoundingClientRect(); return [(p.x + 1) / 2 * r.width, (1 - p.y) / 2 * r.height, p.z < 1]; }
+function drawAnchors() {
+  anchorDots.clear(); const over = $('over'); over.querySelectorAll('.lbl').forEach(n => n.remove());
+  if (!S.runner || !S.runner.ctx) return;
+  const e = curFx(), cur = e ? (FX3D.cfg3d(e).anchor || e.anchor || '') : '';
+  const ids = view.anchors ? Object.keys(FX3D.ANCHORS).concat(S.anchors3d ? Object.keys(S.anchors3d) : []) : [];
+  if (cur && ids.indexOf(cur) < 0 && cur !== 'figure' && cur !== 'target') ids.push(cur);
+  ids.forEach(id => { const w = S.runner.anchorWorld(id, new THREE.Vector3()); if (!w) return; const on = id === cur;
+    const m = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({color: on ? 0xffc04a : 0x3de0ff, depthTest: false})); m.position.copy(w); m.renderOrder = 10; if (on) m.scale.setScalar(1.6); anchorDots.add(m);
+    if (view.anchors || on) { const s = toScreen(w); if (!s[2]) return; const l = document.createElement('div'); l.className = 'lbl'; l.style.left = s[0] + 'px'; l.style.top = s[1] + 'px'; l.textContent = id; if (on) l.style.color = 'var(--key)'; over.appendChild(l); } });
+}
+function drawNums() {
+  const now = performance.now(), head = S.dummy ? S.dummy.root.position.clone().setY(S.dummy.root.position.y + 2.05) : null;
+  $('over').querySelectorAll('.num').forEach((n, i) => { const age = (now - +n.dataset.t0) / 1000; if (age > 0.9 || !head) { n.remove(); return; }
+    const s = toScreen(head); n.style.left = (s[0] + (i % 3 - 1) * 18) + 'px'; n.style.top = (s[1] - age * 50) + 'px'; n.style.opacity = String(1 - age / 0.9); });
+}
+
+/* ---------------------------------------------------------------- loop */
+let last = performance.now();
+function frame(now) {
+  requestAnimationFrame(frame); const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  try {
+    if (S.runner && S.fighter) {
+      const end = Math.ceil(totalMs() / TICK);
+      if (S.playing) { S.acc += dt * 1000 * (+$('speed').value || 1); let n = 0; while (S.acc >= TICK && n < 6) { S.acc -= TICK; n++;
+          if (S.k >= end) { if ($('loop').checked) { S.simK = -1; simTo(0); } else { setPlaying(false); break; } } else simTo(S.k + 1); } }
+      else if (S.simK !== S.k || S.simK < 0) simTo(S.k);
+      $('scrub').value = S.k;
+      const t = timing(S.act), ms = S.k * TICK, dur = actDur(S.act);
+      $('frameOut').textContent = ms < dur ? 'frame ' + Math.floor(ms / t.fms) + ' / ' + t.frames + ' · ' + ms + ' ms' : 'after the action · +' + Math.round(ms - dur) + ' ms';
+      const ph = $('ph'); if (ph) ph.style.left = (ms / totalMs() * 100).toFixed(2) + '%';
+      if (S.flash > 0) { S.flash -= dt; S.dummy.mat.color.setHex(0xff5a6a); } else S.dummy.mat.color.setHex(0x6a7088);
+      S.runner.draw(cam, renderer.domElement.height, {});
+      drawPlanes(); drawPath(); drawAnchors(); drawNums();
+      if ($('gizmo').value && !tc.dragging) syncGizmo();
+      $('hud').innerHTML = '<b>' + esc(S.name) + '</b> · ' + esc(S.act) + '<br>live FX ' + S.runner.liveCount() + ' · hits on dummy ' + S.hits.length + ' · damage ' + (Math.round(S.dmg * 10) / 10);
+      $('hitOut').textContent = S.hits.length ? S.hits.length + ' hit' + (S.hits.length > 1 ? 's' : '') + ', ' + Math.round(S.dmg * 10) / 10 + ' damage this play (' + [...new Set(S.hits.map(h => h.name))].slice(0, 4).join(', ') + ')' : 'No hit yet this play. Move the dummy or the FX start spot if it should be hit.';
+    }
+  } catch (err) { console.error(err); status('Preview error: ' + err.message, true); }
+  renderer.render(scene, cam);
+}
+requestAnimationFrame(frame);
+window.__fx3d = S;   // console / tests
+})();
+</script>
+</body>
+</html>

@@ -4,9 +4,9 @@
 function onField(){return [sides[0].team[sides[0].on],sides[1].team[sides[1].on]];}
 function enemyOf(f){return sides[1-f.side].team[sides[1-f.side].on];}
 function startAct(f,def,kind,name){if(kind==='ult')camEvent('ult');const a={def,kind,name,t:0,hi:0,fi:0,li:0};if(def.n2d){f.lastAct2d=def.n2d;f.lastActTick=tick;}
-  if(f.stateUntil>tick&&['normal','special','special2'].includes(kind)){const e=enemyOf(f);[0,180,360].forEach(ms=>later(ms,()=>{if(f.on&&!f.ko&&!e.ko)heavenBlade(f,e);}));}f.act=a;f.armor=def.armor||0;f.landedThisAct=false;stats.starts[f.side]++;metr.starts.push(tick);
+  if(f.stateUntil>tick&&['normal','special','special2'].includes(kind)){const e=enemyOf(f);[0,180,360].forEach(ms=>later(ms,()=>{if(f.on&&!f.ko&&!e.ko)heavenBlade(f,e);}));}f.act=a;mv3Start(f,def);f.armor=def.armor||0;f.landedThisAct=false;stats.starts[f.side]++;metr.starts.push(tick);
   if(f.on&&f.side===0)stats.actions++;return a;}
-function endAct(f){if(!f.act)return;f.lastEnd=tick;f.lastWhiff=!f.landedThisAct&&f.act.kind!=='react';f.act=null;f.armor=0;f.justEnded=true;}
+function endAct(f){if(!f.act)return;f.mv3=null;f.lastEnd=tick;f.lastWhiff=!f.landedThisAct&&f.act.kind!=='react';f.act=null;f.armor=0;f.justEnded=true;}
 const fieldBlades=[];
 function condTrue(f,e,c,trig){const d=Math.hypot(f.x-e.x,f.y-e.y);
   switch(c[0]){
@@ -136,7 +136,7 @@ function tagIn(side,idx,kind){if(training)return;const s=sides[side];const out=s
   if(f.k.entrance==='axe'){f.leap=ms2t(300);f.leapFrom=[f.x,f.y];f.leapTo=[tx,ty];later(300,()=>{if(f.ko||!f.on)return;fx_dome(f.x,f.y,f.k.fx,4.5);fx_crack(f.x,f.y,4);fx_dust(f.x,f.y,14);shake=Math.max(shake,.9);flash(.25);if(!e.ko&&Math.hypot(e.x-f.x,e.y-f.y)<170)damage(f,e,f.k.entranceDmg||(kind==='rescue'?70:110),f.k.key==='sueko'?'B':'H');});}
   else snapTo(f,tx,ty,f.k.blink>.3,true,e.z);
   if(f.k.entrance==='oath')later(150,()=>{if(f.ko||!f.on)return;runFx(f,'oath',4.2);if(!e.ko&&Math.hypot(e.x-f.x,e.y-f.y)<190){damage(f,e,f.k.entranceDmg,'M');later(60,()=>damage(f,e,f.k.entranceDmg,'M'));}});
-  // real kits: the character's own switch_in action (its FX play through fx2d.js)
+  // real kits: the character's own switch_in action (its FX play through fxlive.js)
   if(f.k.switchIn)later(60,()=>{if(f.ko||!f.on)return;startAct(f,f.k.switchIn,'special','switch_in');});
   else if(!f.k.entrance)later(140,()=>{if(f.ko||!f.on)return;fx_slash(f,4.6,f.k.fx,true);fx_ring(f.x,f.y,f.k.fx,3.5,.35);if(!e.ko&&Math.hypot(e.x-f.x,e.y-f.y)<160)damage(f,e,kind==='rescue'?60:90,'M');});
   s.tagCd=tick+ms2t(side===0?3000:7000);stats.tags[side]++;if(side===0||kind==='rescue')callout(kind==='rescue'?'RESCUE':'TAG',f.k.name+' cuts in',cssc(f.k.fx),.7,true);
