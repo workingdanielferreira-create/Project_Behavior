@@ -387,6 +387,10 @@ moves through the action. Daniel's choices: a new page that reads / writes the c
 - **Start spot & 3D placement** (per effect, `effects[i].fx3d`, see below), **Look & timing**, **FX movement**,
   **Damage** (incl. hit depth), **All look settings** (every `params` value, filterable) and **Effect JSON**
   (the whole effect, for anything the panels don't show).
+- **Keyed settings** (Daniel 2026-11-24): an effect's keyframes (`keys`, made in the 2D FX Studio) can switch a
+  setting mid-action (hooded_blades' blades: frame 8 sets Moves = travel). Such rows show a ◆ badge (`f8 → travel`) with
+  × to drop the key; changing a keyed setting in a panel also drops it from every key, so the value you pick plays the
+  whole action (the key's other values stay). The FX list marks keyed effects `◆n`.
 - **Action movement** (per action, `action_settings[a].move3d`, see below).
 - **Character**: **Can fly** (`flight.enabled`, gravity.js).
 - **Save** (Ctrl+S) writes the `.fxkit.json` back (Edge / Chrome; other browsers download it). Undo / Redo (Ctrl+Z /

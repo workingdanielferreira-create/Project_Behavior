@@ -79,6 +79,8 @@ section > h2 small { font-family: var(--mono); font-weight: 400; font-size: 11px
 .row .pair input[type=range] { flex: 1; min-width: 0; }
 .row .pair input[type=number] { width: 72px; }
 .xyz { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.row .keyed { grid-column: 1 / -1; font-size: 11px; color: var(--key); display: flex; gap: 6px; align-items: center; line-height: 1.35; }
+.row .keyed button { padding: 0 6px; line-height: 16px; flex: none; }
 .note { font-size: 12px; color: var(--muted); line-height: 1.45; margin: 0; }
 .btns { display: flex; flex-wrap: wrap; gap: 6px; }
 button, select, input[type=text], input[type=number], textarea {
@@ -458,7 +460,8 @@ function buildFxList() {
     const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = e.enabled !== false; cb.title = 'On / off';
     cb.onclick = ev => { ev.stopPropagation(); pushUndo(); e.enabled = cb.checked; changed(true); };
     d.appendChild(cb); const sp = document.createElement('span'); sp.textContent = e.name || e.prim; d.appendChild(sp);
-    const m = document.createElement('span'); m.className = 'm'; m.textContent = fxLabel(e) + ((e.battle || {}).deals_damage ? ' · ⚔' : ''); d.appendChild(m);
+    const m = document.createElement('span'); m.className = 'm'; m.textContent = fxLabel(e) + ((e.battle || {}).deals_damage ? ' · ⚔' : '') + (Array.isArray(e.keys) && e.keys.length ? ' · ◆' + e.keys.length : '');
+    if (Array.isArray(e.keys) && e.keys.length) m.title = e.keys.length + ' keyframe' + (e.keys.length > 1 ? 's' : '') + ' (◆ badges in the panels below)'; d.appendChild(m);
     d.onclick = () => { S.sel = i; buildFxList(); buildForms(); }; d.onkeydown = ev => { if (ev.key === 'Enter') d.onclick(); }; box.appendChild(d); });
   $('fxCount').textContent = list.length + ' effect' + (list.length === 1 ? '' : 's');
   // copy-from list: effects of the other actions
@@ -485,15 +488,37 @@ function curFx() { return S.F && S.sel >= 0 ? S.F.effects[S.sel] : null; }
 /* ---------------------------------------------------------------- forms */
 function getP(o, p) { return p.split('.').reduce((a, k) => a == null ? undefined : a[k], o); }
 function setP(o, p, v) { const ks = p.split('.'); let a = o; for (let i = 0; i < ks.length - 1; i++) { if (a[ks[i]] == null || typeof a[ks[i]] !== 'object') a[ks[i]] = {}; a = a[ks[i]]; } a[ks[ks.length - 1]] = v; }
-/* spec rows: {l: label, p: path, t: num | rng | chk | sel | col | txt | xyz, o: options, min, max, step, h: hint, show(view)} */
-function form(box, spec, view, write, after) {
+/* Effect keyframes (fx.keys = [{frame, ease, set: {"motion.kind": "travel", ...}}], FXK.fxAt): a key switches a setting
+   mid-action, so the panel value alone would be overridden there (Daniel 2026-11-24: "the FX movement choice is
+   ignored" = hooded_blades' blades key Moves -> travel at frame 8). Panel wins: changing a keyed setting here removes
+   it from every key, so what you pick plays the whole action; keyed rows show a badge with x to drop the key first. */
+function keyedOf(e, p) { return e && Array.isArray(e.keys) ? e.keys.filter(k => k && k.set && p in k.set).map(k => [k.frame, k.set[p]]) : []; }
+function dropKeyed(e, p) {
+  if (!e || !Array.isArray(e.keys)) return false; let hit = false;
+  e.keys.forEach(k => { if (k && k.set && p in k.set) { delete k.set[p]; hit = true; } });
+  if (hit) e.keys = e.keys.filter(k => k && k.set && Object.keys(k.set).length);
+  return hit;
+}
+const keyVal = v => typeof v === 'number' ? String(Math.round(v * 100) / 100) : String(v);
+/* spec rows: {l: label, p: path, t: num | rng | chk | sel | col | txt | xyz, o: options, min, max, step, h: hint, show(view)}
+   keyed(p) -> [[frame, value]] (effect forms only): the keyframes that also set p */
+function form(box, spec, view, write, after, keyed) {
   box.innerHTML = '';
   spec.forEach(r => {
     if (r.show && !r.show(view)) return;
     if (r.t === 'h') { box.insertAdjacentHTML('beforeend', '<h3>' + esc(r.l) + '</h3>'); return; }
     const row = document.createElement('div'); row.className = 'row'; const id = 'f_' + Math.random().toString(36).slice(2);
     row.innerHTML = '<label for="' + id + '"' + (r.h ? ' title="' + esc(r.h) + '"' : '') + '>' + esc(r.l) + '</label>'; let v = getP(view, r.p), el;
-    const put = (val, struct) => { beginEdit(); write(r.p, val); changed(false); if (after) after(r, val); if (struct) buildForms(); };
+    const ks = keyed && r.p ? keyed(r.p) : [];
+    const put = (val, struct) => { beginEdit(); write(r.p, val); changed(false); if (after) after(r, val); if (struct || ks.length) buildForms(); };
+    let kb = null;
+    if (ks.length) {   // badge under the row: where keys switch this setting, x = drop them (the panel value then plays throughout)
+      kb = document.createElement('div'); kb.className = 'keyed';
+      kb.textContent = '◆ keyed: ' + ks.map(([f, x]) => 'f' + f + ' → ' + keyVal(x)).join(', ') + ' (overrides this from there; changing it here drops the key)';
+      const x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.title = 'Drop the key' + (ks.length > 1 ? 's' : '') + ' for ' + r.l;
+      x.setAttribute('aria-label', x.title); x.onclick = () => { pushUndo(); dropKeyed(curFx(), r.p); changed(true); status('Key dropped: ' + r.l + ' now plays its panel value the whole action.'); };
+      kb.appendChild(x);
+    }
     if (r.t === 'chk') { el = document.createElement('input'); el.type = 'checkbox'; el.id = id; el.checked = !!v; el.onchange = () => put(el.checked, r.s); row.appendChild(el); }
     else if (r.t === 'sel') { el = document.createElement('select'); el.id = id; (typeof r.o === 'function' ? r.o(view) : r.o).forEach(o => { const [val, lab] = Array.isArray(o) ? o : [o, o];
         el.insertAdjacentHTML('beforeend', '<option value="' + esc(val) + '">' + esc(lab) + '</option>'); });
@@ -508,10 +533,12 @@ function form(box, spec, view, write, after) {
       const n = document.createElement('input'); n.type = 'number'; n.step = r.step || 1; n.value = +v || 0; n.id = id;
       s.oninput = () => { n.value = s.value; put(+s.value); }; n.onchange = () => { s.value = n.value; put(+n.value || 0); }; w.append(s, n); row.appendChild(w); el = w; }
     else { el = document.createElement('input'); el.type = 'number'; el.id = id; el.step = r.step || 'any'; if (r.min != null) el.min = r.min; el.value = v == null ? '' : v; el.onchange = () => put(el.value === '' ? 0 : +el.value, r.s); row.appendChild(el); }
+    if (kb) row.appendChild(kb);
     box.appendChild(row);
   });
 }
-const writeFx = (p, v) => { const e = curFx(); if (!e) return; setP(e, p, v); if (p === 'prim') { e.params = {}; FXK.normalize(e); } };
+const writeFx = (p, v) => { const e = curFx(); if (!e) return; setP(e, p, v); dropKeyed(e, p); if (p === 'prim') { e.params = {}; FXK.normalize(e); } };
+const keyedFx = p => keyedOf(curFx(), p);
 function fxView(e) { const v = FXK.normalize(clone(e)); v.fx3d = FX3D.cfg3d(e); return v; }
 function anchorOpts() {
   const o = [['', '— the effect\'s own anchor —'], ['figure', 'figure (body centre)'], ['target', 'target'], ['root', 'root (ground under the body)']];
@@ -613,9 +640,9 @@ function buildForms() {
   if (!has) { ['placeForm', 'lookForm', 'motionForm', 'hitForm', 'params'].forEach(id => { $(id).innerHTML = '<p class="note">' + (S.F ? 'Pick or add an effect.' : '') + '</p>'; }); $('json').value = ''; buildBars(); return; }
   const v = fxView(e);
   form($('placeForm'), PLACE, v, writeFx, () => syncGizmo());
-  form($('lookForm'), LOOK, v, writeFx, (r) => { if (r.s) { buildFxList(); } });
-  form($('motionForm'), MOTION, v, writeFx);
-  form($('hitForm'), HIT, v, writeFx);
+  form($('lookForm'), LOOK, v, writeFx, (r) => { if (r.s) { buildFxList(); } }, keyedFx);
+  form($('motionForm'), MOTION, v, writeFx, null, keyedFx);
+  form($('hitForm'), HIT, v, writeFx, null, keyedFx);
   buildParams(); syncJson(); buildBars(); updateCounts(); syncGizmo();
 }
 function updateCounts() { const e = curFx(); if (!e) return; const c = FX3D.cfg3d(e); $('placeOut').textContent = FX3D.layOf(FXK.normalize(clone(e)), c) + (c.anchor ? ' · ' + c.anchor : ' · ' + (e.anchor || 'figure')); }
@@ -628,7 +655,7 @@ function buildParams() {
     if (k === 'style') return {l: k, p, t: 'sel', o: FXK.TECH_STYLES, s: true};
     if (/^#[0-9a-f]{6}$/i.test(x)) return {l: k, p, t: 'col'};
     return {l: k, p, t: 'txt'}; });
-  form($('params'), spec, v, (p, val) => { const ee = curFx(); if (ee) setP(ee, p, typeof v.params[p.slice(7)] === 'string' || typeof val !== 'string' ? val : val); }, r => { if (r.s) buildForms(); });
+  form($('params'), spec, v, (p, val) => { const ee = curFx(); if (ee) { setP(ee, p, val); dropKeyed(ee, p); } }, r => { if (r.s) buildForms(); }, keyedFx);
   $('allOut').textContent = keys.length + ' settings';
 }
 $('pFilter').oninput = buildParams;

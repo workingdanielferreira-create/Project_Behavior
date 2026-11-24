@@ -211,6 +211,10 @@ v3-animation skill ("Review questions").
   the action + a fixed 700 ms tail with the body switched to `idle`. Now the timeline = the action's own length + only
   as long as its FX are still alive (`measureTail`, capped at 700 ms), and past the action's end the body HOLDS the
   clip's last pose (never idle).
+- Fix (Daniel 2026-11-24, "the fx are not following the action I select" = the FX movement choice is ignored, seen on
+  hooded_blades): the effects' keyframes (`keys`, e.g. blades `f8: motion.kind = travel`) overrode the panel value
+  mid-action and the studio had no key view. His pick "panel wins + keyed badge": keyed rows show a ◆ badge with ×,
+  and changing a keyed setting drops it from every key (`dropKeyed`), so the pick plays the whole action.
 - **Next:** Daniel's verdict in the studio and the game; then likely per-effect lay presets for the most-used styles,
   keyframing the 3D placement, and the not-yet-ported parts (blinks, states, intercepts).
 
