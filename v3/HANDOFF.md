@@ -234,6 +234,13 @@ v3-animation skill ("Review questions").
   (Daniel did not pick it), gravity tied to planet size (not picked).
 - **Next:** Daniel's verdict in game + studio.
 
+## Knockback tracking shot (2026-11-24)
+
+- Daniel: over-the-shoulder camera follows a fighter knocked back, at its speed, after one continuous move + zoom in.
+- His picks: trigger = a single hit carrying a fighter > 500 px; camera faces the way the fighter moves and never
+  affects movement; ends on landing with a glide back; settings (+ a cooldown); also in Dynamic; also when YOUR fighter
+  is knocked. README "Knockback tracking shot". **Next:** his verdict in game.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,

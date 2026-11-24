@@ -12,6 +12,16 @@ const DEFAULT_SETTINGS={
   feel:true,                  // live numbers vs the 2D duel
   quality:'high',             // low | medium | high (render resolution)
   aiParry:true,               // AI fighters parry by chance (parry.js)
+  // knockback tracking shot (camera.js, over the shoulder + dynamic)
+  trackOn:true,               // on / off
+  trackMinPx:500,             // a single hit must carry the fighter at least this far (px)
+  trackDist:4.5,              // metres behind the flying fighter
+  trackHeight:1.4,            // metres above it
+  trackZoom:25,               // % narrower view while tracking (zoom in)
+  trackInMs:380,              // the one-move swoop in
+  trackOutMs:520,             // the glide back
+  trackMaxS:2.5,              // longest track (s)
+  trackCdS:4,                 // cooldown between two tracking shots (s)
   teams:[['blades','sueko','puck'],['ronin','tough','gunner']]
 };
 function loadSettings(){

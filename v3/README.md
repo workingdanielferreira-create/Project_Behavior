@@ -466,3 +466,16 @@ the game builds.
   readout gives jump height in bodies and air time). Characters folder (remembered) -> Save writes `world3d.json` there;
   without folder access Save downloads it. The current edit is also kept in the browser (draft) until saved.
 - Title screen: the planet seen from orbit.
+
+## Knockback tracking shot (Daniel 2026-11-24)
+
+Over the shoulder and Dynamic camera (`js/camera.js`, `camKnock` / `trackStep`), for either on-field fighter (the
+enemy in front or your own): when ONE hit's knockback will carry the fighter at least **Starts at knockback** px
+(predicted carry = the added speed / the slide friction: air `GRAV.airFric` when thrown up or airborne, else
+`GRAV.groundFric`), the camera makes one continuous move (eased swoop + zoom, no cut) to just behind the fighter,
+facing the way it travels, then rides rigidly with it (same speed, so it stays in frame) until it lands and stops
+sliding (or **Longest track**), then glides back to the normal shot (which keeps updating underneath). View only:
+the sim never reads it. Hit again while tracked = keeps riding. Settings screen group "Knockback tracking shot":
+on / off, starts at knockback (px), distance behind, height above, zoom in (% narrower fov), swoop-in time,
+glide-back time, longest track, **cooldown** between two shots.
+

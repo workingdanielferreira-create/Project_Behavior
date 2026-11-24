@@ -107,6 +107,8 @@ body:not(.playing) .hud{display:none}
 .sets{display:flex;flex-direction:column;gap:.35em;width:100%;background:var(--panel);border:1px solid var(--edge);border-radius:.6em;padding:.8em 1em;text-align:left}
 .srow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:1em;align-items:center;padding:.45em 0;border-bottom:1px solid #1e2548}
 .srow:last-child{border-bottom:0}
+.m-settings .sets{max-height:64vh;overflow-y:auto}
+.sgroup{font-family:var(--f-display);font-size:.8em;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin:.6em 0 0}
 .srow b{font-family:var(--f-display);letter-spacing:.04em}
 .srow small{display:block;color:var(--muted);font-size:.8em;line-height:1.4}
 .seg{display:flex;border:1px solid var(--edge);border-radius:.45em;overflow:hidden;outline:none}

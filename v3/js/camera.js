@@ -1,5 +1,5 @@
 'use strict';
-/* Camera: over the shoulder / dynamic cuts / wide, shake, punch-in. */
+/* Camera: over the shoulder / dynamic cuts / wide, shake, punch-in, knockback tracking shot. */
 /* ================= camera ================= */
 const camPos=new THREE.Vector3(0,20,26),camLook=new THREE.Vector3();
 cam.fov=56;cam.updateProjectionMatrix();
@@ -13,13 +13,54 @@ function camShot(mode,pa,pb,sep){const dir=new THREE.Vector3().subVectors(pb,pa)
   if(mode==='side'){const m=pa.clone().lerp(pb,.5);const t=m.clone().addScaledVector(right,5.5+sep*.75);t.y=m.y+1.2+sep*.12;return [t,m];}
   if(mode==='low'){const t=pa.clone().addScaledVector(dir,-2.6).addScaledVector(right,1.9);t.y=Math.max(.35,pa.y-1.3);return [t,pb.clone().add(new THREE.Vector3(0,.8,0))];}
   const m=pa.clone().lerp(pb,.5);const t=m.clone().add(new THREE.Vector3(0,13+sep*.35,19+sep*.4));return [t,m];}
+/* Knockback tracking shot (Daniel 2026-11-24; over the shoulder + dynamic, either on-field fighter):
+   a single hit that will carry a fighter at least settings.trackMinPx -> ONE continuous move: the camera swoops from
+   where it is to just behind the flying fighter, facing the way it travels, and zooms in (fov); then it rides rigidly
+   with it (same speed, the fighter stays in frame) until it lands and stops sliding (or trackMaxS), then glides back
+   to the normal shot. View only: never touches the sim. Cooldown trackCdS between two shots. */
+const track={f:null,ph:0,t:0,p0:new THREE.Vector3(),l0:new THREE.Vector3(),f0:56,dir:new THREE.Vector3(0,0,-1),p:new THREE.Vector3(),l:new THREE.Vector3(),fov:56,next:0};
+const BASE_FOV=56;
+// combat.js damage(): the knockback this hit added (px/s). Predicts the carry (speed / slide friction) and starts the shot.
+function camKnock(f,dvx,dvy){if(!settings.trackOn||!running||ended||(camMode!=='shoulder'&&camMode!=='dynamic'))return;
+  const [a,b]=onField();if((f!==a&&f!==b)||f.phantom||!f.on)return;
+  const s=Math.hypot(dvx,dvy),air=f.vz>0||f.z>25,carry=s/(air?GRAV.airFric:GRAV.groundFric);if(carry<settings.trackMinPx)return;
+  const now=performance.now()/1000;
+  if(track.f===f&&track.ph&&track.ph<3){track.t=Math.min(track.t,track.ph===2?0:track.t);if(track.ph===2)track.hold=0;return;}   // hit again while tracked: keep riding
+  if(track.ph||now<track.next)return;
+  track.f=f;track.ph=1;track.t=0;track.hold=0;track.p0.copy(camPos);track.l0.copy(camLook);track.f0=cam.fov;
+  track.dir.set(f.vx,0,f.vy);if(track.dir.lengthSq()<1e-6)track.dir.set(dvx,0,dvy);track.dir.normalize();}
+// the chase pose: behind the fighter along its travel, looking the way it moves
+function trackPose(rdt){const f=track.f;const fp=VA(f.x,f.y,f.z,1);const h=Math.hypot(f.vx,f.vy);
+  if(h>60){const d=new THREE.Vector3(f.vx,0,f.vy).normalize();track.dir.lerp(d,1-Math.exp(-6*rdt)).normalize();}
+  track.p.copy(fp).addScaledVector(track.dir,-settings.trackDist);track.p.y=fp.y+settings.trackHeight;if(track.p.y<.4)track.p.y=.4;
+  track.l.copy(fp).addScaledVector(track.dir,2.2);track.l.y=fp.y+.15;
+  track.fov=BASE_FOV*(1-settings.trackZoom/100);}
+const ease=u=>u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;
+// returns true while the shot owns the camera (camStep then skips its own placement)
+function trackStep(rdt){if(!track.ph)return false;const f=track.f;track.t+=rdt*1000;
+  const gone=!f||!f.on||(camMode!=='shoulder'&&camMode!=='dynamic')||!settings.trackOn;
+  if(gone&&track.ph<3){track.ph=3;track.t=0;track.p0.copy(cam.position);track.l0.copy(track.l);track.f0=cam.fov;}
+  if(track.ph===1||track.ph===2)trackPose(rdt);
+  if(track.ph===1){const u=ease(Math.min(1,track.t/Math.max(1,settings.trackInMs)));
+    cam.position.lerpVectors(track.p0,track.p,u);camLookT.lerpVectors(track.l0,track.l,u);cam.fov=track.f0+(track.fov-track.f0)*u;
+    if(u>=1){track.ph=2;track.t=0;}}
+  else if(track.ph===2){cam.position.copy(track.p);camLookT.copy(track.l);cam.fov=track.fov;
+    const landed=f.z<=1&&Math.hypot(f.vx,f.vy)<220;track.hold=landed?(track.hold||0)+rdt:0;
+    if(track.hold>.12||track.t>settings.trackMaxS*1000){track.ph=3;track.t=0;track.p0.copy(track.p);track.l0.copy(track.l);track.f0=cam.fov;}}
+  if(track.ph===3){const u=ease(Math.min(1,track.t/Math.max(1,settings.trackOutMs)));
+    cam.position.lerpVectors(track.p0,camPos,u);camLookT.lerpVectors(track.l0,camLook,u);cam.fov=track.f0+(BASE_FOV-track.f0)*u;
+    if(u>=1){track.ph=0;track.f=null;cam.fov=BASE_FOV;track.next=performance.now()/1000+settings.trackCdS;}}
+  cam.updateProjectionMatrix();return true;}
+const camLookT=new THREE.Vector3();
+function trackReset(){track.ph=0;track.f=null;track.next=0;cam.fov=BASE_FOV;cam.updateProjectionMatrix();}
 function camStep(rdt,idle){if(idle){if(PLANET&&world){planetIdleCam();return;}const t=performance.now()/1000*.1;cam.position.set(Math.sin(t)*40,24,Math.cos(t)*40);cam.lookAt(0,6,0);return;}
   const [a,b]=onField();const pa=VA(a.x,a.y,a.z,1.2),pb=VA(b.x,b.y,b.z,1.2);const sep=pa.distanceTo(pb);
   let mode=camMode;const now=performance.now()/1000;
   if(camMode==='dynamic'){if(now>cut.t){const r=Math.random();cut.kind=sep>28?(r<.6?'side':'wide'):(r<.45?'shoulder':r<.7?'side':r<.85?'reverse':'low');cut.t=now+rnd(2.4,4.8);cut.snap=true;}mode=cut.kind;}
   const [tgt,look]=camShot(mode,pa,pb,sep);if(tgt.y<.4)tgt.y=.4;
-  if(cut.snap){camPos.copy(tgt);camLook.copy(look);cut.snap=false;}
+  if(cut.snap&&!track.ph){camPos.copy(tgt);camLook.copy(look);cut.snap=false;}
   else{camPos.lerp(tgt,1-Math.exp(-(mode==='wide'?3:5.5)*rdt));camLook.lerp(look,1-Math.exp(-9*rdt));}
-  cam.position.copy(camPos);if(!reduce&&shake>0){const j=(Math.random()-.5);cam.position.x+=shakeDir[0]*j*shake*.9+(Math.random()-.5)*shake*.3;cam.position.z+=shakeDir[1]*j*shake*.9;cam.position.y+=(Math.random()-.5)*shake*.35;}
-  if(camPunch>0){cam.position.lerp(camLook,camPunch);camPunch=Math.max(0,camPunch-rdt*.6);}
-  cam.lookAt(camLook);if(PLANET)planetCam(camLook);shake=Math.max(0,shake-rdt*3.2);}
+  // the knockback tracking shot owns the camera while it runs (the normal shot keeps updating underneath, for the glide back)
+  if(trackStep(rdt)){}else{cam.position.copy(camPos);camLookT.copy(camLook);}if(!reduce&&shake>0){const j=(Math.random()-.5);cam.position.x+=shakeDir[0]*j*shake*.9+(Math.random()-.5)*shake*.3;cam.position.z+=shakeDir[1]*j*shake*.9;cam.position.y+=(Math.random()-.5)*shake*.35;}
+  if(camPunch>0){cam.position.lerp(camLookT,camPunch);camPunch=Math.max(0,camPunch-rdt*.6);}
+  cam.lookAt(camLookT);if(PLANET)planetCam(camLookT);shake=Math.max(0,shake-rdt*3.2);}
