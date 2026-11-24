@@ -42,7 +42,7 @@ WORLD_OUT = os.path.join(V3, "data", "world.gen.js")
 
 FX_KEYS = ("timing", "action_settings", "effects", "anchors", "entry_sets", "paths", "space",
            "character_scale", "palette_lut", "dodge", "movement_style", "targeting", "unique_ability",
-           "states", "retreat", "damaged", "aim", "fight_rhythm", "guard", "flight")
+           "states", "retreat", "damaged", "aim", "fight_rhythm", "guard", "flight", "sprint")
 CH_KEYS = ("name", "display_name", "description", "predicates", "stats", "palette")
 
 

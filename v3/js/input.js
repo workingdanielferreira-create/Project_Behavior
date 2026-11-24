@@ -1,13 +1,14 @@
 'use strict';
-/* Input: keyboard state, camera-relative WASD, commands (snap, chain, skills, intents, tag, jump / fast fall or fly, camera, control level). */
+/* Input: keyboard state, camera-relative WASD, commands (snap, chain, skills, intents, tag, jump / fast fall or fly, sprint, camera, control level). */
 /* ================= input ================= */
 const keys={};let inputDir=null;const GAMEK={KeyR:1,KeyF:1,KeyC:1,KeyW:1,KeyA:1,KeyS:1,KeyD:1,ArrowUp:1,ArrowDown:1,ArrowLeft:1,ArrowRight:1,Space:1,KeyJ:1,KeyK:1,KeyL:1,KeyI:1,Digit1:1,Digit2:1,Digit3:1,Digit4:1,KeyQ:1,KeyE:1,Tab:1,Escape:1,KeyP:1};
 function readDir(){let x=0,y=0;if(keys.KeyW||keys.ArrowUp)y-=1;if(keys.KeyS||keys.ArrowDown)y+=1;if(keys.KeyA||keys.ArrowLeft)x-=1;if(keys.KeyD||keys.ArrowRight)x+=1;const l=Math.hypot(x,y);if(!l)return null;x/=l;y/=l;
   // camera-relative: W = away from the camera along the ground
   const fx=camLook.x-cam.position.x,fz=camLook.z-cam.position.z,fl=Math.hypot(fx,fz)||1;const F=[fx/fl,fz/fl],Rt=[-F[1],F[0]];return [F[0]*(-y)+Rt[0]*x,F[1]*(-y)+Rt[1]*x];}
-window.addEventListener('keydown',ev=>{if(Menu.isOpen()||!running||ended||!GAMEK[ev.code])return;ev.preventDefault();if(ev.code==='Escape'||ev.code==='KeyP'){setPaused(!paused);return;}if(paused)return;if(ev.code==='Space'&&ev.ctrlKey){if(!ev.repeat)command('Parry');return;}keys[ev.code]=true;if(ev.repeat)return;command(ev.code);});
-window.addEventListener('keyup',ev=>{keys[ev.code]=false;});
-window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false;if(running&&!ended)setPaused(true);});
+window.addEventListener('keydown',ev=>{if(ev.code==='ShiftLeft'||ev.code==='ShiftRight'){if(!ev.repeat&&!Menu.isOpen()&&running&&!ended&&!paused)sprintKeyDown();return;}   // sprint (sprint.js)
+  if(Menu.isOpen()||!running||ended||!GAMEK[ev.code])return;ev.preventDefault();if(ev.code==='Escape'||ev.code==='KeyP'){setPaused(!paused);return;}if(paused)return;if(ev.code==='Space'&&ev.ctrlKey){if(!ev.repeat)command('Parry');return;}keys[ev.code]=true;if(ev.repeat)return;command(ev.code);});
+window.addEventListener('keyup',ev=>{keys[ev.code]=false;if(ev.code==='ShiftLeft'||ev.code==='ShiftRight')sprintKeyUp();});
+window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false;sprintKeyUp();if(running&&!ended)setPaused(true);});
 function command(code,retry){const f=sides[0].team[sides[0].on];if(!f||f.ko)return;const e=enemyOf(f);
   const busy=()=>!!(f.act||f.stun>0||f.gone>0||f.snap||f.leap>0);
   const fail=c=>{if(!retry&&busy()){f.buf={code:c,until:tick+ms2t(400)};return;}if(!retry||tick>=(f.buf&&f.buf.until||0))deny(c);};

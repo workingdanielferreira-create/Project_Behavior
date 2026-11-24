@@ -3546,6 +3546,7 @@ G.FXK = {TICK_MS: TICK_MS, rng: rng, hash32: hash32, buildLut: buildLut, hexRgb:
   KEY_CHOICES: KEY_CHOICES, CYCLE_DEFAULTS: CYCLE_DEFAULTS, CYCLE_MAX_RUNS: CYCLE_MAX_RUNS, isAlwaysOn: isAlwaysOn, LAUNCH_LIFE: LAUNCH_LIFE,
   actionKind: actionKind, moveFactor: moveFactor, animLoops: animLoops, normalizeAction: normalizeAction, Player: Player, bulletSprite: bulletSprite, bladeSprite: bladeSprite,
   resolveHits: resolveHits, instLayer: instLayer,   // V3 FX Studio 3D / fx3d.js: one hurt per enemy
+  beamSegs: beamSegs, pulseRings: pulseRings, pulseShape: pulseShape, lifeT: lifeT,   // V3 fx3d.js: 3D cel-shaded shapes read the same geometry
   HOP_DEFAULTS: HOP_DEFAULTS, HOP_SOURCES: HOP_SOURCES, HOP_FIELD_PICKS: HOP_FIELD_PICKS, HOP_AFTERS: HOP_AFTERS,
   HOP_ARRIVALS: HOP_ARRIVALS, HOP_BLINK_ONS: HOP_BLINK_ONS, BLINK_PICKS: BLINK_PICKS, BLINK_TRIGGERS: BLINK_TRIGGERS,
   normalizeHop: normalizeHop};

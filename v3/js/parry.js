@@ -1,7 +1,7 @@
 'use strict';
 /* Parry / deflect (Ctrl+Space). Every fighter: the player presses it, the AI parries by chance rolls.
    A parry opens a timing window:
-     0 .. perfectMs        PERFECT: no damage, no knockback. A melee attacker is staggered (staggerMs) and a
+     0 .. perfectMs        PERFECT: no damage, no knockback. A melee attacker is staggered (staggerMs, 0.5 s, Daniel 2026-11-24) and a
                            counter window opens (counterMs): the parrier's hits on it deal counterDmgPct %. An AI
                            parrier counter-attacks at once. A shot is sent off at the source instead: back at
                            its shooter (reflect) or away (deflect). Player: WASD held = deflected that way, none
@@ -14,7 +14,7 @@
    This sits beside the older reactions: the perfect snap (Space) and Ronin / Tough's own parry / block stay.
    Per-kit override: kit.parry = {any key below}. Settings > "AI parries" turns the AI rolls off. */
 const PARRY_DEFAULTS={perfectMs:130,windowMs:330,cooldownMs:420,normalReducePct:60,normalKbPct:40,
-  staggerMs:520,counterMs:900,counterDmgPct:150,reach:110,fxResult:'random',
+  staggerMs:500,counterMs:900,counterDmgPct:150,reach:110,fxResult:'random',
   aiPerfectPct:10,aiNormalPct:14,aiFxPct:18,recoverPct:22};
 function parryCfg(f){return f.k.parry?Object.assign({},PARRY_DEFAULTS,f.k.parry):PARRY_DEFAULTS;}
 function pstate(f){return f.pw||(f.pw={start:-1e9,until:-1,cd:0,grade:null,player:false,rolled:-1,seen:new Set(),counterOn:null,counterUntil:-1,ring:null});}

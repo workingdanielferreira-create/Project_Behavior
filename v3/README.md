@@ -69,9 +69,10 @@ Settings and teams are saved between sessions.
 | `tempo.js` | fight rhythm intents (port of `laser/tempo.py`) |
 | `director.js` | director heat: calm / build / burst |
 | `motion.js` | drift & snap motion |
+| `sprint.js` | **continuous movement + sprint**: speed levels Lv1 / Lv2 / Lv3, Shift (hold / double-tap), AI sprint choice, eased velocity |
 | `gravity.js` | jumps: R = jump / double jump, F = fast fall, gravity; flight (R / F climb / descend) only for kits that can fly |
 | `combat.js` | actions, triggers, hits, damage, stun, K.O., reactions, tagging, projectiles |
-| `fx3d.js` | **FX 3D runtime** (shared with FX Studio 3D): FX Studio's 2D FX laid on cards placed in 3D, 3D anchors from the bones, every-enemy hits, `move3d` planner |
+| `fx3d.js` | **FX 3D runtime** (shared with FX Studio 3D): the basic FX kinds as 3D cel-shaded shapes, the rest as FX Studio's 2D drawings on cards placed in 3D, 3D anchors from the bones, every-enemy hits (3D shapes hit with their 3D shape), `move3d` planner |
 | `fxlive.js` | real kits' FX in the fight (one `FX3D.Runner` per fighter) + per-action 3D body movement (`move3d`) |
 | `parry.js` | parry / deflect: Ctrl+Space timing windows, perfect-parry stagger + counter, shot reflect / deflect, AI rolls |
 | `fxlib.js` | **FX animation**: every action effect (`runFx`) |
@@ -394,7 +395,9 @@ moves through the action. Daniel's choices: a new page that reads / writes the c
   × to drop the key; changing a keyed setting in a panel also drops it from every key, so the value you pick plays the
   whole action (the key's other values stay). The FX list marks keyed effects `◆n`.
 - **Action movement** (per action, `action_settings[a].move3d`, see below).
-- **Character**: **Can fly** (`flight.enabled`, gravity.js).
+- **Character**: **Can fly** (`flight.enabled`, gravity.js); **Sprint Lv2 (%)**, **Lv3 speed** on / off and **Lv3 speed (%)**
+  (`sprint: {lv2_pct, lv3, lv3_pct}`, sprint.js; see "Movement: continuous + sprint").
+- **3D shape & cel look** (per effect, the `fx3d` render / toon keys below).
 - **Save** (Ctrl+S) writes the `.fxkit.json` back (Edge / Chrome; other browsers download it). Undo / Redo (Ctrl+Z /
   Ctrl+Y), Space = play, ← → = frames. `run_v3.bat` repacks the characters, so the game plays what was saved.
 
@@ -426,6 +429,45 @@ dash (`start_ms`) to a spot `start_dist_m` from the target at `start_angle_deg` 
 hit_retreat from `from_frame` to `to_frame` (-1 = the end) to the end spot (`end_dist_m`, `end_angle_deg`,
 `end_height_m`), shaped by `arc_m` / `zigs`, eased by `ease`; `face` target / travel. While it runs, the clip's root
 motion, the lunge, drift and gravity stand aside; afterwards a ground fighter falls back down. Solo + Battle.
+
+**3D cel-shaded FX (Daniel 2026-11-24: "3D in shape, 2D in cell shading", starting with the foundational kinds).**
+Per effect `fx3d.render`: `auto` (default) = a real 3D shape for the kinds below, a card for the rest; `3d`; `card` =
+the 2D drawing as before. Blades and every technique / gun / kick / defender style stay cards for now.
+
+| Kind | 3D shape |
+|---|---|
+| ribbon (laser trail) | a tube along its trail, thick at the head, tapering to the tail (`laser_width_pct`) |
+| sprite orb / bolt | a sphere head (a bolt stretches into a capsule along its flight) + a **laser streak**: a tapered tube stretched away opposite the way it moves, `laser_streak` ticks of its travel long (faster = longer), capped at `laser_max_m` |
+| beam | a tube from the base (hand) to the head with FX Studio's base / head widths (`beam_width_pct`, `beam_wobble_pct` throb), a bulb at the head (`beam_bulb_pct`) and a flare at the base (`beam_flare_pct`) |
+| particles | 3D chunks (`chunk_shape` shard / ball / cube, `chunk_size_pct`) that spin and also fly out of the plane (`chunk_spread_pct`) |
+| glow (orb) | a sphere (its visible radius, pulse) |
+| pulse (impact) | per ring: a see-through expanding shell (`impact_shell`, `impact_shell_pct`), a flat shock ring spreading level (`impact_ring`) and radial spikes on the first ring (`impact_spikes`, `impact_spike_pct`) |
+
+Look (every effect, tunable in FX Studio 3D's "3D shape & cel look"): `toon_bands` flat colour bands from the edge
+(`toon_shade_pct` brightness) to the full colour, a white-hot flat core where the surface faces the camera
+(`toon_core_pct`, `toon_core` colour), a dark ink outline (`toon_ink_m`, an inverted hull), `toon_alpha_pct`,
+`toon_sides` facets. Colours = FX Studio's colour mode / palette. Hits: a 3D shape hits with its 3D shape. The enemy's
+distance off the effect's plane is folded into its 2D offset from the nearest point of the shape (exact for spheres
+and tubes), so FX Studio's own rules (damage, re-hit, pierce, pulse ring sweep, per-particle hits) still decide.
+`depth_m` applies to cards only.
+
+## Movement: continuous + sprint (Daniel 2026-11-24)
+
+`js/sprint.js`. Fighters no longer step-and-plant (a 0.1 s step, then a 0.14 s stand): every fighter moves
+continuously, its velocity eased toward the wanted one (`SPRINT.accel` / `decel`), so starts, stops and turns are smooth.
+Three speed levels:
+
+- **Lv1** = the character's base speed.
+- **Lv2** = sprint, `SPRINT.lv2Pct` (185 %) of base; per character `sprint.lv2_pct`.
+- **Lv3** = heightened speed beyond sprint, only for characters with FX Studio 3D's **Lv3 speed** on (`sprint.lv3`,
+  `sprint.lv3_pct`, default 300 %). Afterimages + light streaks while it runs; Lv2 kicks up dust.
+
+Player: hold **Shift** = Lv2; **double-tap and hold Shift** (second press within 280 ms) = Lv3 (Lv2 for a character
+without it); let go = Lv1. The AI (enemies, your fighter while the AI drives it, Fight-back dummies) sprints when it
+closes in or chases (engage / pressure / punish / feint / reset / movement styles): Lv2 when its move target is more than
+380 px away, Lv3 (if it has it) past 820 px or when punishing. During an action the move speed stays Lv1 x 25 %. The body
+plays its `sprint` clip at Lv2 / Lv3 (falls back to `run`). Perfect parry: a parried melee attacker is staggered
+**0.5 s** (`PARRY_DEFAULTS.staggerMs` 500, Daniel 2026-11-24; shots keep their reflect / deflect).
 
 ## The little planet + World Studio 3D (Daniel 2026-11-24)
 
