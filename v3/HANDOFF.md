@@ -218,6 +218,22 @@ v3-animation skill ("Review questions").
 - **Next:** Daniel's verdict in the studio and the game; then likely per-effect lay presets for the most-used styles,
   keyframing the 3D placement, and the not-yet-ported parts (blinks, states, intercepts).
 
+## Little planet + World Studio 3D (2026-11-24)
+
+- Daniel: "make the world environment more like a little planet like we had in v1; settings for the planet and the
+  environment such as destructibles, environment additions, planet size, gravity".
+- His picks: a **real globe you can walk all the way round**; destructibles = pillars / boulders, ground damage,
+  breakable scenery, **each individually togglable**, each with its **own regrow time** (0 = stays broken); additions =
+  sky (moons, ring, stars), ground cover, atmosphere, landmarks; gravity = jump & fall strength + launches that fly round
+  the globe; look = **randomised from all toggled assets**; settings in a **separate World Studio 3D** tool; the planet
+  replaces the arena with a toggle back to the flat one.
+- Done: `js/world3d.js` (shared runtime + schema), `js/planet.js` (game glue), `tools/worldstudio3d.html` +
+  `World Studio 3D.bat`, `build_kits.py` packs `characters/world3d.json` -> `data/world.gen.js`, updater option 4.
+  README "The little planet + World Studio 3D".
+- Not yet: FX Studio FX hitting scenery directly (only via the hits they land), beams carving trenches, rubble that stays
+  (Daniel did not pick it), gravity tied to planet size (not picked).
+- **Next:** Daniel's verdict in game + studio.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,

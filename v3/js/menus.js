@@ -80,17 +80,17 @@ const Menu=(function(){
     return '<div class="scr wide"><h1>Training</h1><p class="sub">You alone on the field with practice dummies. Nobody is K.O.\'d: HP refills after a short pause.</p>'+
       '<div class="trgrid"><div class="trmapw"><canvas id="trmap"></canvas><small>Click = drop a dummy · drag = move · right-click / Delete = remove · ◆ = you'+(live?' (now)':' (start)')+'</small></div><div class="trside">'+side+'</div></div>'+
       '<nav class="row">'+(live?btn('back','Back to training','primary'):btn('back','Back')+btn('trstart','Start training','primary'))+'</nav></div>';}
-  function trMapXY(cv,ev){const r=cv.getBoundingClientRect();return [clamp((ev.clientX-r.left)/r.width*W,60,W-60),clamp((ev.clientY-r.top)/r.height*H,60,H-60)];}
+  function trMapXY(cv,ev){const r=cv.getBoundingClientRect();return [clamp((ev.clientX-r.left)/r.width*MAPW,60,MAPW-60),clamp((ev.clientY-r.top)/r.height*MAPH,60,MAPH-60)];}   // map px (the old arena area)
   function trHit(cv,ev){const r=cv.getBoundingClientRect(),ds=trainCfg().dummies;let bi=-1,bd=14;
-    ds.forEach((d,i)=>{const dd=Math.hypot(ev.clientX-r.left-d.x/W*r.width,ev.clientY-r.top-d.y/H*r.height);if(dd<bd){bd=dd;bi=i;}});return bi;}
-  function trDraw(){const cv=root.querySelector('#trmap');if(!cv)return;const dpr=window.devicePixelRatio||1,cw=Math.max(200,Math.floor(cv.parentNode.clientWidth-parseFloat(getComputedStyle(cv.parentNode).paddingLeft)*2)),ch=Math.round(cw*H/W);
+    ds.forEach((d,i)=>{const dd=Math.hypot(ev.clientX-r.left-d.x/MAPW*r.width,ev.clientY-r.top-d.y/MAPH*r.height);if(dd<bd){bd=dd;bi=i;}});return bi;}
+  function trDraw(){const cv=root.querySelector('#trmap');if(!cv)return;const dpr=window.devicePixelRatio||1,cw=Math.max(200,Math.floor(cv.parentNode.clientWidth-parseFloat(getComputedStyle(cv.parentNode).paddingLeft)*2)),ch=Math.round(cw*MAPH/MAPW);
     if(cv.width!==Math.round(cw*dpr)||cv.style.width!==cw+'px'){cv.width=Math.round(cw*dpr);cv.height=Math.round(ch*dpr);cv.style.width=cw+'px';cv.style.height=ch+'px';}
-    const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,cw,ch);const sx=cw/W,sy=ch/H;
+    const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,cw,ch);const sx=cw/MAPW,sy=ch/MAPH;
     g.fillStyle='#0c1026';g.fillRect(0,0,cw,ch);g.strokeStyle='#1e2548';g.lineWidth=1;
-    for(let x=0;x<=W;x+=300){g.beginPath();g.moveTo(x*sx+.5,0);g.lineTo(x*sx+.5,ch);g.stroke();}for(let y=0;y<=H;y+=300){g.beginPath();g.moveTo(0,y*sy+.5);g.lineTo(cw,y*sy+.5);g.stroke();}
+    for(let x=0;x<=MAPW;x+=300){g.beginPath();g.moveTo(x*sx+.5,0);g.lineTo(x*sx+.5,ch);g.stroke();}for(let y=0;y<=MAPH;y+=300){g.beginPath();g.moveTo(0,y*sy+.5);g.lineTo(cw,y*sy+.5);g.stroke();}
     g.strokeStyle='#2a3360';g.strokeRect(.5,.5,cw-1,ch-1);
     // you: start spot, or where your fighter is now while training runs
-    const p=running&&training?sides[0].team[0]:null;const px=(p?p.x:TRAIN_START[0])*sx,py=(p?p.y:TRAIN_START[1])*sy,kit=KITS[trainFighterKey()];
+    const p=running&&training?sides[0].team[0]:null;const px=((p?p.x:TRAIN_START[0])-MX0)*sx,py=((p?p.y:TRAIN_START[1])-MY0)*sy,kit=KITS[trainFighterKey()];
     g.save();g.translate(px,py);g.rotate(Math.PI/4);g.fillStyle=cssc(kit.col);g.strokeStyle='#fff';g.lineWidth=1.5;g.fillRect(-6,-6,12,12);g.strokeRect(-6,-6,12,12);g.restore();
     g.font='600 11px '+getComputedStyle(document.body).fontFamily;g.textAlign='center';g.textBaseline='middle';g.fillStyle='#e8ecfb';g.fillText('YOU',px,py-15);
     const COL={stand:'#9aa1bd',guard:'#8fd3ff',fight:'#ff6a80'};

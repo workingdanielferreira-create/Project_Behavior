@@ -10,7 +10,7 @@ function mkFighter(key,side){const k=KITS[key];const m=buildBody(k,key);
 function setOn(f,on){f.on=on;f.g.visible=on;f.sh.visible=on;f.aline.visible=false;}
 /* ================= per-fighter update ================= */
 function updFighter(f){
-  if(f.ko&&f.on&&f.z>0){f.vz-=2600*DT;f.z=Math.max(0,f.z+f.vz*DT);}
+  if(f.ko&&f.on&&f.z>0){f.vz-=JUMP.gravity*DT;f.z=Math.max(0,f.z+f.vz*DT);}
   if(!f.on||f.ko)return;const e=enemyOf(f);
   if(f.gone>0)f.gone--;if(f.iframe>0)f.iframe--;if(f.parry>0)f.parry--;if(f.block>0)f.block--;
   const started=f.startedNow||0;f.startedNow=0;const ended=f.justEnded;f.justEnded=false;
@@ -58,7 +58,7 @@ function updFighter(f){
   stepSnap(f);
   updAltitude(f,e);
   // knockback slide (in the air it carries much further: fighters fly across the arena)
-  f.x+=f.vx*DT;f.y+=f.vy*DT;const fr=Math.exp(-(f.z>25&&f.stun>0?1.1:7)*DT);f.vx*=fr;f.vy*=fr;
+  f.x+=f.vx*DT;f.y+=f.vy*DT;const fr=Math.exp(-(f.z>25&&f.stun>0?GRAV.airFric:GRAV.groundFric)*DT);f.vx*=fr;f.vy*=fr;
   if(f.x<20||f.x>W-20){const sp=Math.abs(f.vx);f.x=clamp(f.x,20,W-20);if(sp>700&&f.stun>0){wallSplat(f);}f.vx*=-.3;}
   if(f.y<20||f.y>H-20){const sp=Math.abs(f.vy);f.y=clamp(f.y,20,H-20);if(sp>700&&f.stun>0){wallSplat(f);}f.vy*=-.3;}
   // facing
@@ -67,7 +67,7 @@ function updFighter(f){
   if(!handson&&!(f.side===0&&f.manualNoAttack))tryAttack(f,e,false);
   autoReact(f,e);
   parryTick(f);}   // AI parry roll on incoming shots (parry.js)
-function groundSplat(f){f.stun=Math.max(f.stun,ms2t(800));f.hp=Math.max(0,f.hp-50);fx_crack(f.x,f.y,5);fx_dome(f.x,f.y,0xffc857,4);fx_dust(f.x,f.y,16);shake=Math.max(shake,1);hitstopMs=Math.max(hitstopMs,110);callout('GROUND SPLAT','','#ffc857',.6,true);director.hits++;if(f.hp<=0)ko(f);}
+function groundSplat(f){f.stun=Math.max(f.stun,ms2t(800));f.hp=Math.max(0,f.hp-50);fx_crack(f.x,f.y,5);planetCrater(f.x,f.y,2.2);planetBlast(f.x,f.y,0,120,40);fx_dome(f.x,f.y,0xffc857,4);fx_dust(f.x,f.y,16);shake=Math.max(shake,1);hitstopMs=Math.max(hitstopMs,110);callout('GROUND SPLAT','','#ffc857',.6,true);director.hits++;if(f.hp<=0)ko(f);}
 // Altitude. Ground fighters (everyone for now): jumps, double jumps and gravity (gravity.js groundAltitude).
 // Flight fighters (kit.flight): attack intents close the height gap to the target; neutral / reset spread out
 // vertically; big height changes are 3D snaps; R / F (held) climb / descend and the height stays where you let go;
@@ -86,9 +86,9 @@ function updAltitude(f,e){
   if(!f.k.melee&&it!=='punish')want=Math.max(want,e.z+180);
   want=clamp(want,0,ZMAX);const rawWant=want;want=Math.min(want,ceil);f.zWant=want;f.zWantRaw=rawWant;
   if(f.snap||f.leap>0||f.mv3)return;
-  if(f.stun>0||f.vz>900||f.vz<-900){f.vz-=2600*DT;f.z+=f.vz*DT;if(f.z<=0){if(f.vz<-1500&&f.stun>0)groundSplat(f);f.z=0;f.vz=f.vz<-700?-f.vz*.22:0;}if(f.z>ZMAX+200){f.z=ZMAX+200;f.vz=Math.min(0,f.vz);}return;}
+  if(f.stun>0||f.vz>900||f.vz<-900){f.vz-=JUMP.gravity*DT;f.z+=f.vz*DT;if(f.z<=0){if(f.vz<-GRAV.splat&&f.stun>0)groundSplat(f);f.z=0;f.vz=f.vz<-700?-f.vz*GRAV.bounce:0;}if(f.z>ZMAX+200){f.z=ZMAX+200;f.vz=Math.min(0,f.vz);}return;}
   const dz=want-f.z;const manual=f.side===0&&f.manualZ!=null;
   // big height change = a 3D snap
   if(!manual&&Math.abs(rawWant-f.z)>280&&!f.act&&f.snapCd<=tick&&Math.random()<.25){snapTo(f,f.x+rnd(-80,80),f.y+rnd(-80,80),Math.random()<f.k.blink,false,rawWant);return;}
   const vmax=f.k.speed*(manual?2.2:1.7)*(f.spdMul||1);f.vz=clamp(dz*7,-vmax,vmax);f.z=clamp(f.z+f.vz*DT,0,Math.max(ceil,0));}
-function wallSplat(f){f.vx=f.vy=0;f.stun=Math.max(f.stun,ms2t(700));f.hp=Math.max(0,f.hp-40);fx_ring(f.x,f.y,0xffc857,3,.35,1);fx_sparks(f.x,f.y,0xffc857,26,8);fx_dust(f.x,f.y,8);shake=Math.max(shake,.7);hitstopMs=Math.max(hitstopMs,(90));callout('WALL SPLAT','','#ffc857',.6,true);director.hits++;if(f.hp<=0)ko(f);}
+function wallSplat(f,name){f.vx=f.vy=0;f.stun=Math.max(f.stun,ms2t(700));f.hp=Math.max(0,f.hp-40);fx_ring(f.x,f.y,0xffc857,3,.35,1);fx_sparks(f.x,f.y,0xffc857,26,8);fx_dust(f.x,f.y,8);shake=Math.max(shake,.7);hitstopMs=Math.max(hitstopMs,(90));callout(name||'WALL SPLAT','','#ffc857',.6,true);director.hits++;if(f.hp<=0)ko(f);}

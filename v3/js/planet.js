@@ -1,0 +1,76 @@
+'use strict';
+/* Planet (game side of world3d.js, Daniel 2026-11-24): the little planet the fight runs on, its destructibles and the
+   gravity numbers. Settings = characters/world3d.json (World Studio 3D), packed into data/world.gen.js.
+   - WORLD_CFG / PLANET (core.js): with the planet on, the sim plane has no walls (W / H are huge) and the world
+     bends onto the globe in the vertex shader; world3d.js rolls the planet under the fight (anchor = fight centre).
+   - planetReset() builds a new world each fight (seed 0 = new look each time), planetFrame() turns the globe and
+     runs its animations, planetTick() is the sim side: fighters bump / splat / smash through pillars, scenery and
+     landmarks, shots are blocked, knockback slides carve trenches. planetHit / planetBlast / planetCrater are called
+     from combat.js, fx.js, fighter.js and gravity.js.
+   - GRAV: the gravity numbers (100 % = the old constants), used on the flat arena too. */
+World3D.installBend();
+const GRAV=World3D.gravityOf(WORLD_CFG);
+let world=null;
+if(PLANET)arenaG.visible=false;
+const BODY_R=16;   // fighter body radius on the ground (px)
+const pX=x=>(x-W/2)*K, pZ=y=>(y-H/2)*K;          // sim px -> scene units
+const bendP=v=>PLANET?World3D.bendV(v):v;          // a flat scene point -> where it is drawn
+function planetReset(){if(!PLANET)return;if(world)world.dispose();
+  world=new World3D.World(scene,WORLD_CFG,{});world.setAnchor(0,0,true);
+  scene.background=new THREE.Color(world.pal.sky[1]);const fr=world.fogRange();
+  scene.fog=new THREE.Fog(world.pal.fog,fr?fr[0]:1e5,fr?fr[1]:2e5);
+  planetFog=[scene.fog.near,scene.fog.far];cam.far=Math.max(400,world.R*3.2+320);cam.updateProjectionMatrix();planetSolids=null;}
+let planetFog=null;
+// the fight centre the globe keeps on top
+function planetAnchor(){const [a,b]=onField();if(!a)return null;
+  if(!b||b.phantom||b.ko||!b.on||Math.hypot(a.x-b.x,a.y-b.y)>2600)return [a.x,a.y];return [(a.x+b.x)/2,(a.y+b.y)/2];}
+function planetFrame(rdt,idle){if(!PLANET||!world)return;
+  const c=planetAnchor();if(c&&!idle)world.setAnchor(pX(c[0]),pZ(c[1]),false,rdt);
+  // seen from orbit (title) the haze would hide the planet: push it out there
+  if(planetFog&&scene.fog){scene.fog.near=idle?Math.max(planetFog[0],world.R*3):planetFog[0];scene.fog.far=idle?Math.max(planetFog[1],world.R*6):planetFog[1];}
+  world.update(rdt,cam.position,it=>!allFighters().some(f=>{const p=world.flatOf(it.u);return Math.hypot(pX(f.x)-p.x,pZ(f.y)-p.z)<it.cols.reduce((m,c)=>Math.max(m,c.r),1)+1.5;}));}
+// title screen: the little planet seen from orbit
+function planetIdleCam(){const t=performance.now()/1000*.08,R=world.R,D=R*1.25+28,A=world.A;
+  cam.position.set(A.x+Math.sin(t)*D,D*.5,A.z+Math.cos(t)*D);cam.lookAt(A.x,-R*.28,A.z);}
+// camera: the shot is framed on the flat plane, then bent like everything else
+function planetCam(look){const p=bendP(cam.position),l=bendP(look);cam.position.copy(p);cam.lookAt(l);}
+function allFighters(){const out=[];sides.forEach(s=>s.team.forEach(f=>{if(f&&f.on&&!f.ko&&!f.phantom)out.push(f);}));return out;}
+
+/* ---------------- sim side */
+let planetSolids=null;
+// this tick's solids near the fight, in sim px: {c (collider), it (item), x, y, r (px), h (px)}
+function nearSolids(){if(planetSolids&&planetSolids.t===tick)return planetSolids.l;const l=[];
+  for(const c of world.solids){const it=c.item;if(it.dead)continue;const p=world.flatOf(c.u);if(p.th*world.R>140)continue;
+    l.push({c,it,x:p.x/K+W/2,y:p.z/K+H/2,r:c.r/K,h:c.h/K});}
+  planetSolids={t:tick,l};return l;}
+function cfgOf(it){return it.group==='pillars'?WORLD_CFG.pillars:it.group==='scenery'?WORLD_CFG.scenery:WORLD_CFG.landmarks;}
+function planetTick(){if(!PLANET||!world)return;const L=nearSolids();
+  for(const f of allFighters()){
+    for(const s of L){if(f.z>s.h)continue;const dx=f.x-s.x,dy=f.y-s.y,d=Math.hypot(dx,dy)||.001,rr=s.r+BODY_R;if(d>=rr)continue;
+      const nx=dx/d,ny=dy/d,sp=Math.hypot(f.vx,f.vy),into=-(f.vx*nx+f.vy*ny);const C=cfgOf(s.it);
+      if(s.it.breakable&&f.stun>0&&sp>=C.break_speed){   // smash straight through
+        if(world.hitItem(s.it,0,sp,world.tangentAt(s.it.u,f.vx,f.vy))==='break'){f.vx*=.7;f.vy*=.7;shake=Math.max(shake,.5);hitstopMs=Math.max(hitstopMs,60);fx_dust(s.x,s.y,6);director.hits++;planetSolids=null;continue;}}
+      f.x=s.x+nx*rr;f.y=s.y+ny*rr;
+      if(into>0){f.vx+=nx*into*1.3;f.vy+=ny*into*1.3;
+        if(f.stun>0&&into>700){if(s.it.breakable)world.hitItem(s.it,into/40,0,world.tangentAt(s.it.u,-nx,-ny));
+          if(s.it.group!=='pillars'||C.splat){wallSplat(f,s.it.group==='scenery'?'TREE SPLAT':s.it.group==='landmarks'?'WALL SPLAT':'PILLAR SPLAT');}}}}
+    // knockback slides carve trenches
+    const sp=Math.hypot(f.vx,f.vy);if(f.stun>0&&f.z<12&&sp>900&&tick-(f.trenchT||0)>=5){f.trenchT=tick;
+      world.trench(world.surfaceU(pX(f.x),pZ(f.y)),world.tangentAt(world.surfaceU(pX(f.x),pZ(f.y)),f.vx,f.vy),Math.min(3.5,sp*5*DT*K*1.4),.45+Math.min(.5,sp/6000));}}}
+// a shot this tick: true = blocked (the shot dies)
+function planetShot(s){if(!PLANET||!world)return false;
+  for(const o of nearSolids()){if((s.z||0)>o.h)continue;if(Math.hypot(s.x-o.x,s.y-o.y)>o.r+10)continue;const it=o.it;
+    if(it.group==='pillars'&&!WORLD_CFG.pillars.block_shots)continue;
+    const res=world.hitItem(it,s.dmg,0,world.tangentAt(it.u,s.vx,s.vy));
+    if(res==='break'){planetSolids=null;fx_dust(o.x,o.y,5);continue;}
+    fx_sparks(s.x,s.y,0xffc857,8,4,(s.z||0)*K+1.1);world.scorch(world.surfaceU(pX(o.x+(s.x-o.x)*.9),pZ(o.y+(s.y-o.y)*.9)),.5);return true;}
+  return false;}
+// a landed hit near scenery: the impact reaches whatever stands round the target
+function planetHit(t,wv,dm){if(!PLANET||!world)return;planetBlast(t.x,t.y,t.z,40+wv*28,dm*(wv>=3?1.5:1));}
+// blast at sim spot: radius px, damage; z = height (px) of the blast
+function planetBlast(x,y,z,rPx,dmg){if(!PLANET||!world)return 0;let n=0;
+  for(const o of nearSolids()){if((z||0)>o.h+40)continue;const d=Math.hypot(x-o.x,y-o.y)-o.r;if(d>rPx)continue;
+    const k=1-.5*Math.max(0,d)/rPx;if(world.hitItem(o.it,dmg*k,0,world.tangentAt(o.it.u,o.x-x,o.y-y))==='break'){n++;fx_dust(o.x,o.y,4);}}
+  if(n){planetSolids=null;shake=Math.max(shake,.35);}return n;}
+function planetCrater(x,y,size){if(!PLANET||!world)return;world.crater(world.surfaceU(pX(x),pZ(y)),size);}
+function planetScorch(x,y,size){if(!PLANET||!world)return;world.scorch(world.surfaceU(pX(x),pZ(y)),size);}

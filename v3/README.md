@@ -6,11 +6,11 @@ Self-contained like `v2/`: nothing outside `v3/` is touched.
 ## Update
 
 `update_v3.bat` (here) or `Update V3.bat` (game folder) runs `tools/update_v3.py`: downloads the newest
-commit on `main` and writes only the V3 parts that changed — `v3/` (game + Rig Forge 3D + FX Studio 3D), `Rig Forge 3D.bat`,
-`FX Studio 3D.bat`, `Update V3.bat`, `tools/fx/studio/` (FX runtime V3 uses) and `characters/`. Local edits to `characters/`
+commit on `main` and writes only the V3 parts that changed — `v3/` (game + Rig Forge 3D + FX Studio 3D + World Studio 3D), `Rig Forge 3D.bat`,
+`FX Studio 3D.bat`, `World Studio 3D.bat`, `Update V3.bat`, `tools/fx/studio/` (FX runtime V3 uses) and `characters/`. Local edits to `characters/`
 files (e.g. a .glb saved from Rig Forge 3D) are kept, using the same `.sync_state.json` record as
 `update_latest.py`. The 2D game files are left to `update_latest.bat`. Afterwards it asks:
-1 = V3 game, 2 = Rig Forge 3D, 3 = FX Studio 3D, Enter = nothing. Installed commit: `.last_update_v3.json`.
+1 = V3 game, 2 = Rig Forge 3D, 3 = FX Studio 3D, 4 = World Studio 3D, Enter = nothing. Installed commit: `.last_update_v3.json`.
 
 ## Run
 
@@ -53,12 +53,14 @@ Settings and teams are saved between sessions.
 
 | File | What it holds |
 |---|---|
-| `core.js` | constants (arena size, tick, body size), maths helpers |
+| `world3d.js` | **the little planet** (shared with World Studio 3D): settings schema + defaults, the globe bend (vertex shader), ground, sky, atmosphere, ground cover, landmarks, destructibles, debris, craters / trenches / scorch |
+| `core.js` | constants (arena size, tick, body size), world settings + planet flag (`WORLD_CFG`, `PLANET`, `MAPW` x `MAPH`), maths helpers |
 | `settings.js` | saved settings (control level, speed, camera, quality, teams) |
 | `kits.js` | stand-in kits (fallback when `data/kits.gen.js` is missing) |
 | `realkits.js` | real kits from `data/kits.gen.js` → V3 kits (actions, triggers, dodge, movement) |
 | `renderer.js` | WebGL renderer, scene, toon / ink / additive materials, 2D→3D mapping (`V`, `VA`) |
-| `arena.js` | the arena: floor, sky dome, floating rocks, pillars, rim, stars |
+| `arena.js` | the flat arena (planet off): floor, sky dome, floating rocks, pillars, rim, stars (`arenaG`) |
+| `planet.js` | the planet in the fight: new world per fight, globe roll (anchor), collisions with pillars / scenery / landmarks, shots blocked, blasts, craters, trenches, gravity numbers `GRAV` |
 | `fx.js` | **FX design**: primitives (slash, ring, dome, sparks, dust, star, crack, streak, moons, blades) |
 | `state.js` | world state, timers (`later`, `ms2t`) |
 | `glbody.js` | **.glb body**: parses `data/body.gen.js` once at boot, gives each fighter a skinned copy (toon + ink, kit colour), picks its clip from the fight state |
@@ -424,3 +426,43 @@ dash (`start_ms`) to a spot `start_dist_m` from the target at `start_angle_deg` 
 hit_retreat from `from_frame` to `to_frame` (-1 = the end) to the end spot (`end_dist_m`, `end_angle_deg`,
 `end_height_m`), shaped by `arc_m` / `zigs`, eased by `ease`; `face` target / travel. While it runs, the clip's root
 motion, the lunge, drift and gravity stand aside; afterwards a ground fighter falls back down. Solo + Battle.
+
+## The little planet + World Studio 3D (Daniel 2026-11-24)
+
+Fights run on a little planet you can run all the way round (like v1's tiny planet, now a real globe). Settings are made in
+**World Studio 3D** (`World Studio 3D.bat` -> `tools/worldstudio3d.html`) and saved to `characters/world3d.json`
+(format `pb_world3d`); `run_v3.bat` (`tools/build_kits.py`) packs it into `data/world.gen.js` (`window.PB3_WORLD`,
+gitignored). No file = the defaults. The studio's preview runs the game's own `js/world3d.js`, so what you see there is what
+the game builds.
+
+- **How the globe works.** The sim stays a flat plane (2D px + height), but with the planet on it has no walls
+  (`W` / `H` are huge; `MAPW` x `MAPH` round the centre = the old arena, used for start spots and the training map). A vertex
+  shader bend (`World3D.installBend`, patched into three.js's `project_vertex`) wraps every normal object onto a sphere about
+  the **anchor** (the eased fight centre): a point d m away sits d m round the curve, heights along the local up. Fighters,
+  FX, shots, dust and the camera need no changes. The planet and everything on it live in one group that is not bent
+  (define `PB_NOBEND`) and **rolls** under the fight as the anchor moves, so you come back to the same rocks after a lap.
+  Planet things are stored as unit vectors (`flatOf` / `surfaceU` convert to / from the sim plane).
+- **Planet off** (Planet section) = the flat walled arena exactly as before (no bend, old bounds, old start spots).
+- **Sections** (each has its own on / off): Planet (radius, seed: 0 = new random world each fight, ground looks to pick
+  from, patchiness, open ground at the start, globe turn speed), Gravity (gravity, jump height, jumps in a row, fast fall,
+  bounce, ground splat speed, launch power, launch carry = how far throws fly round the globe, ground slide; 100 % = the old
+  numbers; also used on the flat arena), Sky (stars, nebula, moons, ring chance / width), Atmosphere (haze + distance,
+  clouds, cloud height / speed, dust motes), Ground cover (grass, stones, small crystals per 1,000 m², size), Landmarks
+  (count, kinds: arch / ruined wall / giant crystal / monolith / rock spire, size, solid).
+- **Destructibles** (each type on / off, each with its own regrow time; 0 = stays broken until the next fight):
+  - *Pillars & boulders*: block bodies and shots; break on a single hit / shot / blast of at least `break_damage`, or a
+    thrown fighter at least `break_speed` fast (smashes through, keeps 70 % speed); weaker hits chip `chip_pct` %; a thrown
+    fighter that doesn't break it gets a PILLAR SPLAT (toggle). Boulder stacks by `multi_chance`.
+  - *Ground damage*: craters (ground splats, heavy hits, hard landings, K.O.s, blasts), trenches (fast knockback slides),
+    scorch marks (blocked shots, blasts); fade after `fade_s`, at most `max_marks`.
+  - *Breakable scenery*: trees (pine / round / dead), crystal clusters, old columns; same break rules with their own numbers;
+    `solid` off = fighters pass through (they still break when hit).
+  - What hits them: landed hits reach whatever stands round the target (`planetHit`), shots (`planetShot`), thrown fighters
+    (`planetTick`), ground splats / K.O.s (`planetBlast`). FX Studio FX hit them only through the hits they land on fighters.
+- **Look**: each world picks one ticked ground look (meadow, dusk = the old V3 night, rocky moon, crystal, lava, ice,
+  desert) and randomises moons, ring, nebula, tree kinds, landmark kinds and every placement from the seed.
+- **Studio**: Orbit / Ground view, Spin, New random world (preview seed), click the planet = test blast (radius 6 m, damage
+  80: breaks things, crater + scorch); two 1.8 m stand-ins on the start spot, one jumping with the Gravity numbers (the
+  readout gives jump height in bodies and air time). Characters folder (remembered) -> Save writes `world3d.json` there;
+  without folder access Save downloads it. The current edit is also kept in the browser (draft) until saved.
+- Title screen: the planet seen from orbit.
