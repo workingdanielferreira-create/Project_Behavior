@@ -105,10 +105,11 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
 - 2026-11-25 (review of Hooded Blades): `anim_audit.py` now matches clip tracks to the shared body's bones BY NAME.
   Rig Forge 3D's re-save (upload 2026-11-24) stores the nodes in another order (45 of 75 shifted), and the old index
   match audited the wrong bones (feet "70 cm through the floor" even in idle). Correctly ordered files audit the same
-  as before. Open: the `attack_normal` in `hooded_blades.glb` is no longer the anim3d-authored one (Daniel's local
-  Rig Forge 3D version, 14 keys) while `pb_body.anim3d` still lists it, so `anim3d.py` / `retarget2d.py` on Hooded
-  Blades would bake the old authored clip over it. Don't run them on Hooded Blades until Daniel says which to keep;
-  `anim3d.py hooded_blades --clips <clip>` bakes only the named clips (written onto the file's bones by name).
+  as before. Hooded Blades' `attack_normal` (hit 1) = Daniel's Rig Forge 3D version in the .glb (14 keys); Daniel
+  2026-11-25 "replace the old with the new": the old authored hit-1 keys were removed from `hooded_blades.anim3d.json`
+  (still in git, commit 9ad02e6) and from `pb_body.anim3d`, so `anim3d.py hooded_blades` only bakes attack_normal_2.
+  Do NOT run `retarget2d.py hooded_blades`: it regenerates every clip not in the spec from the 2D frames and would
+  wipe his hit 1 (true for any Rig Forge 3D edit). `anim3d.py <name> --clips <clip>` bakes only the named clips.
 - 2026-11-25: Hooded Blades attack_normal_2 round 1 (draft) authored in `v3/tools/hooded/gen_hooded.py` from the 2D
   frames (Daniel "go ahead" on the reading; the old 2D-guessed clip had knees backward on 34/43 frames, arms never
   extended). Now: no hard faults, off balance 0, every step averages <= 7.5 m/s, hips <= ~6.6 m/s, 26 stored keys.

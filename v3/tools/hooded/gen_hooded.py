@@ -5,8 +5,9 @@ time, each reviewed by Daniel from GIF stills beside the 2D frames.
     python v3/tools/anim3d.py hooded_blades --check --clips attack_normal_2 audit
     python v3/tools/anim3d.py hooded_blades --clips attack_normal_2         bake ONLY that clip into the .glb
 
-Always bake with --clips: the spec still holds the old authored attack_normal, and the .glb's attack_normal is
-Daniel's own Rig Forge 3D version (2026-11-24); a plain bake would put the old one back over his.
+attack_normal (hit 1) is NOT authored here: the .glb holds Daniel's own Rig Forge 3D version (kept, Daniel
+2026-11-25). A full `retarget2d.py hooded_blades` rebuild regenerates every clip not in the spec from the 2D frames,
+so it would wipe it: don't run that on Hooded Blades.
 
 Body space: +Z = the target, +Y up, -X = his right (near) side, metres, deg. Chest / head are given in WORLD terms
 (gen_puck.key): [yaw (+ turn left), pitch (+ lean to where the chest faces), roll (+ tip right)]. Both blades in a
