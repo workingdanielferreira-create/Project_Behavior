@@ -1,5 +1,5 @@
 """Full-mesh preview of one Hooded Blades clip with the keyblades -> out/preview.js for view.html.
-Usage: build_preview.py <clip>   (gen_hooded.py CLIPS / DRAFTS, else hooded_blades.anim3d.json)"""
+Usage: build_preview.py <clip> [--game]   (--game = key poses tweened as in V3; gen_hooded.py CLIPS / DRAFTS, else hooded_blades.anim3d.json)"""
 import sys, os, json, base64, glob
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..', '..', '..'))
@@ -13,7 +13,7 @@ os.makedirs(os.path.join(HERE, 'out'), exist_ok=True)
 ALL = dict(gen_hooded.CLIPS, **gen_hooded.DRAFTS)
 spec = ALL[clip]() if clip in ALL else json.load(open(anim3d.spec_path('hooded_blades')))['clips'][clip]
 notes = []
-dense = anim3d.bake_clip(B, spec, notes, dense=True)
+dense = anim3d.bake_clip(B, spec, notes, dense='--game' not in sys.argv)   # --game: the stored key poses + eases (as V3 tweens them)
 for n in sorted(set(notes)): print('note:', n)
 json.dump(spec, open(os.path.join(HERE, 'out', 'spec.json'), 'w'))
 j, b = r.pack(B.j, B.b, meshes=True, keep_anims=False, new_clips={clip: dense}, rig=B.rig)

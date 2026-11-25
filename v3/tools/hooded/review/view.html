@@ -2,6 +2,7 @@
 <script src="../../../lib/three.min.js"></script>
 <script src="../../../lib/GLTFLoader.js"></script>
 <script src="../../../js/weapons3d.js"></script>
+<script src="../../../js/keytween.js"></script>
 <script src="out/preview.js"></script>
 <script>
 const W=520,H=560;
@@ -12,7 +13,7 @@ const tgt=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,1.8,12),new THREE.Me
 const cam=new THREE.PerspectiveCamera(30,W/H,.1,50);
 let mixer,action,hips;
 const bin=Uint8Array.from(atob(GLB),c=>c.charCodeAt(0)).buffer;
-new THREE.GLTFLoader().parse(bin,'',g=>{const m=g.scene;
+new THREE.GLTFLoader().parse(bin,'',g=>{ktExpandAll(g);const m=g.scene;
   m.traverse(o=>{if(o.isMesh){if(/blade/i.test(o.name)){o.visible=false;return;}
     o.material=new THREE.MeshLambertMaterial({color:/Joints/.test(o.material.name)?0x2a3a6a:0xffb030,skinning:true});o.frustumCulled=false;}
     if(o.name==='Hips')hips=o;});
