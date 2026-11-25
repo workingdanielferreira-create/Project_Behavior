@@ -272,7 +272,14 @@ v3-animation skill ("Review questions").
   `v3/tools/puck/review/go.sh`, anim3d fist mode, audit skips unarmed blades. **attack_normal approved** ("good
   enough") and baked into `puck.glb`: wind-up > overhand right over the top and down > follow-through wrapped to the
   left shoulder > back into the dash (one punch). His corrections are in the puck notes and the v3-animation skill.
-- **Next, in order:** attack_special (kamehameha), ultimate (Big Bang Kamehameha), attack_normal_2 (double axe handle
+- **attack_special approved** ("bake it", 2026-11-25) and baked: kamehameha in place. Charge = wide low straddle, open
+  hands cupped round a ball at the back hip (chest turned ~90 deg, upright); HA! = feet stay, hips drive forward,
+  back leg locks out, arms locked straight and level, hands stacked vertically heel to heel, palms cupped ~27 deg round
+  the beam. New: anim3d open-hand mode (`palm` / `fing` / `curl`, `PALM_WRIST`), `gen_puck.palm()` and `meet()`
+  (solves a key until the wrists land on given points; `straight=` locks the arms). Gotcha he caught ("what is
+  happening with his arms"): anim3d carries a control a key leaves out (e.g. `clav`) over from the key before, so a
+  helper that solves a key alone must key it explicitly.
+- **Next, in order:** ultimate (Big Bang Kamehameha), attack_normal_2 (double axe handle
   overhead), attack_normal_3 (shoryuken uppercut jump), attack_normal_4 (180 spin > backhand), attack_special_2 (hands
   pumping forward and back). Puck's other clips are still the 2D-guessed ones (the audit's hard faults are theirs).
 

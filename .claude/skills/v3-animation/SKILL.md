@@ -103,6 +103,13 @@ actions". Upright, square, polite poses are rejected. Every key (`v3/tools/libra
   Check the punch's LINE against the drawing (over-and-down vs under-and-up). Frame 1 is often the WIND-UP. Never add
   hits Daniel did not describe ("hook follow up" = the follow-through of the one hook). Shoulders pull back and down
   on a wind-up, never shrug into the neck; a cocked arm folds (elbow back, fist close), not a straight wing.
+- **Open palms** (kamehameha, 2026-11-25): per hand `palm: true` + `fing` + `curl` (anim3d); `blade` = where the palm
+  faces. A wrist bends back only ~60-70 deg (`PALM_WRIST` 75): locked arms can't hold palms square to the target, so
+  cup them toward each other (~27 deg). Kamehameha hands stack VERTICALLY (heel to heel, top fingers up, bottom down);
+  thrust arms LOCKED straight and level (bent, flared elbows read as arms crossed in an X: Daniel "what is happening
+  with his arms"); in the charge both arms fold (elbows 60-75 deg), never a straight stick across the belly.
+- **Keys inherit what they leave out**: anim3d carries a missing control (e.g. `clav`) over from the key before, so a
+  pose solved per key (gen_puck `meet`) differs from the clip unless the key sets it. Measure the BAKED clip.
 - **Review loop**: `bash v3/tools/puck/review/go.sh <clip> <tag>` -> `v3/tools/puck/review/out/<clip>_keys_<tag>.gif`
   (each key 1.1 s: 2D frame | side | 3/4 | front) + `_motion_` GIF; send both, score /10 honestly, take his
   corrections. One move at a time.
