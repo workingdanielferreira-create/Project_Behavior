@@ -3,6 +3,7 @@
     python v3/tools/anim3d.py hooded_blades            bake characters/hooded_blades/hooded_blades.anim3d.json
                                                        into characters/hooded_blades/hooded_blades.glb
     python v3/tools/anim3d.py hooded_blades --check    bake in memory + run v3/tools/anim_audit.py on it
+    ... --clips attack_normal_2[,...]                  only these clips (the file's other clips stay as they are)
 
 Why (Daniel 2026-11-22): clips guessed from 2D drawings (retarget2d.py) bend elbows / knees backward, flip limbs and
 float off balance. Here a clip is a short list of KEY POSES written as controls an animator would use, and every
@@ -571,6 +572,9 @@ def full_keys(B, keys):
             if s in k:
                 nk[s].update(k[s])
         nk["t"], nk["ease"] = float(k["t"]), k.get("ease", "inout")
+        nk.pop("bease", None)                          # the body's own ease into THIS key only (interp, physics
+        if k.get("bease"):                             # clips); it used to be dropped here, so a "snap" key's hips
+            nk["bease"] = k["bease"]                   # always took "out" (one-frame lunge, 2026-11-25)
         out.append(nk)
         cur = nk
     return out
@@ -709,14 +713,14 @@ def spec_path(name):
     return os.path.join(r.CHARS, name, name + ".anim3d.json")
 
 
-def bake_file(name, B=None, notes=None):
-    """{clip: (times, poses)} for every clip in the character's .anim3d.json ({} if it has none)."""
+def bake_file(name, B=None, notes=None, only=None):
+    """{clip: (times, poses)} for every clip (or the `only` ones) in the character's .anim3d.json ({} if none)."""
     p = spec_path(name)
     if not os.path.exists(p):
         return {}
     spec = json.load(open(p, encoding="utf-8"))
     B = B or Body()
-    return {c: bake_clip(B, s, notes) for c, s in spec["clips"].items()}
+    return {c: bake_clip(B, s, notes) for c, s in spec["clips"].items() if not only or c in only}
 
 
 def write_into(name, clips, B):
@@ -739,8 +743,19 @@ def write_into(name, clips, B):
     out["accessors"], out["bufferViews"] = w.accs, w.views
     # the new clips through retarget2d.pack, then their accessors copied into this file's buffer
     tmp, tbin = r.pack(B.j, B.b, meshes=False, keep_anims=False, new_clips=clips, rig=rig)
+    # the packed clips target the shared body's node order; a file re-saved by Rig Forge 3D can store its nodes in
+    # another order (hooded_blades 2026-11-24), so point each channel at the node of the same NAME in this file
+    here = {nd.get("name"): i for i, nd in enumerate(cj["nodes"]) if nd.get("name")}
+    tnames = [nd.get("name") for nd in tmp["nodes"]]
     remap = {}
     for a in tmp["animations"]:
+        keep = []
+        for ch in a["channels"]:
+            nm = tnames[ch["target"]["node"]]
+            if nm in here:
+                ch["target"]["node"] = here[nm]
+                keep.append(ch)
+        a["channels"] = keep
         for sm in a["samplers"]:
             for key in ("input", "output"):
                 ai = sm[key]
@@ -756,7 +771,8 @@ def write_into(name, clips, B):
         w.bin.append(0)
     out["buffers"] = [{"byteLength": len(w.bin)}]
     ex = out["scenes"][out.get("scene", 0)].setdefault("extras", {})
-    ex.setdefault("pb_body", {})["anim3d"] = sorted(clips)
+    pb = ex.setdefault("pb_body", {})
+    pb["anim3d"] = sorted(set(pb.get("anim3d") or []) | set(clips))
     pk = {k: v for k, v in (ex.get("pb_keys") or {}).items() if k not in clips}
     pk.update((tmp["scenes"][tmp.get("scene", 0)].get("extras") or {}).get("pb_keys") or {})
     ex["pb_keys"] = pk
@@ -771,7 +787,8 @@ def main(argv):
     name = argv[0]
     B = Body()
     notes = []
-    clips = bake_file(name, B, notes)
+    only = set(argv[argv.index("--clips") + 1].split(",")) if "--clips" in argv else None
+    clips = bake_file(name, B, notes, only)
     if not clips:
         print("no %s" % os.path.relpath(spec_path(name), r.ROOT))
         return 1
