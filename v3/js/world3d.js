@@ -83,10 +83,31 @@ const SECTIONS = [
     ['enabled', 'Ground damage on', 'bool', true],
     ['craters', 'Craters', 'bool', true, 0, 0, 0, 'Splats, heavy hits, hard landings, K.O.s and blasts.'],
     ['crater_pct', 'Crater size (%)', 'num', 100, 20, 400, 5, ''],
-    ['trenches', 'Trenches', 'bool', true, 0, 0, 0, 'Fast knockback slides along the ground carve a trench.'],
+    ['crater_depth_pct', 'Crater depth (% of its radius)', 'num', 45, 0, 150, 5, 'Craters are holes cut into the planet. 0 = a flat mark.'],
+    ['lip_pct', 'Rim height (%)', 'num', 100, 0, 300, 5, 'The raised, broken lip of dirt round a crater or trench.'],
+    ['trenches', 'Trenches', 'bool', true, 0, 0, 0, 'Fast knockback slides (and low beams / FX, see "FX and the world") carve a trench.'],
+    ['trench_depth_pct', 'Trench depth (% of its width)', 'num', 40, 0, 150, 5, ''],
+    ['debris', 'Thrown dirt & rocks', 'bool', true, 0, 0, 0, 'Craters and trenches throw up rocks and dust as they are dug.'],
     ['scorch', 'Scorch marks', 'bool', true, 0, 0, 0, 'Shots and blasts that hit the ground or a pillar.'],
-    ['fade_s', 'Fade after (s)', 'num', 25, 0, 600, 1, '0 = stays until the next fight.'],
-    ['max_marks', 'Most marks at once', 'num', 90, 5, 400, 5, 'The oldest goes first.']]},
+    ['fade_s', 'Fade after (s)', 'num', 25, 0, 600, 1, '0 = stays until the next fight. A fading crater fills back in.'],
+    ['max_marks', 'Most marks at once', 'num', 120, 5, 400, 5, 'The oldest goes first.']]},
+  {id: 'fxworld', title: 'FX and the world', help: 'How FX Studio FX treat the planet in the fight. They always follow the curve of the ground (a beam keeps its height as it travels round the globe).', fields: [
+    ['enabled', 'FX touch the world', 'bool', true],
+    ['props', 'Moving FX hit scenery', 'bool', true, 0, 0, 0, 'Travelling FX and beams damage the pillars, boulders, trees and crystals they pass through (same break / chip rules, once per effect) and keep going.'],
+    ['props_min_damage', 'Hit scenery: least damage', 'num', 1, 0, 500, 1, ''],
+    ['beam_trench', 'Beams carve trenches', 'bool', true, 0, 0, 0, 'A beam whose head runs low over the ground (or dives into it) digs a trench under it.'],
+    ['beam_min_damage', 'Beam trench: least damage', 'num', 30, 0, 500, 1, 'v1 used more than 30.'],
+    ['beam_low_m', 'Beam trench: head lower than (m)', 'num', 1.6, 0, 10, 0.1, 'A fighter is 1.8 m, so beams fired from the body count.'],
+    ['beam_width_pct', 'Beam trench width (%)', 'num', 100, 20, 400, 5, 'Of the beam\'s own width.'],
+    ['streaks', 'Low flyers scar the ground', 'bool', true, 0, 0, 0, 'Any other travelling FX skimming the ground (orbs, lasers, crescents, slashes) leaves a furrow behind it.'],
+    ['streak_min_damage', 'Scar: least damage', 'num', 40, 0, 500, 1, ''],
+    ['streak_low_m', 'Scar: lower than (m)', 'num', 0.9, 0, 10, 0.1, ''],
+    ['streak_width_pct', 'Scar width (%)', 'num', 100, 20, 400, 5, ''],
+    ['impacts', 'Big impacts crater', 'bool', true, 0, 0, 0, 'Impact bursts (pulse) close to the ground leave a crater where they burst.'],
+    ['impact_min_damage', 'Impact crater: least damage', 'num', 10, 0, 500, 1, 'An impact that does damage of its own counts from this much.'],
+    ['impact_min_px', 'Impact crater: or this big (FX px)', 'num', 150, 0, 2000, 10, 'Its end radius in FX Studio px (28 px = one body); counts even with no damage. 0 = size never counts.'],
+    ['impact_low_m', 'Impact crater: lower than (m)', 'num', 1.5, 0, 10, 0.1, ''],
+    ['impact_size_pct', 'Impact crater size (%)', 'num', 100, 10, 400, 5, '']]},
   {id: 'scenery', title: 'Destructible: scenery', help: 'Trees, crystal clusters and old columns. They break when hit, thrown into or blasted.', fields: [
     ['enabled', 'Breakable scenery on', 'bool', true],
     ['trees', 'Trees per 1,000 m²', 'num', 1.5, 0, 20, 0.1, ''],
@@ -180,7 +201,7 @@ class World {
     this.seed = opts.seed || P.seed || ((Math.random() * 1e9) | 0); this.rnd = rngOf(this.seed);
     const looks = (P.looks && P.looks.length ? P.looks : LOOKS); this.lookName = looks[(this.rnd() * looks.length) | 0]; this.pal = PAL[this.lookName] || PAL.dusk;
     this.Q = new THREE.Quaternion(); this.A = new THREE.Vector3();   // planet roll, anchor (scene units, flat)
-    this.time = 0; this.items = []; this.solids = []; this.marks = []; this.debris = []; this.grows = [];
+    this.time = 0; this.items = []; this.solids = []; this.marks = []; this.debris = []; this.grows = []; this.cover = [];
     this.grad = gradMap(); this.mats = {}; this.geos = [];
     this.inkMat = nb(new THREE.MeshBasicMaterial({color: 0x04050b, side: THREE.BackSide}));
     this.root = new THREE.Group(); this.root.name = 'pb_planet'; scene.add(this.root);   // rolls with Q
@@ -243,6 +264,7 @@ class World {
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     const m = new THREE.Mesh(g, nb(new THREE.MeshToonMaterial({vertexColors: true, gradientMap: this.grad})));
     const ink = new THREE.Mesh(g, this.inkMat); ink.scale.setScalar(1.0015); m.add(ink);
+    m.renderOrder = -8;   // before the crater masks (-7) and bowls (-6): see _bowl
     this.ground = m; this.root.add(m);
   }
   // ---------------------------------------------------------------- sky (stars, nebula, moons) + ring
@@ -305,15 +327,33 @@ class World {
     const clear = this.cfg.planet.start_clear_m * .35 / this.R; const o = new THREE.Object3D(), col = new THREE.Color();
     for (const [k, geo, cols, lift] of kinds) { const n = Math.min(12000, Math.round(C[k] * per)); if (!n) continue; this.geos.push(geo);
       const mat = k === 'crystals' ? nb(new THREE.MeshBasicMaterial({color: 0xffffff})) : nb(new THREE.MeshToonMaterial({color: 0xffffff, gradientMap: this.grad}));
-      const im = new THREE.InstancedMesh(geo, mat, k === 'grass' ? n * 3 : n); let j = 0;
+      const im = new THREE.InstancedMesh(geo, mat, k === 'grass' ? n * 3 : n); let j = 0; const us = new Float32Array(im.count * 3);
       for (let i = 0; i < n; i++) { let u = this.randU(); if (Math.acos(Math.min(1, u.y)) < clear) u = this.randU();
         const blades = k === 'grass' ? 3 : 1;
-        for (let b = 0; b < blades; b++) { this.orient(o, u, lift, null); if (k === 'grass') { o.translateX((b - 1) * .1 * s); o.rotateZ((b - 1) * .3); o.scale.setScalar(this.r(.7, 1.3)); }
+        for (let b = 0; b < blades; b++) { us[j * 3] = u.x; us[j * 3 + 1] = u.y; us[j * 3 + 2] = u.z; this.orient(o, u, lift, null); if (k === 'grass') { o.translateX((b - 1) * .1 * s); o.rotateZ((b - 1) * .3); o.scale.setScalar(this.r(.7, 1.3)); }
           else if (k === 'stones') { o.scale.set(this.r(.6, 1.6), this.r(.4, .9), this.r(.6, 1.6)); }
           else { o.scale.set(1, this.r(1.6, 3), 1); o.rotateX(this.r(-.4, .4)); }
           o.updateMatrix(); im.setMatrixAt(j, o.matrix); col.set(this.pick(cols)).offsetHSL(0, 0, this.r(-.05, .05)); im.setColorAt(j, col); j++; } }
-      im.count = j; im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; this.root.add(im); }
+      im.count = j; im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; this.root.add(im);
+      this.cover.push({im, us, keep: im.instanceMatrix.array.slice(), hid: new Uint16Array(j)}); }
   }
+  // Ground cover inside a new hole (bowl group g: local x along it, half length hl, half width w) is hidden while the
+  // hole lasts (else grass would float over it); returns the list to give back (_dropMark -> _showCover).
+  _hideCover(g, hl, w) {
+    const out = [], R = this.R, u = g.position.clone().normalize(), reach = hl + w * 1.5, cosR = Math.cos(Math.min(Math.PI, reach / R));
+    const qi = g.quaternion.clone().invert(), v = new THREE.Vector3(), Z = new THREE.Matrix4().makeScale(0, 0, 0);
+    for (const c of this.cover) { let n = 0;
+      for (let i = 0; i < c.hid.length; i++) { const x = c.us[i * 3], y = c.us[i * 3 + 1], z = c.us[i * 3 + 2];
+        if (x * u.x + y * u.y + z * u.z < cosR) continue;
+        v.set(x, y, z).multiplyScalar(R).sub(g.position).applyQuaternion(qi);
+        if (Math.hypot(Math.max(0, Math.abs(v.x) - hl), v.z) > w * 1.45) continue;
+        if (c.hid[i]++ === 0) { c.im.setMatrixAt(i, Z); n++; } out.push(c, i); }
+      if (n) c.im.instanceMatrix.needsUpdate = true; }
+    return out;
+  }
+  _showCover(list) { const M = new THREE.Matrix4(), dirty = new Set();
+    for (let k = 0; k < list.length; k += 2) { const c = list[k], i = list[k + 1]; if (--c.hid[i] === 0) { c.im.setMatrixAt(i, M.fromArray(c.keep, i * 16)); dirty.add(c); } }
+    dirty.forEach(c => { c.im.instanceMatrix.needsUpdate = true; }); }
   // ---------------------------------------------------------------- items (solids): pillars, scenery, landmarks
   _addItem(kind, group, u, mesh, cols, o) {
     const it = Object.assign({kind, group, u, mesh, hp: 1, maxHp: 1, dead: false, regrowAt: 0, solid: true, breakable: true, color: 0x888888, height: 2}, o || {});
@@ -410,20 +450,120 @@ class World {
     return n; }
   // ---------------------------------------------------------------- ground damage
   _mark(o) { const G = this.cfg.ground; this.marks.push(o); this.root.add(o.m); o.born = this.time; o.fade = G.fade_s;
-    while (this.marks.length > G.max_marks) { const x = this.marks.shift(); this.root.remove(x.m); } }
+    while (this.marks.length > G.max_marks) this._dropMark(this.marks.shift()); }
+  _dropMark(x) { this.root.remove(x.m); if (x.cover) { this._showCover(x.cover); x.cover = null; } if (x.own) { x.own.geos.forEach(g => g.dispose()); x.own.mats.forEach(m => m.dispose()); } }
   _decalMat(c, op) { return nb(new THREE.MeshBasicMaterial({color: c, transparent: true, opacity: op, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2})); }
-  crater(u, size) { const G = this.cfg.ground; if (!G.enabled || !G.craters) return; const r = size * G.crater_pct / 100; if (r < .2) return;
-    const g = new THREE.Group(); this.orient(g, u, .03); const dark = new THREE.Color(this.pal.dirt).multiplyScalar(.45);
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(r, 14), this._decalMat(dark, .85)); floor.rotation.x = -Math.PI / 2; g.add(floor);
-    const lip = new THREE.Mesh(new THREE.RingGeometry(r * .92, r * 1.25, 14), this._decalMat(new THREE.Color(this.pal.dirt), .9)); lip.rotation.x = -Math.PI / 2; lip.position.y = .01; g.add(lip);
-    for (let i = 0; i < Math.min(10, 3 + r * 2); i++) { const a = this.r(0, 6.28), sz = this.r(.06, .14) * Math.min(3, r); const b = new THREE.Mesh(new THREE.DodecahedronGeometry(sz, 0), nb(this.toon(this.pal.rock[1], {transparent: true}).clone()));
-      b.position.set(Math.cos(a) * r * this.r(1, 1.4), sz * .3, Math.sin(a) * r * this.r(1, 1.4)); g.add(b); }
-    g.children.forEach(c => this.geos.push(c.geometry)); this._mark({m: g, kind: 'crater'}); }
-  trench(u, dir, len, w) { const G = this.cfg.ground; if (!G.enabled || !G.trenches) return; const g = new THREE.Group(); this.orient(g, u, .025, 0);
+  /* Cut-in bowls (Daniel 2026-11-25: craters with real depth). A bowl = a stadium round a segment (half length hl along
+     its local x = dir, radius w), dug `depth` m into the planet at u, with a raised broken lip `lipH` m round it.
+     Drawn through the stencil buffer so it really looks cut into the ground:
+       1. ground (renderOrder -8) as usual;
+       2. masks (-7): each hole's opening lying on the ground surface, no colour, stencil = 1 where it is visible;
+       3. depth reset (-6): the same openings again, stencil == 1 only, writing the FAR depth: the ground's depth is
+          gone inside every visible opening;
+       4. bowls (-5): the insides of the holes, stencil == 1 only, normal depth test: the nearest bowl surface wins, so
+          a ray through one opening can carry on into the next trench piece (open ends) and a far hole never shows
+          through near ground. They write their depth, so fighters, pillars and FX drawn later sit in front of / behind
+          them correctly;
+       5. lip (0): ordinary geometry round the outline (the near lip hides part of the hole, like a real rim).
+     Two outlines:
+     - round (craters, knockback trenches): a stadium round a segment, rings x rays, irregular (per-ray jitter);
+     - flat (`cut`, FX trenches / furrows): a straight piece cut square at both ends, the lip only along its sides. Pieces
+       laid end to end (planet.js fxFurrow) share their end lines exactly, so they join into one seamless trench.
+     The three materials are shared by every hole (this.mats.dig*). */
+  _bowl(u, dir, hl, w, depth, lipH, kind, cut, caps) {
+    const g = new THREE.Group(); this.orient(g, u, 0, dir ? 0 : null);
     if (dir) { const local = dir.clone().applyQuaternion(g.quaternion.clone().invert()); g.rotateY(Math.atan2(-local.z, local.x)); }
-    const m = new THREE.Mesh(new THREE.CircleGeometry(1, 10), this._decalMat(new THREE.Color(this.pal.dirt).multiplyScalar(.5), .8)); m.rotation.x = -Math.PI / 2; m.scale.set(len * .6, w, 1); g.add(m);
-    const edge = new THREE.Mesh(new THREE.RingGeometry(.85, 1.1, 10), this._decalMat(new THREE.Color(this.pal.dirt), .7)); edge.rotation.x = -Math.PI / 2; edge.scale.set(len * .6, w, 1); edge.position.y = .005; g.add(edge);
-    g.children.forEach(c => this.geos.push(c.geometry)); this._mark({m: g, kind: 'trench'}); }
+    const R = this.R, crater = kind === 'crater';
+    const gy = (x, z) => Math.sqrt(Math.max(0, R * R - x * x - z * z)) - R;   // the sphere's surface in the bowl's frame
+    const across = (a, b, n) => { const o = []; for (let i = 0; i <= n; i++) o.push(a + (b - a) * i / n); return o; };
+    const own = {geos: [], mats: []}, fadeGeos = [], M = this._digMats();
+    const dirt = new THREE.Color(this.pal.dirt), floor = dirt.clone().multiplyScalar(.42), ink = new THREE.Color(0x0c0a10), burnt = new THREE.Color(0x1c130d);
+    const top = dirt.clone().multiplyScalar(1.18), base = new THREE.Color(this.pal.ground[0]).lerp(dirt, .5), LS = [.97, 1.07, 1.2, 1.42], LH = [0, 1, .55, 0];
+    const prof = s => crater ? 1 - Math.pow(Math.min(1, s), 2.6) : 1 - s * s;
+    const lm = this.mats.lipv || (this.mats.lipv = nb(new THREE.MeshToonMaterial({vertexColors: true, gradientMap: this.grad})));
+    // flat-shaded (faceted toon, like the ground); y split into the sphere surface + the dug / raised part for the fade
+    const facet = geo => { const n = geo.toNonIndexed(); geo.dispose(); n.computeVertexNormals(); const p = n.attributes.position, yb = new Float32Array(p.count), yo = new Float32Array(p.count);
+      for (let i = 0; i < p.count; i++) { yb[i] = gy(p.getX(i), p.getZ(i)); yo[i] = p.getY(i) - yb[i]; } fadeGeos.push({geo: n, yb, yo}); own.geos.push(n); return n; };
+    /* One outline shape S = {NC columns, wrap, at(s, k) -> [x, z], straight: rows run across (+z .. -z) instead of out from
+       the middle}, built into parent: mask + depth reset, bowl, lip. Triangles (a, b, c) + (b, d, c) face up. */
+    const build = (S, parent) => {
+      const grid = (rows, fn) => { const pos = [], col = [], idx = [], n = S.wrap ? S.NC : S.NC - 1, NC = S.NC;
+        rows.forEach((s, j) => { for (let k = 0; k < NC; k++) { const [x, z] = S.at(s, k), o = fn(s, j, k, x, z); pos.push(x, o[0], z); if (o[1]) col.push(o[1].r, o[1].g, o[1].b); } });
+        for (let j = 0; j < rows.length - 1; j++) for (let k = 0; k < n; k++) { const a = j * NC + k, b = j * NC + (k + 1) % NC, c = a + NC, d = b + NC; idx.push(a, b, c, b, d, c); }
+        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        if (col.length) geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); geo.setIndex(idx); return geo; };
+      // 2. mask + 3. depth reset
+      const mg = grid(S.straight ? [1, 0, -1] : [0, .5, 1], (s, j, k, x, z) => [gy(x, z) + .03]); own.geos.push(mg);
+      const mask = new THREE.Mesh(mg, M.mask), reset = new THREE.Mesh(mg, M.reset); mask.renderOrder = -7; reset.renderOrder = -6; parent.add(mask, reset);
+      // 4. bowl: dirt at the rim -> dark floor (+ a scorched middle in a crater), a dark ink band just inside the rim
+      const rows = S.straight ? [1, .94].concat(across(.8, -.8, 6), [-.94, -1]) : across(0, .94, 6).concat([1]);
+      const bg = facet(grid(rows, (s, j, k, x, z) => { const a = Math.abs(s), c = floor.clone().lerp(dirt, Math.pow(a, 1.6));
+        if (crater && a < .4) c.lerp(burnt, (1 - a / .4) * .7); if (a > .93) c.lerp(ink, .75);
+        return [gy(x, z) - depth * prof(a) * (S.rough && a > 0 && a < 1 ? 1 + (this.rnd() - .5) * .16 : 1), c]; }));
+      const bowl = new THREE.Mesh(bg, M.bowl); bowl.renderOrder = -5; parent.add(bowl);
+      // 5. lip: starts just inside the rim and a little below the ground (no sliver of ground at the edge), peaks just
+      //    outside it, slopes back to the ground; broken (per-column height)
+      if (lipH > .005) {
+        const lj = []; for (let k = 0; k < S.NC; k++) lj.push(this.rnd() < .18 ? this.r(.15, .45) : this.r(.75, 1.3));
+        const lipY = (j, k, x, z) => gy(x, z) + (j === 0 ? -.05 : lipH * LH[j] * lj[k] + (j === 3 ? .012 : 0)), lipC = j => j === 3 ? base : j === 0 ? dirt : top;
+        if (S.straight) {   // two strips along the sides (rows ordered +z -> -z on each)
+          parent.add(new THREE.Mesh(facet(grid(LS.slice().reverse(), (s, j, k, x, z) => { const i = 3 - j; return [lipY(i, k, x, z), lipC(i)]; })), lm));
+          parent.add(new THREE.Mesh(facet(grid(LS.map(s => -s), (s, j, k, x, z) => [lipY(j, k, x, z), lipC(j)])), lm));
+        } else parent.add(new THREE.Mesh(facet(grid(LS, (s, j, k, x, z) => [lipY(j, k, x, z), lipC(j)])), lm));
+      }
+    };
+    let main;
+    // a straight piece reaches ext past both ends: neighbours that turn a little overlap instead of leaving a wedge gap
+    // at the bend (same cross profile, so a straight overlap is invisible)
+    const ext = cut ? w * .6 : 0, hx = hl + ext;
+    if (cut) {   // straight piece: columns along x, s across (+ = +z side)
+      const NC = Math.max(2, Math.ceil(hx * 2 / .5) + 1); main = {NC, wrap: false, straight: true, at: (s, k) => [-hx + 2 * hx * k / (NC - 1), s * w]};
+    } else {     // round: rays round the segment, a broken irregular rim (jitter smoothed so it reads as rock, not noise)
+      const NC = crater ? 30 : 24; let jit = []; for (let k = 0; k < NC; k++) jit.push(1 + (this.rnd() - .5) * (crater ? .3 : .14));
+      jit = jit.map((v, k) => (jit[(k + NC - 1) % NC] + 2 * v + jit[(k + 1) % NC]) / 4);
+      main = {NC, wrap: true, rough: true, at: (s, k) => { const f = (k + .5) / NC * Math.PI * 2, c = Math.cos(f), r = s * w * jit[k]; return [(c >= 0 ? hl : -hl) + r * c, r * Math.sin(f)]; }};
+    }
+    build(main, g);
+    // half-round end caps of a straight piece (same cross profile as the piece, so they meet it without a seam); each in
+    // its own group so a trench that grows on hides the old end cap (planet.js)
+    const capG = {};
+    if (cut) for (const side of caps || []) { const cx = side === 'end' ? hx : -hx, f0 = side === 'end' ? -Math.PI / 2 : Math.PI / 2, NC = 10;
+      const cg = new THREE.Group(); g.add(cg); capG[side] = cg;
+      build({NC, wrap: false, at: (s, k) => { const f = f0 + Math.PI * k / (NC - 1); return [cx + s * w * Math.cos(f), s * w * Math.sin(f)]; }}, cg); }
+    // loose rocks round the rim of a crater
+    if (crater) for (let i = 0; i < Math.min(10, 3 + w * 2); i++) { const k = (this.rnd() * main.NC) | 0, sz = this.r(.06, .14) * Math.min(3, w), [x, z] = main.at(this.r(1.05, 1.45), k);
+      const geo = new THREE.DodecahedronGeometry(sz, 0), m = nb(this.toon(this.pal.rock[1], {transparent: true}).clone()); own.geos.push(geo); own.mats.push(m);
+      const b = new THREE.Mesh(geo, m); b.position.set(x, gy(x, z) + sz * .3, z); g.add(b); }
+    return {m: g, kind, own, fadeGeos, caps: capG, cover: this._hideCover(g, hx, w)};
+  }
+  _digMats() { const m = this.mats; if (m.digMask) return {mask: m.digMask, reset: m.digReset, bowl: m.digBowl};
+    m.digMask = nb(new THREE.MeshBasicMaterial({colorWrite: false, depthWrite: false, stencilWrite: true, stencilRef: 1,
+      stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp}));
+    m.digReset = new THREE.ShaderMaterial({colorWrite: false, depthWrite: true, depthFunc: THREE.AlwaysDepth, stencilWrite: true, stencilRef: 1,
+      stencilFunc: THREE.EqualStencilFunc, vertexShader: 'void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 ); gl_Position.z = gl_Position.w * 0.999999; }',
+      fragmentShader: 'void main() { gl_FragColor = vec4( 0.0 ); }'});
+    m.digBowl = nb(new THREE.MeshToonMaterial({vertexColors: true, gradientMap: this.grad, stencilWrite: true, stencilRef: 1, stencilFunc: THREE.EqualStencilFunc}));
+    return {mask: m.digMask, reset: m.digReset, bowl: m.digBowl}; }
+  crater(u, size) { const G = this.cfg.ground; if (!G.enabled || !G.craters) return; const r = size * G.crater_pct / 100; if (r < .2) return;
+    this._mark(this._bowl(u, null, 0, r, r * G.crater_depth_pct / 100, r * .2 * G.lip_pct / 100, 'crater'));
+    if (G.debris) this.kick(u, null, Math.min(8, 2 + r * 2), 8 + r * 4); }
+  // len = length along dir (m), w = half width (m); opts {depth (x the setting), lip (x), kind 'trench' | 'streak', debris (rocks),
+  // cut: square ends (pieces laid end to end join seamlessly; needs dir), caps: ['start', 'end'] half-round ends of a cut piece}
+  // Returns the mark (its .caps.end / .caps.start groups can be hidden when the trench grows on), or undefined.
+  trench(u, dir, len, w, opts) { const G = this.cfg.ground; if (!G.enabled || !G.trenches) return; opts = opts || {};
+    const d = 2 * w * G.trench_depth_pct / 100 * (opts.depth == null ? 1 : opts.depth), lip = w * .3 * G.lip_pct / 100 * (opts.lip == null ? 1 : opts.lip);
+    const mk = this._bowl(u, dir, len / 2, w, d, lip, opts.kind || 'trench', !!(opts.cut && dir && len > .05), opts.caps); this._mark(mk);
+    if (G.debris) this.kick(u, dir, opts.debris == null ? 2 : opts.debris, 6 + w * 6);
+    return mk; }
+  // dirt kicked up at u: n small rocks thrown (along dir when given, else all round) + a puff of dust; power ~ m/s
+  kick(u, dir, n, power) { n = Math.round(n) || 0; if (n <= 0) return;
+    const base = u.clone().multiplyScalar(this.R + .1), col = [this.pal.dirt, this.pal.rock[1]];
+    for (let i = 0; i < n; i++) { const sz = this.r(.07, .2) * Math.min(2, (power || 8) / 10 + .5), geo = new THREE.DodecahedronGeometry(sz, 0); this.geos.push(geo);
+      const m = this.inked(geo, this.toon(col[i % 2])); m.position.copy(base); this.root.add(m);
+      const t = new THREE.Vector3(this.r(-1, 1), this.r(-1, 1), this.r(-1, 1)); t.addScaledVector(u, -t.dot(u)); if (t.lengthSq() > 1e-9) t.normalize();
+      const v = t.multiplyScalar(this.r(.5, 1.5) * (power || 8) * .25).addScaledVector(u, this.r(.5, 1) * (power || 8) * .6); if (dir) v.addScaledVector(dir, this.r(.3, .9) * (power || 8) * .5);
+      this.debris.push({m, v, life: this.r(.9, 1.6), t: 0, spin: new THREE.Vector3(this.r(-9, 9), this.r(-9, 9), this.r(-9, 9)), sz}); }
+    this._puff(u, this.r(.1, .4), this.pal.fog || 0xaaaaaa); }
   scorch(u, size) { const G = this.cfg.ground; if (!G.enabled || !G.scorch) return; const g = new THREE.Group(); this.orient(g, u, .02);
     const m = new THREE.Mesh(new THREE.CircleGeometry(size, 12), this._decalMat(0x0a0806, .55)); m.rotation.x = -Math.PI / 2; g.add(m); this.geos.push(m.geometry); this._mark({m: g, kind: 'scorch'}); }
   // ---------------------------------------------------------------- per-frame update (real seconds)
@@ -445,10 +585,14 @@ class World {
       if (it.dead && it.regrowAt > 0 && this.time >= it.regrowAt && (!canRegrow || canRegrow(it))) { it.dead = false; it.hp = it.maxHp; it.mesh.visible = true; it.grow = 0; }
       if (it.grow != null) { it.grow = Math.min(1, it.grow + dt * 2.5); const e = 1 - Math.pow(1 - it.grow, 3); it.mesh.scale.setScalar(Math.max(.01, e)); if (it.grow >= 1) it.grow = null; } }
     for (let i = this.marks.length - 1; i >= 0; i--) { const mk = this.marks[i]; if (!(mk.fade > 0)) continue; const age = this.time - mk.born; const left = mk.fade - age;
-      if (left < 2) mk.m.traverse(o => { if (o.material) { if (o.material.userData.op == null) o.material.userData.op = o.material.opacity; o.material.opacity = o.material.userData.op * Math.max(0, left / 2); } });
-      if (left <= 0) { this.root.remove(mk.m); this.marks.splice(i, 1); } }
+      if (left < 2) { const k = Math.max(0, left / 2);
+        mk.m.traverse(o => { if (o.material && o.material.transparent) { if (o.material.userData.op == null) o.material.userData.op = o.material.opacity; o.material.opacity = o.material.userData.op * k; } });
+        // a bowl fills back in: the dug / raised part eases to the bare ground
+        if (mk.fadeGeos) mk.fadeGeos.forEach(f => { const p = f.geo.attributes.position; for (let j = 0; j < p.count; j++) p.setY(j, f.yb[j] + f.yo[j] * k); p.needsUpdate = true; }); }
+      if (left <= 0) { this._dropMark(mk); this.marks.splice(i, 1); } }
   }
-  dispose() { this.scene.remove(this.root); this.scene.remove(this.sky); this.geos.forEach(g => g.dispose && g.dispose());
+  dispose() { this.marks.forEach(x => this._dropMark(x)); this.marks = [];
+    this.scene.remove(this.root); this.scene.remove(this.sky); this.geos.forEach(g => g.dispose && g.dispose());
     for (const k in this.mats) this.mats[k].dispose(); this.inkMat.dispose(); this.grad.dispose(); BEND.w = 0; }
 }
 

@@ -512,12 +512,38 @@ the game builds.
   - *Pillars & boulders*: block bodies and shots; break on a single hit / shot / blast of at least `break_damage`, or a
     thrown fighter at least `break_speed` fast (smashes through, keeps 70 % speed); weaker hits chip `chip_pct` %; a thrown
     fighter that doesn't break it gets a PILLAR SPLAT (toggle). Boulder stacks by `multi_chance`.
-  - *Ground damage*: craters (ground splats, heavy hits, hard landings, K.O.s, blasts), trenches (fast knockback slides),
-    scorch marks (blocked shots, blasts); fade after `fade_s`, at most `max_marks`.
+  - *Ground damage*: craters (ground splats, heavy hits, hard landings, K.O.s, blasts), trenches (fast knockback slides,
+    low beams / FX), scorch marks (blocked shots, blasts); fade after `fade_s` (a fading hole fills back in), at most
+    `max_marks`. Craters and trenches are **real holes** (Daniel 2026-11-25): `crater_depth_pct` (% of the radius),
+    `trench_depth_pct` (% of the width), `lip_pct` (raised broken rim), `debris` (rocks + dust thrown up as they are dug).
+    How they are drawn (`world3d.js _bowl`): ground (renderOrder -8) -> every opening as a colourless mask writing
+    stencil 1 (-7) -> the same openings again writing the FAR depth where stencil = 1 (-6) -> the bowls' insides,
+    stencil = 1, normal depth test (-5), so the nearest bowl surface wins (one shared set of materials) -> the lip (0).
+    Craters / knockback starts are round with a jittered rim; trench pieces are square-cut, reach `0.6 x width` past both
+    ends and are laid end to end (`planet.js digChain`), with a half-round cap at the start and at the newest end (the
+    old end cap is hidden as the trench grows), so a chain reads as one trench. Ground cover inside a hole is hidden
+    while it lasts (`_hideCover` / `_showCover`).
   - *Breakable scenery*: trees (pine / round / dead), crystal clusters, old columns; same break rules with their own numbers;
     `solid` off = fighters pass through (they still break when hit).
   - What hits them: landed hits reach whatever stands round the target (`planetHit`), shots (`planetShot`), thrown fighters
-    (`planetTick`), ground splats / K.O.s (`planetBlast`). FX Studio FX hit them only through the hits they land on fighters.
+    (`planetTick`), ground splats / K.O.s (`planetBlast`), and moving FX Studio FX (`planetFx`, below).
+- **FX and the world** (Daniel 2026-11-25, section `fxworld`): FX Studio FX follow the globe. The 3D cel-shaded shapes
+  (`fx3d.js` `TOON_VS`) now run the same bend as `installBend` (uniform `uBend` = `World3D.BEND`, the normal bent too),
+  and tubes (`TUBE_SEGS` 28) / cards (`CARD_SEGS` 16 x 16) are split so they can curve: a beam laid level on the flat
+  sim plane is drawn round the planet at the same height over the ground (hits are unchanged: the sim is still flat).
+  Each tick `fxlive.js fxTick` hands `Runner.worldFx()` (head / tail in scene metres, radius, damage, kind) to
+  `planet.js planetFx`:
+  - `props`: moving FX (travelling ones + beams) hit the pillars / boulders / trees / crystals their path crossed this
+    tick (beam = tail -> head, else last spot -> now), once per effect per item, with the normal break / chip rules
+    (`props_min_damage`), and keep going; landmarks only spark;
+  - `beam_trench`: a beam with damage >= `beam_min_damage` whose head is below `beam_low_m` (or diving into the ground:
+    the point where it meets it) digs a trench from its tail's ground spot along everything its head sweeps, width =
+    `beam_width_pct` of the beam's; a beam diving straight in also craters;
+  - `streaks`: other travelling FX (orbs, lasers, crescents, slashes) below `streak_low_m` with damage >=
+    `streak_min_damage` leave a thinner, shallower furrow (a jump over 8 m = a new furrow);
+  - `impacts`: a pulse (impact burst) below `impact_low_m` with its own damage >= `impact_min_damage`, or an end radius
+    >= `impact_min_px` FX px, leaves a crater (+ scorch) where it bursts, `impact_size_pct`.
+  FX Studio 3D has no planet: its preview stays flat (no bend, no marks).
 - **Look**: each world picks one ticked ground look (meadow, dusk = the old V3 night, rocky moon, crystal, lava, ice,
   desert) and randomises moons, ring, nebula, tree kinds, landmark kinds and every placement from the seed.
 - **Studio**: Orbit / Ground view, Spin, New random world (preview seed), click the planet = test blast (radius 6 m, damage
