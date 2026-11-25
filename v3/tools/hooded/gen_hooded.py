@@ -183,7 +183,7 @@ def attack_normal_3():
     fr, fl = stance()
     # 0.20 coil (FX starts): sink, chest wound LEFT (left shoulder back) so the left arm can drive; Oblivion drawn back
     # low at the hip, point forward (chambered); Oathkeeper cocked high up-back
-    K.append(key(0.20, "in", [0, -0.40, -0.06], [25, 26, 0], [45, 30, -6], [10, 20, 0],
+    K.append(key(0.20, "inout", [0, -0.40, -0.06], [25, 26, 0], [45, 30, -6], [10, 20, 0],
                  ([-0.04, 0.18, -0.18], [-0.5, -1, -0.5], [-0.2, 1, -0.6], [10, -16]),
                  ([0.10, -0.36, -0.30], [0.4, -0.5, -1], [0, -0.15, 1], [0, -18]),
                  fr, fl, label="f2-3 coil: Oblivion chambered at the hip"))
@@ -192,18 +192,15 @@ def attack_normal_3():
     fr2 = foot(-0.12, 0.72, yaw=-15, knee=(-0.2, 0.1, 1))
     fl2 = foot(0.12, -0.30, pitch=40, yaw=35, knee=(0.3, -0.4, 1))
     K.append(key(0.32, "snap", [0.02, -0.46, 0.34], [-30, 34, 0], [-55, 42, 8], [-25, 24, 0],
-                 ([-0.06, 0.24, -0.10], [-0.6, -1, -0.3], [-0.1, 1, -0.4], [12, -18]),
+                 ([-0.06, 0.40, -0.10], [-0.7, -0.4, -0.5], [-0.1, 0.6, -0.8], [16, -14]),
                  ([0.04, -0.30, 0.66], [0.6, -0.8, 0], [0, -0.22, 1], [-4, 28]),
                  fr2, fl2, bease="linear", label="f4 PIERCE: Oblivion low through the target"))
-    K.append(key(0.36, "out", [0.02, -0.47, 0.38], [-34, 36, 0], [-60, 44, 9], [-28, 24, 0],
-                 ([-0.06, 0.26, -0.10], [-0.6, -1, -0.3], [-0.1, 1, -0.4], [12, -18]),
-                 ([0.04, -0.32, 0.68], [0.6, -0.8, 0], [0, -0.25, 1], [-4, 30]),
-                 fr2, fl2, label="pierce held (FX to u.42)"))
-    # 0.395 raise: Oathkeeper swings up OVER the head (the chop travels in the arm's plane, never a wrist spin)
-    K.append(key(0.395, "in", [0.0, -0.44, 0.42], [0, 34, 0], [5, 40, 0], [-8, 24, 0],
+    # 0.375 breakdown on the chop's arc (arcs pass, Daniel 2026-11-25): Oathkeeper rising OVER the head as Oblivion
+    # starts to rip out; eased in and out so the hand turns over the top instead of cornering at full speed
+    K.append(key(0.375, "inout", [0.0, -0.44, 0.42], [0, 34, 0], [5, 40, 0], [-8, 24, 0],
                  ([-0.04, 0.46, 0.10], [-0.8, 0.2, -0.3], [0, 0.7, 0.7], [18, 0]),
                  ([0.08, -0.32, 0.30], [0.6, -0.7, -0.4], [0, -0.25, 1], [0, 6]),
-                 fr2, fl2, label="raise: Oathkeeper up over the head"))
+                 fr2, fl2, bease="linear", label="raise: Oathkeeper up over the head"))
     # 0.42 CHOP: Oblivion rips out back to the hip as the chest whips LEFT and Oathkeeper comes over and down onto
     # the target (FX 50 deg below forward); the back foot drags up under the hips
     fl3 = foot(0.12, 0.10, pitch=30, yaw=30, knee=(0.3, -0.3, 1))
@@ -222,7 +219,8 @@ def attack_normal_3():
                  foot(-0.12, 0.72, yaw=-15, knee=(-0.2, 0.2, 1)), foot(0.10, 0.06, pitch=30, yaw=35, knee=(0.3, -0.5, 1)),
                  label="recover"))
     K.append(ready(0.80, "inout", dz=0.42, label="f8 ready again, 0.42 m on"))
-    return {"length": 0.8, "arm_space": "chest", "physics": True, "key_tol": [0.08, 0.22], "approved": False,
+    # default key tolerance (arcs pass: the loose library [0.08, 0.22] cut a straight corner into the recovery)
+    return {"length": 0.8, "arm_space": "chest", "physics": True, "approved": False,
             "about": "DRAFT Pierce & Chop (FX pierce_chop 0.2-0.58 s): coil with Oblivion chambered at the hip > "
                      "lunge, Oblivion stabs low through the target (0.32) > chest whips, Oathkeeper chops down as "
                      "Oblivion rips out (0.42) > recover > ready 0.42 m on.", "keys": K}

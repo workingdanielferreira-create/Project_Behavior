@@ -138,7 +138,16 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
   `python v3/tools/anim3d.py hooded_blades --clips <clip>`. attack_normal (his own) and attack_normal_2 untouched.
 - Not confirmed (ask): which way the keyblade teeth face (roll 0 = teeth on the weapon's edge side; `keyblades_on.py
   <roll_R> <roll_L>` turns them); the keyblades' size (grip -> tip 1.05 m Oathkeeper, ~1.15 m Oblivion).
-- **Next:** Daniel's verdict on the six drafts' stills, one move at a time.
+- Arcs pass on attack_normal_3 (Daniel 2026-11-25, /motion-arcs-supervisor, "fix at the keys"): `review/arcs.js` +
+  `arcs.py` sample hips / chest|hips / head|chest / hand|shoulder / keyblade tips at 60 fps (`build_preview.py --game` =
+  the stored key poses tweened as V3 does) and flag kinks (> 55 deg turn or > 2.2x speed pop in one frame). Fixed at
+  the keys: coil eases in AND out (it arrived at full speed and cornered into the pierce), the 2-frame "pierce held"
+  hold removed (hands stalled and reversed), the patch "raise" became the chop's breakdown on the over-the-top arc
+  (0.375, inout, hips carry the lunge), Oathkeeper cocked high at the pierce (overlap), default key tolerance (the
+  loose one cut a straight corner into the recovery). Chest + head layers clean. Left on purpose: the chop's 4-frame
+  over-the-top snap (FX lands it at 0.423), the stick on the hit, Oblivion's rip-out reversal, the anticipation
+  reversal at the coil (chest wound left, whips right).
+- **Next:** Daniel's verdict on the six drafts' stills, one move at a time (attack_normal_3 first, after its arcs pass).
 
 ## Key poses + tweening (2026-11-22, later)
 
