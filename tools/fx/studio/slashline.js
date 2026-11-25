@@ -193,5 +193,7 @@ function draw(pen, inst, host, ps) {
 }
 
 G.SLASHLINE = {STYLES: STYLES, FROMS: FROMS, activeTicks: activeTicks, totalTicks: totalTicks, onSpawn: onSpawn,
-               hit: hit, body: body, draw: draw, Geo: Geo};
+               hit: hit, body: body, draw: draw, Geo: Geo,
+               // for FX Studio 3D (v3/js/fx3d.js)
+               span: span, slices: slices, from_: from_, hold: hold, fade: fade, size: size, cutDir: cutDir, SPARK_LIFE: SPARK_LIFE};
 })(window);

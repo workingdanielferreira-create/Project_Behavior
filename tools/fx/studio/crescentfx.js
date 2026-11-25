@@ -507,5 +507,8 @@ function draw(pen, inst, host, ps) {
 }
 
 G.CRESCENTFX = {STYLES: STYLES, GROUND_STYLES: GROUND_STYLES, SCATTER_PATHS: SCATTER_PATHS, activeTicks: activeTicks, totalTicks: totalTicks,
-                impactTick: impactTick, hit: hit, body: body, draw: draw, groundPoint: groundPoint, onGround: onGround, moons: moons};
+                impactTick: impactTick, hit: hit, body: body, draw: draw, groundPoint: groundPoint, onGround: onGround, moons: moons,
+                // for FX Studio 3D (v3/js/fx3d.js)
+                pts: pts_, count: count, reach: reach, spd: spd_, scatterPlan: scatterPlan, gp: gp_,
+                K: {ARC_DEG: ARC_DEG, CX: CX, EMBER_LIFE: EMBER_LIFE, SHARD_LIFE: SHARD_LIFE, FALL_WIND: FALL_WIND}};
 })(window);

@@ -582,7 +582,7 @@ const PLACE = [
 ];
 const is3dV = v => FX3D.is3d(v, v.fx3d);
 const TOON = [
-  {l: 'Render', p: 'fx3d.render', t: 'sel', s: true, o: [['auto', 'auto (3D shape for the basic kinds, card for the rest)'], ['3d', '3D cel-shaded shape'], ['card', '2D card (the drawing)']]},
+  {l: 'Render', p: 'fx3d.render', t: 'sel', s: true, o: [['auto', 'auto (3D shape for the basic kinds, punches / kicks, slashes / crescents; card for the rest)'], ['3d', '3D cel-shaded shape'], ['card', '2D card (the drawing)']]},
   {l: 'Cel look', t: 'h', show: is3dV},
   {l: 'Bands', p: 'fx3d.toon_bands', t: 'rng', min: 1, max: 6, show: is3dV, h: 'Flat colour bands from the edge (shade) to the middle (full colour)'},
   {l: 'Hot core (%)', p: 'fx3d.toon_core_pct', t: 'rng', min: 0, max: 90, show: is3dV, h: 'How much of the facing middle is the white-hot core (0 = none)'},
@@ -606,6 +606,18 @@ const TOON = [
   {l: 'Shock ring', p: 'fx3d.impact_ring', t: 'chk', show: v => is3dV(v) && v.prim === 'pulse', h: 'A flat ring spreading level'},
   {l: 'Spikes', p: 'fx3d.impact_spikes', t: 'rng', min: 0, max: 32, show: v => is3dV(v) && v.prim === 'pulse', h: 'Radial spikes bursting out (0 = none)'},
   {l: 'Spike length (%)', p: 'fx3d.impact_spike_pct', t: 'rng', min: 10, max: 300, show: v => is3dV(v) && v.prim === 'pulse' && v.fx3d.impact_spikes > 0},
+  {l: 'Strike', t: 'h', show: v => is3dV(v) && !!FX3D.strikeKind(v)},
+  {l: 'Drives out from', p: 'fx3d.strike_limb', t: 'sel', show: v => is3dV(v) && ['punch', 'kick'].indexOf(FX3D.strikeKind(v)) >= 0,
+    o: [['auto', 'auto (the 3D hand / foot driving forward)'], ['haR', 'right hand'], ['haL', 'left hand'], ['ftR', 'right foot'], ['ftL', 'left foot'], ['none', 'none · FX Studio\'s line only']],
+    h: 'The fist / foot starts at this 3D hand / foot and drives out to FX Studio\'s full reach along the aim, then back. Hits stay FX Studio\'s punch / kick line'},
+  {l: 'Glow size (%)', p: 'fx3d.strike_glow_pct', t: 'rng', min: 10, max: 200, show: v => is3dV(v) && !!FX3D.strikeKind(v), h: 'Spheres for FX Studio\'s soft glows (fist, flash, pressure, dust), % of the glow radius'},
+  {l: 'Air stroke spiral (°)', p: 'fx3d.strike_spin_deg', t: 'rng', min: 0, max: 360, show: v => is3dV(v) && ['punch', 'kick'].indexOf(FX3D.strikeKind(v)) >= 0, h: 'How far the wind strokes spiral round the fist\'s path (0 = straight)'},
+  {l: 'Ground FX on the floor', p: 'fx3d.strike_ground', t: 'chk', show: v => is3dV(v) && ['punch', 'kick'].indexOf(FX3D.strikeKind(v)) >= 0, h: 'Push-off dust, ground waves and craters lie on the floor (off = at FX Studio\'s height)'},
+  {l: 'Only the energy look is 3D: ink / gritty parts stay on the card', t: 'h', show: v => is3dV(v) && ['punch', 'kick'].indexOf(FX3D.strikeKind(v)) >= 0},
+  {l: 'Blade', t: 'h', show: v => is3dV(v) && !!FX3D.bladeKind(v)},
+  {l: 'Blade thickness (%)', p: 'fx3d.blade_thick_pct', t: 'rng', min: 0, max: 150, show: v => is3dV(v) && !!FX3D.bladeKind(v), h: 'How thick the 3D blade is, % of its width (a lens section with a ridge; 0 = flat)'},
+  {l: 'Glow size (%)', p: 'fx3d.strike_glow_pct', t: 'rng', min: 10, max: 200, show: v => is3dV(v) && !!FX3D.bladeKind(v), h: 'Spheres for FX Studio\'s soft glows (head glint, bursts, flashes), % of the glow radius'},
+  {l: 'Ground crescents on the floor', p: 'fx3d.strike_ground', t: 'chk', show: v => is3dV(v) && FX3D.bladeKind(v) === 'crescent', h: 'Ground drag / moonfall stand on the floor, sparks skid on it'},
   {l: 'Chunks', t: 'h', show: v => is3dV(v) && v.prim === 'particles'},
   {l: 'Shape', p: 'fx3d.chunk_shape', t: 'sel', o: () => FX3D.CHUNKS, show: v => is3dV(v) && v.prim === 'particles'},
   {l: 'Size (%)', p: 'fx3d.chunk_size_pct', t: 'rng', min: 10, max: 400, show: v => is3dV(v) && v.prim === 'particles'},

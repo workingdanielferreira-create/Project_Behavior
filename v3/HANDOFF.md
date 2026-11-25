@@ -339,9 +339,34 @@ v3-animation skill ("Review questions").
   (solves a key until the wrists land on given points; `straight=` locks the arms). Gotcha he caught ("what is
   happening with his arms"): anim3d carries a control a key leaves out (e.g. `clav`) over from the key before, so a
   helper that solves a key alone must key it explicitly.
+- **Overlap pass (2026-11-25), baked:** Daniel picked per-part lag in anim3d, ZZZ-snappy 1-2 frames. anim3d clip
+  `overlap` (README "Overlap / follow-through") on both approved clips: before, every part started and stopped on the
+  same frame; now hips > chest > arm > fist settle in turn, head loosest. "Pull body keys earlier": attack_normal's
+  inner keys 25 ms early, the fist lands on the approved frames. Kamehameha "bake it" (10 -> 13 keys for the settle).
+  Audit: no hard faults (a 170 deg forearm flip from the fist spring was fixed: directions spring on the sphere, Rfist
+  1.75 frames). New moves get `overlap` from blocking.
 - **Next, in order:** ultimate (Big Bang Kamehameha), attack_normal_2 (double axe handle
   overhead), attack_normal_3 (shoryuken uppercut jump), attack_normal_4 (180 spin > backhand), attack_special_2 (hands
   pumping forward and back). Puck's other clips are still the 2D-guessed ones (the audit's hard faults are theirs).
+
+## 3D punches, kicks and impacts (2026-11-25)
+
+- Daniel: "recreate the FX we have into 3D versions; start with punching motion effects and impact effects".
+- His picks: scope = impact punch + kicks + ground FX + serious punch; fist path = from the real 3D fist out along the aim
+  to FX Studio's reach (hits stay FX Studio's line); impact = forward 3D cone (flash / focus lines face the camera);
+  **energy look first** (ink / gritty parts stay cards).
+- Done: `fx3d.js drawStrike / impact3d / impactFrame3d / strikeEnv / drawSerious` + `strike_*` keys, FX Studio 3D
+  "Strike" rows, exports `STRIKEFX.parts`, `KICKFX.parts`, `POWERFX.sp`, `HITFX.K` (no 2D change), 3D FX fade near the
+  camera. README "3D punches, kicks and impacts".
+- Checked headless (Playwright + SwiftShader): every style in a test kit, then Watch battles with Puck / Puff / Sync /
+  Sueko / new_fighter: punches, thrust / spinning / rising kicks and the serious punch draw in 3D, hands / feet picked
+  automatically, no errors; FX Studio 3D loads.
+- **Next:** Daniel's verdict in game + studio.
+- Daniel then: "ignore those other variations (ink / gritty), continue creating more 3D FX"; picked all four families, in
+  order: sword slashes + crescents, gunfire + ki barrage, ethereal blades, auras + power techniques.
+- **Batch 2 done: sword slashes + crescents** (`fx3d.js drawBlade` + band mesh, `blade_thick_pct`, README "3D sword FX").
+  Checked headless: every style from FX Studio's presets renders, a Ronin (ronin_copy) battle runs with no errors.
+  **Next batch: gunfire + ki barrage.**
 
 ## Next steps (agreed direction, not started)
 

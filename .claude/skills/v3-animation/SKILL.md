@@ -110,6 +110,11 @@ actions". Upright, square, polite poses are rejected. Every key (`v3/tools/libra
   with his arms"); in the charge both arms fold (elbows 60-75 deg), never a straight stick across the belly.
 - **Keys inherit what they leave out**: anim3d carries a missing control (e.g. `clav`) over from the key before, so a
   pose solved per key (gen_puck `meet`) differs from the clip unless the key sets it. Measure the BAKED clip.
+- **Overlap** (2026-11-25, Daniel: ZZZ-snappy 1-2 frames): clip `"overlap": {group: [lag_frames, overshoot_pct]}`
+  (README "Overlap / follow-through"). Never let every part start and stop on one frame. Vary per part (fist latest,
+  head loosest, free arm tighter; hands moving as one unit share a value); then pull the body keys the lag earlier so
+  the hit stays on its frame (measure the fist's extension, don't eyeball). Fist lag / overshoot too high on a
+  turn-over = forearm flip in the audit.
 - **Review loop**: `bash v3/tools/puck/review/go.sh <clip> <tag>` -> `v3/tools/puck/review/out/<clip>_keys_<tag>.gif`
   (each key 1.1 s: 2D frame | side | 3/4 | front) + `_motion_` GIF; send both, score /10 honestly, take his
   corrections. One move at a time.

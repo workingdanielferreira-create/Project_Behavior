@@ -246,6 +246,16 @@ real wrist extends ~60-70 deg: a locked-arm kamehameha cups its palms toward eac
 past that the solver notes "palm off by". Finger pose `Body.palm_pose` from the grip pose's own curl axes; the palm's
 facing in the hand frame (`Body.palm_frame`) = the way a curling finger moves.
 
+**Overlap / follow-through (anim3d, 2026-11-25, Puck).** Clip `"overlap": {group: [lag_frames, overshoot_pct]}`,
+groups `spine`, `head` (relative to the chest), `R` / `L` (hand or reach, elbow, clav: chest space with `arm_space`
+chest), `Rfist` / `Lfist` (where the fist / blade / palm points). Each group's interpolated controls chase their keyed
+path through a damped 2nd-order spring at 60 fps (`overlap_filter`: lag = 2 zeta / omega, zeta from the overshoot;
+directions spring on the sphere so a fist turning over never flips): parts start after their parent, overshoot the
+key and settle in turn. Hips and feet are never filtered (planted feet stay planted). Vary the values per part (fist
+latest, head loosest, a free arm tighter); hands that move as one unit (kamehameha) share one value. A lagging part
+lands late: pull the body keys that much earlier (Puck `OVERLAP_LEAD` 25 ms). Too much fist lag / overshoot on a
+turn-over can make the forearm twist flip (audit "flip"): lower it.
+
 **Grip and twirl (anim3d, 2026-11-23).** Per hand `grip` "fwd" / "rev" (reverse grip: blade out of the pinky side)
 and `twirl` (deg, the weapon turned in the fingers about the axis across the fist). Between a forward and a reverse
 key the weapon flips 180 deg in the fingers while the fist's aim turns; `twirl` 360 = one spin. `blade` is always
@@ -463,7 +473,8 @@ motion, the lunge, drift and gravity stand aside; afterwards a ground fighter fa
 
 **3D cel-shaded FX (Daniel 2026-11-24: "3D in shape, 2D in cell shading", starting with the foundational kinds).**
 Per effect `fx3d.render`: `auto` (default) = a real 3D shape for the kinds below, a card for the rest; `3d`; `card` =
-the 2D drawing as before. Blades and every technique / gun / kick / defender style stay cards for now.
+the 2D drawing as before. Blades and the other technique / gun / defender styles stay cards for now; punches and kicks are
+3D since 2026-11-25 (below).
 
 | Kind | 3D shape |
 |---|---|
@@ -480,7 +491,50 @@ Look (every effect, tunable in FX Studio 3D's "3D shape & cel look"): `toon_band
 `toon_sides` facets. Colours = FX Studio's colour mode / palette. Hits: a 3D shape hits with its 3D shape. The enemy's
 distance off the effect's plane is folded into its 2D offset from the nearest point of the shape (exact for spheres
 and tubes), so FX Studio's own rules (damage, re-hit, pierce, pulse ring sweep, per-particle hits) still decide.
-`depth_m` applies to cards only.
+`depth_m` applies to cards only. Every 3D shape fades out within ~1.8 m of the camera (`TOON_FS`), so a big ring or
+flash passing the lens never blanks the screen.
+
+**3D punches, kicks and impacts (Daniel 2026-11-25: "recreate the FX we have into 3D versions, start with punching
+motion effects and impact effects").** Techniques `impact_punch`, the five kicks (`roundhouse_kick`, `thrust_kick`,
+`axe_kick`, `spinning_kick`, `rising_kick`) and `serious_punch` draw as 3D cel-shaded shapes (`render` auto / 3d).
+FX Studio's own timeline and random streams decide everything (`STRIKEFX.parts` / `KICKFX.parts` / `POWERFX.sp`,
+exported for this with no change to 2D drawing); `fx3d.js drawStrike` builds the shapes. His picks:
+
+- **Energy look first:** only parts set to `energy` (`fx_motion` / `fx_impact` / `fx_env`) are 3D; `ink` / `gritty`
+  parts stay on the effect's card (painted with the 3D parts left out). The serious punch is 3D whole.
+- **Fist path = from the 3D fist, out along the aim:** the fist / foot starts at the real 3D hand / foot and drives out
+  to FX Studio's full reach along the aim, then back. `strike_limb` auto = the effect's own anchor if it is a hand / foot,
+  else the hand (punch) or foot (kick) that moves furthest forward, locked when the blow lands. Hits stay FX Studio's
+  own punch / kick line in the effect's plane (unchanged), so damage and reach are as in 2D.
+- **Impact = a forward 3D cone:** flash, pressure spheres pushed along the blow, rays and sparks thrown in a cone round
+  it (sparks fall and skid on the floor), a star of spikes, a shock ring standing across the blow + a broken one; the
+  impact frame (`impact_frame` local / full: flash + focus lines) faces the camera.
+
+| Part | 3D shape |
+|---|---|
+| motion (`fx_motion`) | wind-up glint + ring; smear frames = tapered tubes of the forearm / shin; air strokes = tubes spiralling round the path (`strike_spin_deg`); the fist / foot = a sphere stretched by its speed + two after-glows |
+| impact (`fx_impact`) | the forward cone above |
+| ground (`fx_env`) | level rings, dust spheres drifting all round, sparks off the wave's edge; axe crater = scorch disc + cracks running out all round + rock shards thrown up; spinning kick vortex = level broken rings turning round the body (on the floor with `strike_ground`) |
+| serious punch | wind-up rings + motes, a round 3-layer shock cone (colour / bright / white-hot) with vapour rings, speed lines all round, the shock front ring, clouds blown out all round the line, the sky split, the fist flash + spikes |
+
+**3D sword FX (Daniel 2026-11-25, batch 2 of "more 3D FX": sword slashes + crescents; then gunfire + ki barrage, ethereal
+blades, auras + power techniques).** Every slash-family style (`SWORDFX.CUTS`: rising / horizontal / diagonal / overhead
+slash, forward sweep, the combos), `straight_slash`, `crescent_wave`, the six crescent styles, `forward_thrust` and the
+`arc` kind draw in 3D (`fx3d.js drawBlade`, geometry from `SWORDFX.geo`, `SLASHLINE.span/slices`, `CRESCENTFX.pts/moons`,
+`FXK.arcSegs`, all exported with no 2D change). The blade is a **band**: FX Studio's crescent outline given a real
+lens-section thickness (`blade_thick_pct`, 35 % of its width; each face its own vertices so it shades bright with a ridge),
+its tail fading per vertex (`aA` attribute in the toon shader). Slashes: aura band, blade, white-hot edge, air lines,
+the glowing path, the pressure line, the head glint, sparks thrown out of the plane with gravity, hit marks; combo_cross's
+X. Straight slash the same along its line. Crescents (wave + styles): aura, blade, a deep core standing proud of both faces,
+white-hot leading edge, flame tongues fanning out of the plane, afterimages, embers, launch bursts, X glints (helix /
+split / scatter), end shards as spinning 3D chips; the ground drag and moonfall stand on the floor (`strike_ground`) with
+the contact glow, chips and sparks thrown back, the slam's light pillar, level rings and shards. Thrust: a layered
+tapered spear, speed lines all round, pressure rings, sparks, the pierced line. Arc kind: a band round its centre with a
+white core. Hits stay FX Studio's own. `blade_extension` (no character uses it) stays a card.
+
+Strike keys (FX Studio 3D "3D shape & cel look", section Strike): `strike_limb` auto / haR / haL / ftR / ftL / none (FX
+Studio's line only), `strike_glow_pct` (50: spheres for FX Studio's soft glows, % of the glow radius), `strike_spin_deg`
+(90), `strike_ground` (true). The usual toon_* keys apply.
 
 ## Movement: continuous + sprint (Daniel 2026-11-24)
 
