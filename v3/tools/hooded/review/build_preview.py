@@ -1,5 +1,5 @@
 """Full-mesh preview of one Hooded Blades clip with the keyblades -> out/preview.js for view.html.
-Usage: build_preview.py <clip>   (the draft in gen_hooded.py CLIPS, else hooded_blades.anim3d.json)"""
+Usage: build_preview.py <clip>   (gen_hooded.py CLIPS / DRAFTS, else hooded_blades.anim3d.json)"""
 import sys, os, json, base64, glob
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..', '..', '..'))
@@ -10,7 +10,8 @@ clip = sys.argv[1]
 B = anim3d.Body()
 import gen_hooded
 os.makedirs(os.path.join(HERE, 'out'), exist_ok=True)
-spec = gen_hooded.CLIPS[clip]() if clip in gen_hooded.CLIPS else json.load(open(anim3d.spec_path('hooded_blades')))['clips'][clip]
+ALL = dict(gen_hooded.CLIPS, **gen_hooded.DRAFTS)
+spec = ALL[clip]() if clip in ALL else json.load(open(anim3d.spec_path('hooded_blades')))['clips'][clip]
 notes = []
 dense = anim3d.bake_clip(B, spec, notes, dense=True)
 for n in sorted(set(notes)): print('note:', n)
