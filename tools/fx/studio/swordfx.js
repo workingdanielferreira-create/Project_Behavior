@@ -976,6 +976,10 @@ function draw(g, inst, host, ps) {
 G.SWORDFX = {draw: draw, hit: hit, body: body, clashCat: clashCat, shotIds: shotIds, shotAt: shotAt, placeShot: placeShot,
              techColour: techColour, hitGrowth: hitGrowth, onHit: onHit, hitDir: hitDir, hitFreeze: hitFreeze, onSpawn: onSpawn, shoots: shoots, livePoints: livePoints, railLines: railLines, onTick: onTick, activeTicks: activeTicks, totalTicks: totalTicks,
              vivid: vivid, CUTS: CUTS,
+             // the slash / wave / thrust geometry, for FX Studio 3D (v3/js/fx3d.js)
+             geo: {SlashGeo: SlashGeo, WaveGeo: WaveGeo, cutStarts: cutStarts, fadeT: fadeT, thrTimes: thrTimes, thrLen: thrLen, thrHw: thrHw,
+                   CROSS_LIFE: CROSS_LIFE, SPARK_LIFE: SPARK_LIFE, HIT_MARK_LIFE: HIT_MARK_LIFE, WAVE_EMBER_LIFE: WAVE_EMBER_LIFE,
+                   WAVE_SHARD_LIFE: WAVE_SHARD_LIFE, THR_RETRACT: THR_RETRACT, THR_FADE: THR_FADE},
              lib: {style: style, swing: swing, holdT: holdT, frame: frame, Frame: Frame, colours: colours, Pen: Pen, star: star,
                    rngFor: rngFor, mix: mix, easeOut3: easeOut3, easeIn3: easeIn3, easeInOut3: easeInOut3, cl: cl, dragDist: dragDist, hyp: hyp,
                    hitMarks: hitMarks, flame: flame, HOT: HOT, BLACK: BLACK, D: D}};

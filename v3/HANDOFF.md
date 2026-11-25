@@ -328,7 +328,12 @@ v3-animation skill ("Review questions").
 - Checked headless (Playwright + SwiftShader): every style in a test kit, then Watch battles with Puck / Puff / Sync /
   Sueko / new_fighter: punches, thrust / spinning / rising kicks and the serious punch draw in 3D, hands / feet picked
   automatically, no errors; FX Studio 3D loads.
-- **Next:** Daniel's verdict in game + studio; then the ink and gritty looks in 3D, ki barrage, the other techniques.
+- **Next:** Daniel's verdict in game + studio.
+- Daniel then: "ignore those other variations (ink / gritty), continue creating more 3D FX"; picked all four families, in
+  order: sword slashes + crescents, gunfire + ki barrage, ethereal blades, auras + power techniques.
+- **Batch 2 done: sword slashes + crescents** (`fx3d.js drawBlade` + band mesh, `blade_thick_pct`, README "3D sword FX").
+  Checked headless: every style from FX Studio's presets renders, a Ronin (ronin_copy) battle runs with no errors.
+  **Next batch: gunfire + ki barrage.**
 
 ## Next steps (agreed direction, not started)
 
