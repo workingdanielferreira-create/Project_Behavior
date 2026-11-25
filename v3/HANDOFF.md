@@ -243,9 +243,29 @@ v3-animation skill ("Review questions").
 - Done: `js/world3d.js` (shared runtime + schema), `js/planet.js` (game glue), `tools/worldstudio3d.html` +
   `World Studio 3D.bat`, `build_kits.py` packs `characters/world3d.json` -> `data/world.gen.js`, updater option 4.
   README "The little planet + World Studio 3D".
-- Not yet: FX Studio FX hitting scenery directly (only via the hits they land), beams carving trenches, rubble that stays
-  (Daniel did not pick it), gravity tied to planet size (not picked).
+- Not yet: rubble that stays (Daniel did not pick it), gravity tied to planet size (not picked). (FX hitting scenery and
+  beams carving trenches: done 2026-11-25, below.)
 - **Next:** Daniel's verdict in game + studio.
+
+## FX follow the planet + deep craters (2026-11-25)
+
+- Daniel: "make the 3D FX respect the gravity of the planet: FX that move keep their distance from the ground as they
+  travel" (Puck's attack_special beam shot straight off the curve) and "add depth to the craters and let moving FX leave
+  craters, like v1's world".
+- Cause: the 3D cel-shaded FX shapes use their own shader (`fx3d.js TOON_VS`), which skipped the globe bend, and tubes /
+  cards had one segment along their length. Fixed: the bend in `TOON_VS` + segmented tubes / cards.
+- His picks: moving FX **hit & break scenery and keep going**; craters as a **cut-in bowl** (stencil hole, not a dented
+  ground mesh); ground marks from **beams (trenches), low flyers (furrows) and big impacts (craters)** (not shots on
+  impact); previews in **World Studio 3D only** (FX Studio 3D stays flat).
+- Done: World Studio 3D section "FX and the world" (`fxworld`) + ground `crater_depth_pct` / `trench_depth_pct` /
+  `lip_pct` / `debris` (`max_marks` default 90 -> 120); `world3d.js _bowl` / `_digMats` / `kick` / `_hideCover`;
+  `fx3d.js Runner.worldFx`; `planet.js planetFx` / `digChain`; knockback trenches use the same chains. README "The little
+  planet" (Ground damage + FX and the world).
+- Checked headless (Playwright + SwiftShader): Puck's charged laser curves round the globe and digs a trench; a pillar on
+  its line is chipped (30 x 60 %), Pewpew's Thunder Bullet breaks one, Hooded Blades' card blades chip one; World Studio
+  test blasts leave deep craters; FX Studio 3D loads with no errors.
+- **Next:** Daniel's verdict in game (beam height setting `beam_low_m` 1.6 m: a beam aimed slightly upward only digs
+  until its head passes that height).
 
 ## Knockback tracking shot (2026-11-24)
 

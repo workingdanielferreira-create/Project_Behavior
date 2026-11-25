@@ -120,7 +120,8 @@ function makeCard(scene) {
   const mat = new THREE.MeshBasicMaterial({map: tex, transparent: true, depthWrite: false, premultipliedAlpha: true, side: THREE.DoubleSide});
   mat.onBeforeCompile = sh => { sh.uniforms.uInk = u.uInk; sh.uniforms.uTexel = u.uTexel;
     sh.fragmentShader = 'uniform float uInk;\nuniform vec2 uTexel;\n' + sh.fragmentShader.replace('#include <map_fragment>', INK_FRAG); };
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat); mesh.renderOrder = 3; mesh.frustumCulled = false; scene.add(mesh);
+  // (cards bend through three.js's patched project_vertex, world3d.js installBend: the segments let a long card curve)
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, CARD_SEGS, CARD_SEGS), mat); mesh.renderOrder = 3; mesh.frustumCulled = false; scene.add(mesh);
   return {cv, ctx: cv.getContext('2d'), tex, mat, mesh, u, used: false};
 }
 function sizeCard(c, w, h) {
@@ -134,18 +135,35 @@ function sizeCard(c, w, h) {
 /* ---------------------------------------------------------------- 3D cel-shaded shapes */
 // Bands by how much the surface faces the camera; the facing middle = the white-hot core; uInk = the hull pass (ink).
 // Tubes are a unit cylinder (y -0.5 tail .. 0.5 head) tapered in the shader (uR0 tail, uR1 head radius, metres).
+// The planet (Daniel 2026-11-25, "FX should bend as the planet's ground bends"): the same globe bend as world3d.js
+// installBend (uBend = World3D.BEND: anchor x / z, w = planet radius, 0 = flat), applied in world space after the
+// taper / ink inflate, so a beam laid level on the flat sim plane is drawn following the ground at the same height.
+// The normal is bent with it (for the bands). Tubes and cards are split along their length so they can curve.
 const TOON_VS = [
-  'uniform float uR0; uniform float uR1; uniform float uTaper; uniform float uInflate;',
+  'uniform float uR0; uniform float uR1; uniform float uTaper; uniform float uInflate; uniform vec4 uBend;',
   'varying vec3 vN; varying vec3 vV;',
+  'vec3 bendP( vec3 p ) {',
+  '  if ( uBend.w <= 0.0 ) return p;',
+  '  vec2 d = p.xz - uBend.xz; float r = length( d ); if ( r < 1e-5 ) return p;',
+  '  float th = r / uBend.w, rr = uBend.w + p.y; vec2 dir = d / r;',
+  '  return vec3( uBend.x + dir.x * sin( th ) * rr, cos( th ) * rr - uBend.w, uBend.z + dir.y * sin( th ) * rr );',
+  '}',
   'void main() {',
   '  vec3 p = position;',
   '  if ( uTaper > 0.5 ) p.xz *= mix( uR0, uR1, clamp( p.y + 0.5, 0.0, 1.0 ) );',
-  '  vec4 mv = modelViewMatrix * vec4( p, 1.0 );',
-  '  vec3 n = normalize( normalMatrix * normal );',
-  '  mv.xyz += n * uInflate;',
-  '  vN = n; vV = normalize( -mv.xyz );',
+  '  vec4 wp = modelMatrix * vec4( p, 1.0 );',
+  '  vec3 nv = normalize( normalMatrix * normal );',
+  '  vec3 nw = normalize( ( vec4( nv, 0.0 ) * viewMatrix ).xyz );',
+  '  wp.xyz += nw * uInflate;',
+  '  vec3 bp = bendP( wp.xyz );',
+  '  vec3 bn = normalize( bendP( wp.xyz + nw * 0.05 ) - bp );',
+  '  vec4 mv = viewMatrix * vec4( bp, 1.0 );',
+  '  vN = normalize( ( viewMatrix * vec4( bn, 0.0 ) ).xyz ); vV = normalize( -mv.xyz );',
   '  gl_Position = projectionMatrix * mv;',
   '}'].join('\n');
+const FLAT_BEND = {x: 0, y: 0, z: 0, w: 0};
+const bendRef = () => (G.World3D && G.World3D.BEND) || FLAT_BEND;
+const TUBE_SEGS = 28, CARD_SEGS = 16;   // along a tube / across a card: enough to follow the globe's curve
 const TOON_FS = [
   'uniform vec3 uCol; uniform vec3 uShade; uniform vec3 uCore; uniform float uBands; uniform float uCoreT; uniform float uAlpha; uniform float uInk;',
   'varying vec3 vN; varying vec3 vV;',
@@ -162,7 +180,7 @@ const GEO = {};
 function toonGeo(kind, sides) {
   const k = kind + sides; if (GEO[k]) return GEO[k];
   let g;
-  if (kind === 'tube') g = new THREE.CylinderGeometry(1, 1, 1, sides, 1, false);
+  if (kind === 'tube') g = new THREE.CylinderGeometry(1, 1, 1, sides, TUBE_SEGS, false);
   else if (kind === 'sph') g = new THREE.SphereGeometry(1, sides, Math.max(4, Math.round(sides * 0.7)));
   else if (kind === 'ring') g = new THREE.TorusGeometry(1, 0.045, 5, Math.max(12, sides * 3));
   else if (kind === 'shard') g = new THREE.OctahedronGeometry(1, 0);
@@ -172,7 +190,7 @@ function toonGeo(kind, sides) {
 }
 function toonUniforms(ink) {
   return {uCol: {value: new THREE.Color()}, uShade: {value: new THREE.Color()}, uCore: {value: new THREE.Color()}, uBands: {value: 3}, uCoreT: {value: 0.3},
-    uAlpha: {value: 1}, uInk: {value: ink ? 1 : 0}, uR0: {value: 1}, uR1: {value: 1}, uTaper: {value: 0}, uInflate: {value: 0}};
+    uAlpha: {value: 1}, uInk: {value: ink ? 1 : 0}, uR0: {value: 1}, uR1: {value: 1}, uTaper: {value: 0}, uInflate: {value: 0}, uBend: {value: bendRef()}};
 }
 function makeToon(scene, kind, sides) {
   const geo = toonGeo(kind, sides);
@@ -604,6 +622,43 @@ Runner.prototype.planes = function () {
     out.push({P: xf.P.clone(), ax: l.X.clone().applyQuaternion(xf.q), ay: l.Y.clone().applyQuaternion(xf.q), lay: inst._lay, fx: inst.src || inst.fx});
   }
   return out;
+};
+
+/* The live effects in world space, for the planet (Daniel 2026-11-25; fxlive.js -> planet.js planetFx): one entry per
+   instance {inst, prim, moving (beam, or a travelling / non-attached motion), H (head, else centre), T (beam tail or
+   null), r (m: beam half width, orb radius ...), dmg (its battle damage, 0 if it deals none), rEnd (pulse end radius,
+   FX px)}. Scene metres on the flat sim plane (before the planet bend). */
+Runner.prototype.worldFx = function () {
+  const out = [], xf = {P: new THREE.Vector3(), q: new THREE.Quaternion(), Us: U, bill: false};
+  if (!this.ctx) return out;
+  for (const l of this.lanes) {
+    this.cur = l;
+    for (const inst of l.player.insts) {
+      const fx = inst.fx, prim = fx.prim;
+      if (inst.dead || inst.age < 0 || prim === 'ghost' || prim === 'particles') continue;
+      if ((prim === 'sprite' || prim === 'glow') && inst.age >= inst.life) continue;
+      try {
+        this.initInst(l, inst); this.xform(l, inst, xf); this.axes(l, xf);
+        const P = fx.params || {}, b = fx.battle || {}, mk = fx.motion && fx.motion.kind;
+        const e = {inst, prim, moving: prim === 'beam' || (!!mk && mk !== 'attached' && mk !== 'orbit'), H: null, T: null, r: 0,
+          dmg: b.deals_damage ? Math.max(0, +b.damage || 0) : 0, rEnd: 0};
+        if (prim === 'beam') {
+          const s = FXK.beamSegs(inst, this.host, 1); if (!s) continue;
+          e.T = this.w3(inst, xf, s.tx, s.ty, 0, new THREE.Vector3()); e.H = this.w3(inst, xf, s.hx, s.hy, 0, new THREE.Vector3());
+          e.r = Math.max(s.wH || 0, s.wT || 0, 2) / 2 * xf.Us;
+        } else {
+          let x = inst.x, y = inst.y;
+          if (prim === 'ribbon') { const h = inst.hist || []; if (!h.length) continue; x = h[h.length - 1][0]; y = h[h.length - 1][1]; }
+          e.H = this.w3(inst, xf, x, y, 0, new THREE.Vector3());
+          e.r = (prim === 'sprite' ? Math.max(0.5, +P.radius || 3) : prim === 'glow' ? Math.max(+P.core_r || 0, (+P.r_end || 0) * 0.6, 2)
+            : prim === 'ribbon' ? Math.max(1, +P.w_head || 4) / 2 : prim === 'pulse' ? 0 : 12) * xf.Us;
+          if (prim === 'pulse') e.rEnd = Math.max(0, +P.r_end || 0) * xf.Us / U;
+        }
+        out.push(e);
+      } catch (err) { console.error('fx3d worldFx', err); }
+    }
+  }
+  this.cur = null; return out;
 };
 
 /* ---------------------------------------------------------------- per-action body movement (move3d) */

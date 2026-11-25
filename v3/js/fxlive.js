@@ -25,7 +25,9 @@ function fxTick(f){const S=fxRunner(f);if(!S)return;
     bone:S.bone,target:tg?{centre:VA(tg.x,tg.y,tg.z,.9+(tg.h||0))}:null,
     enemies:foes.map(t=>({centre:VA(t.x,t.y,t.z,.9+(t.h||0)),r:.45,ref:t})),
     action:a?{key:a,name:a.def.n2d,frames:a.def.frames,frameMs:a.def.frameMs}:null,
-    moving:!!(f.snap||f.lean>.2),gone:f.gone>0,frame:a?Math.floor(a.t*TICK/a.def.frameMs):0,groundY:0});}
+    moving:!!(f.snap||f.lean>.2),gone:f.gone>0,frame:a?Math.floor(a.t*TICK/a.def.frameMs):0,groundY:0});
+  // the planet: moving FX hit scenery, low beams / flyers dig the ground, big impacts crater (planet.js planetFx)
+  if(PLANET&&typeof planetFx==='function')planetFx(S.run.worldFx());}
 // Render frame (main.js): paint and place every fighter's live FX cards.
 function fxDraw(){const H=renderer.domElement.height;
   for(const s of sides)for(const f of s.team){const S=f.fx3;if(!S)continue;
