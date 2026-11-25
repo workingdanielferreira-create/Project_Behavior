@@ -367,6 +367,12 @@ async function bodyBuffer() {
   if (c) { S.bodyBuf = await readEntryBuf(c, BODY_NAME + '.glb'); return S.bodyBuf; }
   throw new Error('characters/ual_swordsman/ual_swordsman.glb not found');
 }
+/* modelled weapons (weapons3d.js shape "mesh", e.g. hooded_blades' Oathkeeper & Oblivion): characters/weapons3d/<id>.glb */
+pbwMeshSource = async id => {
+  if (S.dir) return getBuf(await S.dir.getDirectoryHandle('weapons3d'), id + '.glb');
+  const f = S.files && S.files.find(x => new RegExp('(^|/)weapons3d/' + id + '\\.glb$', 'i').test(x.webkitRelativePath || ''));
+  return f ? f.arrayBuffer() : null;
+};
 $('dirBtn').onclick = () => {
   if (window.showDirectoryPicker && !inFrame()) window.showDirectoryPicker({id: 'pbchars', mode: 'readwrite'}).then(h => { S.dir = h; S.files = null; db('readwrite', st => st.put(h, 'dir')).catch(() => {}); $('reconnect').hidden = true; scan(); })
     .catch(e => { if (e && e.name !== 'AbortError') status('Could not open the folder: ' + e.message, true); });
@@ -785,6 +791,7 @@ function stepSim(k, fast) {   // tick k of the action (0 = its first)
     target: {centre: _d.copy(T).setY(T.y + 0.9)}, enemies: [{centre: _d.clone(), r: 0.45, ref: 'dummy'}],
     action: ms < dur ? {key: S.actKey, name: S.act, frames: t.frames, frameMs: t.fms} : null, moving: false, gone: false,
     frame: Math.min(t.frames - 1, Math.floor(ms / t.fms)), groundY: 0});
+  pbwFxHeld(B.model, S.runner.lanes, B);   // one of each blade: the held keyblade hides while its FX copy is out (as in V3)
 }
 function simTo(k) {
   if (!S.runner || !S.fighter) return;

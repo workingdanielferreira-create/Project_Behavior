@@ -268,6 +268,20 @@ builds it (child of the Weapon_R / Weapon_L bone, the body's skinned blade hidde
 (glbody.js glbBuild). Saved as `pb_body.weapons` {R, L} (true / false or the cfg); `retarget2d.py` keeps an edited cfg
 when it rebuilds. The original's weight / swing settings drove its 2D blade drag, which V3 doesn't have (not ported).
 
+**Modelled weapons (Daniel 2026-11-25).** Shape **mesh** = a modelled weapon from `characters/weapons3d/<id>.glb`
+(cfg `{shape: "mesh", mesh: id, len, grip, roll}`; len = grip -> tip in m, 0 = as modelled; the other sliders are off).
+Each file is already in the weapon frame: origin = middle of the grip, +Y = to the tip, +X = edge / teeth side; it keeps
+its own texture, drawn toon + ink. V3 gets them packed by `build_kits.py` (`window.PB3_WEAPONS`, in `data/body.gen.js`);
+Rig Forge 3D and FX Studio 3D read them from the picked `characters` folder (`pbwMeshSource`); `weapons3d/` is not a
+character (left out of the Character list and of the kits). Rig Forge 3D: Shape "Modelled" + a Model list.
+First pair: **Oathkeeper & Oblivion** on hooded_blades (R = oathkeeper, L = oblivion, the FX presets' hands; set by
+`v3/tools/hooded/keyblades_on.py`), from the CC-BY-4.0 Sketchfab model by PronoesPro (credit in
+`characters/weapons3d/CREDITS.md`, must stay with the files), decimated to ~4k triangles each by
+`v3/tools/blender/keyblades.py` (bpy). **One of each blade:** while a weapon FX of a style in `PBW_FX_HELD`
+(`oath_oblivion` -> oathkeeper / oblivion) is drawn (age < life + 12 dismiss ticks; the afterglow doesn't count), the
+held keyblade that IS that FX blade hides, and so does the hand the FX rides (w_follow on or Hold mode, w_hand1 / 2);
+back when it's gone (`pbwFxHeld`, called by fxlive.js in the game and by FX Studio 3D).
+
 **Key poses (Daniel 2026-11-22).** A clip with `pb_keys` opens as its key poses: they become the tool's own keys on
 every bone over a still rest pose, so posing a key pose IS editing the clip and the frames up to the neighbouring key
 poses follow (tweening). Posing between key poses adds a key there. Timeline (the original Rig Forge's frame cards):

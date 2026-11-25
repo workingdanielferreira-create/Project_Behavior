@@ -122,6 +122,24 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
   controls, turn-then-lean, ground contact and stepping feet. **Next:** Daniel's verdict on the new hit 1 in game,
   then hits 2..5 the same way (stills first).
 
+## Oathkeeper & Oblivion keyblades on Hooded Blades (2026-11-25)
+
+- Daniel uploaded "Oathkeeper and Oblivion (Kingdom Hearts)" (Sketchfab, PronoesPro, CC-BY-4.0: credit in
+  `characters/weapons3d/CREDITS.md`) and asked to put them on hooded_blades, animated in line with the oath_oblivion FX
+  presets. His picks: hands as the FX (Oathkeeper right, Oblivion left); decimate (~4k tris each); the held blade
+  HIDES while its FX copy is out (one of each blade); draft EVERY FX move.
+- Done: `characters/weapons3d/*.glb` (`v3/tools/blender/keyblades.py`), weapons3d.js shape `mesh` + `pbwFxHeld`,
+  build_kits packs them, Rig Forge 3D "Modelled" shape, FX Studio 3D reads them; README "Modelled weapons".
+- Drafts (NOT baked, `approved: false`, in `v3/tools/hooded/gen_hooded.py` DRAFTS): attack_normal_3 / _4 (Pierce & Chop),
+  attack_normal_5 (Satellite), attack_special (Oathkeeper charged thrust, FX Hold rides the LEFT hand), attack_special_2
+  (Oblivion counter-spin), switch_in (kick > flying thrust). Each is timed to its FX beats and posed from the 2D frames;
+  audit: no hard fault. Review loop `bash v3/tools/hooded/review/go.sh <clip> <tag>` (keyblades in the renders).
+  Bake after his OK: `python v3/tools/hooded/gen_hooded.py --approve <clip>[,<clip>]` then
+  `python v3/tools/anim3d.py hooded_blades --clips <clip>`. attack_normal (his own) and attack_normal_2 untouched.
+- Not confirmed (ask): which way the keyblade teeth face (roll 0 = teeth on the weapon's edge side; `keyblades_on.py
+  <roll_R> <roll_L>` turns them); the keyblades' size (grip -> tip 1.05 m Oathkeeper, ~1.15 m Oblivion).
+- **Next:** Daniel's verdict on the six drafts' stills, one move at a time.
+
 ## Key poses + tweening (2026-11-22, later)
 
 - Daniel: editing meant fixing every frame ("instead of baking every frame, work through key frames and let the

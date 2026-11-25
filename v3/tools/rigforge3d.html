@@ -272,7 +272,8 @@ details.adv[open] > summary { margin-bottom: 6px; }
       <div class="row"><span class="seg"><button id="wpR" aria-pressed="true">Weapon 1 · right hand</button><button id="wpL" aria-pressed="false">Weapon 2 · left hand</button></span></div>
       <label class="check"><input type="checkbox" id="wpOn" checked> Holds a weapon in this hand</label>
       <label class="check"><input type="checkbox" id="wpCustom"> Build it here (off = the body's own plain blade)</label>
-      <div class="row"><label for="wpShape">Shape</label><select id="wpShape" class="grow"><option value="sword">Sword</option><option value="katana">Katana (curved, single edge)</option><option value="dagger">Dagger</option><option value="greatsword">Greatsword</option><option value="rapier">Rapier</option><option value="cleaver">Cleaver</option><option value="pistol">Pistol (len = barrel, width = slide height, handle = grip, curve = grip rake)</option></select></div>
+      <div class="row"><label for="wpShape">Shape</label><select id="wpShape" class="grow"><option value="sword">Sword</option><option value="katana">Katana (curved, single edge)</option><option value="dagger">Dagger</option><option value="greatsword">Greatsword</option><option value="rapier">Rapier</option><option value="cleaver">Cleaver</option><option value="pistol">Pistol (len = barrel, width = slide height, handle = grip, curve = grip rake)</option><option value="mesh">Modelled (characters/weapons3d: len = grip to tip, 0 = as modelled)</option></select></div>
+      <div class="row" id="wpMeshRow" hidden><label for="wpMesh">Model</label><select id="wpMesh" class="grow"></select></div>
       <div id="wpSliders"></div>
       <div class="row"><button id="wpCopy">Copy from the other hand</button><button id="wpReset">Reset to the shape</button></div>
     </section>
@@ -2622,6 +2623,11 @@ details.adv[open] > summary { margin-bottom: 6px; }
     // still waiting for approval) are hidden from the dropdown; the drafts pack is loaded when present (it has both)
     var packs = list.filter(function (c) { return /(^|\/)ual_moves(_drafts)?\.glb$/i.test(c.rel); });
     list = list.filter(function (c) { return packs.indexOf(c) < 0; });
+    // modelled weapons (characters/weapons3d/<id>.glb, weapons3d.js shape "mesh") are not characters either: they
+    // feed the weapon editor's "Modelled" list and are read from here when a character holds one
+    CH.weapons = list.filter(function (c) { return /(^|\/)weapons3d\/[^\/]+\.glb$/i.test(c.rel); });
+    list = list.filter(function (c) { return CH.weapons.indexOf(c) < 0; });
+    wpMeshList(); if (S.root) wpApply();
     packs.sort(function (a, b) { return /_drafts/i.test(b.rel) - /_drafts/i.test(a.rel); });
     if (packs.length) packFromEntry(packs[0]);
     list.sort(function (a, b) { var x = chLabel(a.rel).toLowerCase(), y = chLabel(b.rel).toLowerCase(); return x < y ? -1 : x > y ? 1 : 0; });
@@ -3596,6 +3602,20 @@ details.adv[open] > summary { margin-bottom: 6px; }
      S.data.weapons = {R, L}: true / false (the body's own blade shown or not) or a weapons3d.js cfg (built here and in
      V3). Saved into the .glb's pb_body.weapons. Undo-able. */
   var WP = {side: "R", dragging: false, mats: null};
+  /* modelled weapons: read from the characters folder's weapons3d/ (CH.weapons, filled by the folder scan) */
+  pbwMeshSource = function (id) {
+    var e = (CH.weapons || []).find(function (c) { return c.rel.toLowerCase().split("/").pop() === String(id).toLowerCase() + ".glb"; });
+    if (!e) return Promise.resolve(null);
+    return (e.file ? Promise.resolve(e.file) : e.handle.getFile()).then(function (f) { return f.arrayBuffer(); });
+  };
+  function wpMeshList() {
+    var sel = $("wpMesh"), ids = (CH.weapons || []).map(function (c) { return c.rel.split("/").pop().replace(/\.glb$/i, ""); });
+    var c = S.data && S.data.weapons ? S.data.weapons[WP.side] : null, cur = c && c.mesh;
+    if (cur && ids.indexOf(cur) < 0) ids.push(cur);
+    sel.innerHTML = ids.length ? ids.map(function (id) { return '<option value="' + esc(id) + '">' + esc(id) + "</option>"; }).join("")
+      : '<option value="">(pick the characters folder: weapons3d/)</option>';
+    if (cur) sel.value = cur;
+  }
   var WP_SLIDERS = [["len", "Length", 0.15, 2.2, 0.01, "m"], ["w", "Width", 0.008, 0.3, 0.002, "m"], ["thick", "Thickness", 0.004, 0.05, 0.001, "m"],
     ["curve", "Curve", -0.2, 0.2, 0.005, ""], ["tip", "Point", 0, 0.6, 0.01, ""], ["guard", "Guard", 0, 0.5, 0.01, "m"],
     ["handle", "Handle", 0, 0.6, 0.01, "m"], ["grip", "Grip", -0.5, 0.5, 0.005, "m"], ["roll", "Roll", -180, 180, 1, "°"]];
@@ -3623,12 +3643,14 @@ details.adv[open] > summary { margin-bottom: 6px; }
     $("wpR").setAttribute("aria-pressed", String(WP.side === "R")); $("wpL").setAttribute("aria-pressed", String(WP.side === "L"));
     $("wpOn").checked = c == null ? true : pbwOn(c); $("wpCustom").checked = custom; $("wpShape").disabled = !custom;
     if (custom) $("wpShape").value = c.shape;
+    var isMesh = custom && c.shape === "mesh";
+    $("wpMeshRow").hidden = !isMesh; if (isMesh) wpMeshList();
     var box = $("wpSliders");
     if (!box.children.length) box.innerHTML = WP_SLIDERS.map(function (d) {
       return '<div class="row"><label for="wp_' + d[0] + '">' + d[1] + '</label><input id="wp_' + d[0] + '" type="range" min="' + d[2] + '" max="' + d[3] + '" step="' + d[4] + '"><output id="wp_' + d[0] + 'Out"></output></div>';
     }).join("");
     WP_SLIDERS.forEach(function (d) {
-      var el = $("wp_" + d[0]); el.disabled = !custom;
+      var el = $("wp_" + d[0]); el.disabled = !custom || (isMesh && ["len", "grip", "roll"].indexOf(d[0]) < 0);   /* a model: length / grip / roll only */
       var v = full ? (d[0] === "grip" ? full.grip : d[0] === "roll" ? full.roll : full[d[0]]) : 0;
       if (!WP.dragging) el.value = v;
       $("wp_" + d[0] + "Out").textContent = custom ? (+v).toFixed(d[4] < 0.01 ? 3 : (d[4] < 1 ? 2 : 0)) + (d[5] ? " " + d[5] : "") : "–";
@@ -3648,8 +3670,10 @@ details.adv[open] > summary { margin-bottom: 6px; }
     var on = this.checked;
     wpSet(function (W) { var c = W[WP.side], was = c == null ? true : pbwOn(c); W[WP.side] = on ? {on: was, shape: "sword"} : was; });
   };
-  $("wpShape").onchange = function () { var sh = this.value; wpSet(function (W) { var c = W[WP.side]; W[WP.side] = {on: pbwOn(c), shape: sh, grip: c.grip || 0, roll: c.roll || 0}; }); };
-  $("wpReset").onclick = function () { wpSet(function (W) { var c = W[WP.side]; W[WP.side] = {on: pbwOn(c), shape: c.shape}; }); };
+  $("wpShape").onchange = function () { var sh = this.value; wpSet(function (W) { var c = W[WP.side]; W[WP.side] = {on: pbwOn(c), shape: sh, grip: c.grip || 0, roll: c.roll || 0};
+    if (sh === "mesh") W[WP.side].mesh = c.mesh || ((CH.weapons || [])[0] ? CH.weapons[0].rel.split("/").pop().replace(/\.glb$/i, "") : ""); }); };
+  $("wpMesh").onchange = function () { var id = this.value; if (!id) return; wpSet(function (W) { var c = W[WP.side]; if (pbwCustom(c) && c.shape === "mesh") c.mesh = id; }); };
+  $("wpReset").onclick = function () { wpSet(function (W) { var c = W[WP.side]; W[WP.side] = {on: pbwOn(c), shape: c.shape}; if (c.mesh) W[WP.side].mesh = c.mesh; }); };
   $("wpCopy").onclick = function () { wpSet(function (W) { var o = W[WP.side === "R" ? "L" : "R"]; W[WP.side] = o == null ? true : JSON.parse(JSON.stringify(o)); }); };
 
   /* ---------------------------------------------------------------- collapsible menu (Daniel 2026-11-22) */
