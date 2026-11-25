@@ -262,6 +262,20 @@ v3-animation skill ("Review questions").
   are not lit by the scene (flat energy bands by view angle).
 - **Next:** Daniel's verdict in game + studio; then the next batch of kinds as 3D shapes.
 
+## Puck's 3D clips redone (2026-11-24/25)
+
+- Daniel: "redo Puck's animations ... I need you to do the heavy lifting ... score it out of 10". His picks: one move at
+  a time, key poses shown as GIF stills (2D frame | side | 3/4 | front) + a motion GIF, he corrects; moves travel; the
+  ultimate is airborne (Big Bang Kamehameha: both arms cocked back, then a one-handed palm thrust, knee tucked); the
+  shoryuken keeps its coiled crouch as a moving hold.
+- Done: `v3/tools/puck/gen_puck.py` (writes `characters/puck/puck.anim3d.json`), review loop
+  `v3/tools/puck/review/go.sh`, anim3d fist mode, audit skips unarmed blades. **attack_normal approved** ("good
+  enough") and baked into `puck.glb`: wind-up > overhand right over the top and down > follow-through wrapped to the
+  left shoulder > back into the dash (one punch). His corrections are in the puck notes and the v3-animation skill.
+- **Next, in order:** attack_special (kamehameha), ultimate (Big Bang Kamehameha), attack_normal_2 (double axe handle
+  overhead), attack_normal_3 (shoryuken uppercut jump), attack_normal_4 (180 spin > backhand), attack_special_2 (hands
+  pumping forward and back). Puck's other clips are still the 2D-guessed ones (the audit's hard faults are theirs).
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,

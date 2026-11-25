@@ -84,6 +84,29 @@ actions". Upright, square, polite poses are rejected. Every key (`v3/tools/libra
 - **Air**: never a pencil jump: body pitched forward, one knee tucked high, the other leg trailing straight back with
   the toes pointed; spins tuck both knees.
 
+## Unarmed fighters and Daniel's review notes (Puck attack_normal, 2026-11-24/25)
+
+- **Fists**: clip `"fists": true` (or per hand `fist: true`) = wrist LOCKED straight (only the forearm turns the fist;
+  `blade` = where the thumb side points) and a real punching fist (base knuckles past square, fingers rolled in).
+  "Never make a fighter hit with his fingers": whenever a fist points at the target, the FOREARM points through the
+  knuckles at it (thumb up on hooks / cocked, turned over on an overhand, knuckles up on a guard at the jaw).
+- **Line of action**: one smooth curve from the back foot through the hips, up the back and out along the striking
+  arm. Let the pelvis carry a good part of the lean (a big `spine` pitch on a small hips pitch = hunched hook in the
+  upper back), keep the head ON that curve (not cranked up, not drooping), extend the leading arm along it
+  (`gen_puck.line()`).
+- **Spine controls are relative to the parent's TURNED axes**: once the hips yaw, `spine` pitch tips the chest
+  sideways. Pose the chest / head in WORLD terms and solve the relative angles (`gen_puck.relative()`); measure the
+  forward lean (hips -> neck) instead of trusting the numbers. A `roll` before a big yaw eats the forward lean.
+- **Reach and the shoulder girdle**: `reach` is measured from the shoulder BEFORE the clavicle moves; a clav driven
+  forward ~30 deg costs ~15 cm, so a straight punch needs `reach` ~0.66 m.
+- **Commit**: bend the back; a punch moving forward folds the body over and the fist follows through past the target.
+  Check the punch's LINE against the drawing (over-and-down vs under-and-up). Frame 1 is often the WIND-UP. Never add
+  hits Daniel did not describe ("hook follow up" = the follow-through of the one hook). Shoulders pull back and down
+  on a wind-up, never shrug into the neck; a cocked arm folds (elbow back, fist close), not a straight wing.
+- **Review loop**: `bash v3/tools/puck/review/go.sh <clip> <tag>` -> `v3/tools/puck/review/out/<clip>_keys_<tag>.gif`
+  (each key 1.1 s: 2D frame | side | 3/4 | front) + `_motion_` GIF; send both, score /10 honestly, take his
+  corrections. One move at a time.
+
 ## Review questions (Daniel 2026-11-23): ask them of EVERY clip before showing it
 
 1. **"Why is he holding his weapon like that? What's wrong with his wrist?"** A held sword sits about square to the

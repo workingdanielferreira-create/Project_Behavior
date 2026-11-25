@@ -1,0 +1,784 @@
+{
+ "format": "pb_anim3d",
+ "version": 1,
+ "clips": {
+  "attack_normal": {
+   "length": 0.4,
+   "arm_space": "chest",
+   "physics": true,
+   "fists": true,
+   "about": "Dash > wind-up > overhand right, over the top and down (lands 2D f5) > follow-through: down, across and wrapped by the left shoulder (2D f7-f10) > back into the dash. ONE punch. Travels ~1.1 m.",
+   "keys": [
+    {
+     "t": 0.0,
+     "ease": "inout",
+     "hips": {
+      "pos": [
+       0.0,
+       -0.16,
+       -0.2
+      ],
+      "rot": [
+       -16,
+       40,
+       2
+      ]
+     },
+     "spine": [
+      -20.62,
+      7.38,
+      1.98
+     ],
+     "head": [
+      47.0,
+      -14.43,
+      1.67
+     ],
+     "R": {
+      "reach": [
+       -0.158,
+       -0.202,
+       -0.041
+      ],
+      "elbow": [
+       -0.661,
+       -0.721,
+       -0.207
+      ],
+      "blade": [
+       -0.176,
+       0.809,
+       -0.561
+      ],
+      "clav": [
+       -12,
+       -34
+      ]
+     },
+     "L": {
+      "reach": [
+       0.356,
+       0.445,
+       0.298
+      ],
+      "elbow": [
+       0.677,
+       -0.676,
+       0.291
+      ],
+      "blade": [
+       -0.727,
+       0.653,
+       -0.214
+      ],
+      "clav": [
+       0,
+       22
+      ]
+     },
+     "fR": {
+      "ankle": [
+       -0.13,
+       0.104,
+       -0.05
+      ],
+      "knee": [
+       0.0,
+       0.1,
+       0.995
+      ],
+      "yaw": -12,
+      "pitch": 10
+     },
+     "fL": {
+      "ankle": [
+       0.12,
+       0.224,
+       -0.62
+      ],
+      "knee": [
+       0.092,
+       -0.37,
+       0.925
+      ],
+      "yaw": 0.0,
+      "pitch": 45
+     },
+     "label": "wind-up: right fist back, left arm leads"
+    },
+    {
+     "t": 0.09,
+     "ease": "in",
+     "hips": {
+      "pos": [
+       0.0,
+       -0.1,
+       0.08
+      ],
+      "rot": [
+       -30,
+       40,
+       6
+      ]
+     },
+     "spine": [
+      -17.31,
+      8.72,
+      -6.22
+     ],
+     "head": [
+      52.77,
+      -18.17,
+      8.78
+     ],
+     "R": {
+      "reach": [
+       -0.238,
+       -0.163,
+       0.017
+      ],
+      "elbow": [
+       -0.934,
+       -0.183,
+       0.306
+      ],
+      "blade": [
+       0.49,
+       0.867,
+       0.09
+      ],
+      "clav": [
+       8,
+       -24
+      ]
+     },
+     "L": {
+      "reach": [
+       0.327,
+       0.08,
+       0.163
+      ],
+      "elbow": [
+       0.778,
+       -0.618,
+       0.112
+      ],
+      "blade": [
+       -0.474,
+       -0.605,
+       -0.639
+      ]
+     },
+     "fR": {
+      "ankle": [
+       -0.13,
+       0.104,
+       -0.05
+      ],
+      "knee": [
+       0.0,
+       0.1,
+       0.995
+      ],
+      "yaw": -15,
+      "pitch": 30
+     },
+     "fL": {
+      "ankle": [
+       0.13,
+       0.154,
+       0.62
+      ],
+      "knee": [
+       0.196,
+       0.0,
+       0.981
+      ],
+      "yaw": 10,
+      "pitch": 0.0
+     },
+     "label": "load: fist cocked high"
+    },
+    {
+     "t": 0.13,
+     "ease": "in",
+     "hips": {
+      "pos": [
+       0.0,
+       -0.12,
+       0.24
+      ],
+      "rot": [
+       -2,
+       44,
+       0
+      ]
+     },
+     "spine": [
+      -10.56,
+      15.51,
+      4.5
+     ],
+     "head": [
+      17.28,
+      -20.97,
+      -2.73
+     ],
+     "R": {
+      "reach": [
+       -0.285,
+       0.384,
+       0.017
+      ],
+      "elbow": [
+       -0.88,
+       0.425,
+       -0.215
+      ],
+      "blade": [
+       0.412,
+       0.897,
+       0.159
+      ],
+      "clav": [
+       18,
+       10
+      ]
+     },
+     "L": {
+      "reach": [
+       0.074,
+       0.171,
+       0.164
+      ],
+      "elbow": [
+       0.479,
+       -0.71,
+       0.515
+      ],
+      "blade": [
+       -0.024,
+       -0.739,
+       -0.674
+      ],
+      "clav": [
+       0,
+       -10
+      ]
+     },
+     "fR": {
+      "ankle": [
+       -0.13,
+       0.104,
+       -0.05
+      ],
+      "knee": [
+       -0.192,
+       -0.192,
+       0.962
+      ],
+      "yaw": -20,
+      "pitch": 35
+     },
+     "fL": {
+      "ankle": [
+       0.13,
+       0.104,
+       0.66
+      ],
+      "knee": [
+       0.196,
+       0.0,
+       0.981
+      ],
+      "yaw": 10,
+      "pitch": 0.0
+     },
+     "label": "over the top"
+    },
+    {
+     "t": 0.165,
+     "ease": "snap",
+     "hips": {
+      "pos": [
+       0.0,
+       -0.14,
+       0.4
+      ],
+      "rot": [
+       24,
+       44,
+       -6
+      ]
+     },
+     "spine": [
+      14.54,
+      17.13,
+      8.32
+     ],
+     "head": [
+      -29.33,
+      -18.32,
+      -8.94
+     ],
+     "R": {
+      "reach": [
+       -0.039,
+       0.587,
+       0.298
+      ],
+      "elbow": [
+       -0.534,
+       0.19,
+       -0.824
+      ],
+      "blade": [
+       0.186,
+       -0.154,
+       0.97
+      ],
+      "clav": [
+       8,
+       36
+      ]
+     },
+     "L": {
+      "reach": [
+       -0.11,
+       0.126,
+       0.092
+      ],
+      "elbow": [
+       0.023,
+       -0.731,
+       0.682
+      ],
+      "blade": [
+       0.596,
+       -0.725,
+       -0.346
+      ],
+      "clav": [
+       0,
+       -22
+      ]
+     },
+     "fR": {
+      "ankle": [
+       -0.13,
+       0.104,
+       -0.05
+      ],
+      "knee": [
+       -0.282,
+       -0.188,
+       0.941
+      ],
+      "yaw": -25,
+      "pitch": 40
+     },
+     "fL": {
+      "ankle": [
+       0.13,
+       0.104,
+       0.66
+      ],
+      "knee": [
+       0.196,
+       0.0,
+       0.981
+      ],
+      "yaw": 10,
+      "pitch": 0.0
+     },
+     "label": "OVERHAND lands (down onto the target)"
+    },
+    {
+     "t": 0.21,
+     "ease": "out",
+     "hips": {
+      "pos": [
+       0.0,
+       -0.18,
+       0.5
+      ],
+      "rot": [
+       32,
+       54,
+       -8
+      ]
+     },
+     "spine": [
+      21.56,
+      17.19,
+      15.43
+     ],
+     "head": [
+      -37.29,
+      -17.37,
+      -14.22
+     ],
+     "R": {
+      "reach": [
+       0.062,
+       0.585,
+       0.3
+      ],
+      "elbow": [
+       -0.406,
+       0.399,
+       -0.822
+      ],
+      "blade": [
+       -0.077,
+       0.262,
+       0.962
+      ],
+      "clav": [
+       -2,
+       40
+      ]
+     },
+     "L": {
+      "reach": [
+       -0.122,
+       0.108,
+       0.033
+      ],
+      "elbow": [
+       -0.279,
+       -0.592,
+       0.756
+      ],
+      "blade": [
+       0.527,
+       -0.847,
+       -0.061
+      ],
+      "clav": [
+       0,
+       -24
+      ]
+     },
+     "fR": {
+      "ankle": [
+       -0.13,
+       0.104,
+       -0.05
+      ],
+      "knee": [
+       -0.282,
+       -0.188,
+       0.941
+      ],
+      "yaw": -25,
+      "pitch": 45
+     },
+     "fL": {
+      "ankle": [
+       0.13,
+       0.104,
+       0.66
+      ],
+      "knee": [
+       0.196,
+       0.0,
+       0.981
+      ],
+      "yaw": 10,
+      "pitch": 0.0
+     },
+     "label": "follow-through: down and across"
+    },
+    {
+     "t": 0.27,
+     "ease": "out",
+     "hips": {
+      "pos": [
+       0.0,
+       -0.2,
+       0.66
+      ],
+      "rot": [
+       40,
+       46,
+       -8
+      ]
+     },
+     "spine": [
+      25.26,
+      5.28,
+      10.37
+     ],
+     "head": [
+      -50.67,
+      -7.86,
+      -8.74
+     ],
+     "R": {
+      "reach": [
+       0.067,
+       0.183,
+       0.353
+      ],
+      "elbow": [
+       -0.537,
+       0.84,
+       0.076
+      ],
+      "blade": [
+       0.771,
+       0.603,
+       -0.203
+      ],
+      "clav": [
+       2,
+       30
+      ]
+     },
+     "L": {
+      "reach": [
+       -0.172,
+       0.038,
+       0.057
+      ],
+      "elbow": [
+       -0.205,
+       -0.815,
+       0.542
+      ],
+      "blade": [
+       0.765,
+       -0.636,
+       -0.1
+      ],
+      "clav": [
+       0,
+       -20
+      ]
+     },
+     "fR": {
+      "ankle": [
+       -0.12,
+       0.164,
+       0.42
+      ],
+      "knee": [
+       -0.098,
+       0.195,
+       0.976
+      ],
+      "yaw": -10,
+      "pitch": 30
+     },
+     "fL": {
+      "ankle": [
+       0.13,
+       0.104,
+       0.66
+      ],
+      "knee": [
+       0.196,
+       0.0,
+       0.981
+      ],
+      "yaw": 15,
+      "pitch": 0.0
+     },
+     "label": "follow-through ends: arm wrapped across"
+    },
+    {
+     "t": 0.33,
+     "ease": "inout",
+     "hips": {
+      "pos": [
+       0.0,
+       -0.2,
+       0.74
+      ],
+      "rot": [
+       26,
+       44,
+       -4
+      ]
+     },
+     "spine": [
+      19.01,
+      9.59,
+      5.55
+     ],
+     "head": [
+      -34.54,
+      -12.7,
+      -7.55
+     ],
+     "R": {
+      "reach": [
+       0.106,
+       0.126,
+       0.28
+      ],
+      "elbow": [
+       -0.729,
+       0.625,
+       0.277
+      ],
+      "blade": [
+       0.66,
+       0.592,
+       -0.462
+      ],
+      "clav": [
+       0,
+       20
+      ]
+     },
+     "L": {
+      "reach": [
+       -0.156,
+       0.062,
+       0.154
+      ],
+      "elbow": [
+       -0.014,
+       -0.809,
+       0.587
+      ],
+      "blade": [
+       0.677,
+       -0.647,
+       -0.351
+      ],
+      "clav": [
+       0,
+       -16
+      ]
+     },
+     "fR": {
+      "ankle": [
+       -0.12,
+       0.104,
+       0.58
+      ],
+      "knee": [
+       -0.1,
+       0.0,
+       0.995
+      ],
+      "yaw": -8,
+      "pitch": 0.0
+     },
+     "fL": {
+      "ankle": [
+       0.13,
+       0.104,
+       0.66
+      ],
+      "knee": [
+       0.196,
+       0.0,
+       0.981
+      ],
+      "yaw": 12,
+      "pitch": 10
+     },
+     "label": "settle (moving hold)"
+    },
+    {
+     "t": 0.4,
+     "ease": "out",
+     "hips": {
+      "pos": [
+       0.0,
+       -0.16,
+       0.92
+      ],
+      "rot": [
+       -4,
+       46,
+       0
+      ]
+     },
+     "spine": [
+      -6.27,
+      17.77,
+      0.12
+     ],
+     "head": [
+      8.22,
+      -19.8,
+      0.86
+     ],
+     "R": {
+      "reach": [
+       0.077,
+       0.313,
+       0.258
+      ],
+      "elbow": [
+       -0.386,
+       -0.363,
+       0.848
+      ],
+      "blade": [
+       0.596,
+       0.289,
+       -0.749
+      ],
+      "clav": [
+       0,
+       10
+      ]
+     },
+     "L": {
+      "reach": [
+       0.164,
+       0.159,
+       0.325
+      ],
+      "elbow": [
+       0.627,
+       -0.398,
+       0.67
+      ],
+      "blade": [
+       0.059,
+       -0.783,
+       -0.619
+      ]
+     },
+     "fR": {
+      "ankle": [
+       -0.12,
+       0.104,
+       0.58
+      ],
+      "knee": [
+       0.0,
+       0.1,
+       0.995
+      ],
+      "yaw": -6,
+      "pitch": 20
+     },
+     "fL": {
+      "ankle": [
+       0.13,
+       0.204,
+       0.66
+      ],
+      "knee": [
+       0.092,
+       -0.37,
+       0.925
+      ],
+      "yaw": 10,
+      "pitch": 55
+     },
+     "label": "springs back into the dash"
+    }
+   ]
+  }
+ },
+ "notes": "Puck is unarmed: every hand is a locked-wrist punching fist (anim3d `fists`). Authored in v3/tools/puck/gen_puck.py, one move at a time, each reviewed by Daniel from GIF stills (v3/tools/puck/review/go.sh). Daniel's corrections (2026-11-24/25): wrists placed with intention, never flopping; never hit with the fingers - the first two knuckles lead, forearm pointing through them at the target; bend the back - a committed punch folds the body over and the fist follows through past the target; the line of action is ONE smooth curve from the back foot through the hips and back out along the arm (no hunched kink, head on the curve); watch the punch's line (attack_normal is an OVERHAND: over the top, going down); frame 1 of attack_normal is a WIND-UP (right arm folded behind a shoulder pulled back and down, left arm leads); no extra hits he did not describe ('hook follow up' = the follow-through). attack_normal approved ('good enough') 2026-11-25. Ultimate = Gogeta's Big Bang Kamehameha in the air: both arms cocked back, then a one-handed palm thrust with a knee tucked; reference: arm flung far back, body arched, other hand at the face, front knee up, back leg long and straight. attack_normal_3 = shoryuken: keep the coiled crouch as a moving hold. Moves travel (root motion); kamehamehas stay in place."
+}
