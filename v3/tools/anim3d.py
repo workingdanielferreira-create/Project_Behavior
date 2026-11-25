@@ -59,7 +59,8 @@ FPS = 60                # fast anime snaps (a thrust to a recoil in 30 ms) need 
 FLEX_MAX = {"elbow": 150.0, "knee": 155.0}
 PRONATE = 95.0          # forearm twist either way
 WRIST = 75.0            # wrist bend
-PALM_WRIST = 88.0       # open hand: a kamehameha bends the wrists right back (Daniel 2026-11-25)
+PALM_WRIST = 75.0       # open hand: wrist bent back ~60-70 deg at most in people (+ a little for anime); a kamehameha
+                        # cups the palms toward each other instead of bending them square (Daniel 2026-11-25)
 SWIVEL = 35.0           # the solver may swing an elbow this far round the shoulder->hand line to save twist / wrist
 SPINE_SPLIT = (0.25, 0.35, 0.40)
 HEAD_SPLIT = (0.4, 0.6)
