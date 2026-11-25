@@ -85,7 +85,7 @@ def key(t, ease, hips, hrot, chest, head, R, L, fR, fL, bease=None, label=None):
     return k
 
 
-# ---------------------------------------------------------------- attack_normal: dash > overhand right > overhand follow-up
+# ---------------------------------------------------------------- attack_normal: dash > overhand right > follow-through
 # Daniel 2026-11-24: both punches come OVER the top going DOWN onto the target (never from under going up); wrists
 # locked straight with intention; bend the back - a committed punch moving forward folds the body over and the fist
 # follows through past where it hit.
@@ -128,34 +128,29 @@ def attack_normal():
                  ([-0.04, -0.08, 0.14], [0.4, -1, -0.5], [0.2, 0.2, -1], [0, -24]),
                  foot(-0.13, -0.05, pitch=45, yaw=-25, knee=(-0.3, -0.2, 1)), foot(0.13, 0.66, yaw=10, knee=(0.2, 0, 1)),
                  label="follow-through: down and across"))
-    # 0.26 (f8) step through + re-cock: the back foot drives through, the body rises and turns back right, the right
-    # fist pulled back up beside the head, elbow forward (2D f8-f10)
-    K.append(key(0.26, "inout", [0, -0.14, 0.66], [-16, 38, 6], [-34, 50, 8], [8, 30, 4],
-                 ([-0.12, 0.0, -0.10], [-1, 0.1, -0.2], [0.2, 0.3, 1], [8, -10]),
-                 ([0.06, 0.0, 0.32], [0.6, -1, 0], [0.2, 0.2, -1]),
-                 foot(-0.12, 0.40, y=0.18, pitch=20, yaw=-10, knee=(-0.1, 0.3, 1)), foot(0.13, 0.66, pitch=15, yaw=10, knee=(0.2, 0, 1)),
-                 label="step through + re-cock high"))
-    # 0.31 (f10) coiled hold (moving): right foot lands in front, fist drifts higher and further back, chest wrung
-    K.append(key(0.31, "out", [0, -0.12, 0.80], [-22, 36, 8], [-44, 50, 8], [10, 28, 4],
-                 ([-0.16, 0.02, -0.22], [-1, 0.2, -0.5], [0.2, 0.3, 1], [8, -20]),
-                 ([0.10, -0.18, 0.30], [0.6, -1, 0], [0.2, 0.2, -1]),
-                 foot(-0.12, 0.92, yaw=-10, knee=(-0.1, 0, 1)), foot(0.13, 0.66, pitch=25, yaw=15, knee=(0.2, -0.1, 1)),
-                 label="coiled (hold)"))
-    # 0.36 (f11) FOLLOW-UP OVERHAND lands: over the top and down again, the whole back folded over it
-    K.append(key(0.36, "snap", [0, -0.13, 0.98], [26, 44, -8], [36, 66, -8], [8, 44, -6],
-                 (line([36, 66, -8], dx=0.16, dy=-0.42), [-1, 0.5, 0.1], [0.6, -0.6, 0.1], [8, 36]),
-                 ([-0.02, -0.06, 0.18], [0.4, -1, -0.5], [0.2, 0.2, -1], [0, -22]),
-                 foot(-0.12, 0.92, yaw=-10, knee=(-0.1, 0, 1)), foot(0.13, 0.66, pitch=40, yaw=20, knee=(0.3, -0.2, 1)),
-                 label="FOLLOW-UP OVERHAND lands"))
-    # 0.40 (f12) follow-through and on: fist down and across past the target, back foot peeling off to keep moving
-    K.append(key(0.40, "out", [0, -0.17, 1.08], [32, 54, -10], [50, 82, -10], [14, 58, -8],
-                 (line([50, 82, -10], dx=0.45, dy=-0.25), [-1, 0.4, 0.5], [0.6, -0.5, 0.3], [-2, 40]),
-                 ([-0.04, -0.08, 0.14], [0.4, -1, -0.5], [0.2, 0.2, -1], [0, -24]),
-                 foot(-0.12, 0.92, pitch=15, yaw=-10, knee=(-0.1, 0, 1)), foot(0.13, 0.66, y=0.08, pitch=55, yaw=20, knee=(0.2, -0.4, 1)),
-                 label="follow-through, moving on"))
+    # 0.27 (f8-f9) follow-through ends: the arm wraps across the body and folds, the fist finishing by the LEFT
+    # shoulder / jaw, elbow pointing at the target; chest turned all the way through, the back foot stepping up
+    # under him (one punch only - Daniel: "dont double hit", the "hook follow up" is this follow-through)
+    K.append(key(0.27, "out", [0, -0.20, 0.66], [40, 46, -8], [64, 62, -10], [14, 46, -6],
+                 ([0.36, 0.02, 0.18], [-0.1, 0.1, 1], [0.2, 1, 0], [2, 30]),
+                 ([-0.02, -0.12, 0.14], [0.4, -1, -0.5], [0.2, 0.2, -1], [0, -20]),
+                 foot(-0.12, 0.42, y=0.06, pitch=30, yaw=-10, knee=(-0.1, 0.2, 1)), foot(0.13, 0.66, yaw=15, knee=(0.2, 0, 1)),
+                 label="follow-through ends: arm wrapped across"))
+    # 0.33 (f10) settle (moving hold): the back foot plants under him, the body starts to unwind back toward square
+    K.append(key(0.33, "inout", [0, -0.20, 0.74], [26, 44, -4], [44, 58, -6], [10, 42, -4],
+                 ([0.28, -0.04, 0.16], [-0.3, -0.2, 1], [0.2, 1, 0], [0, 20]),
+                 ([0.0, -0.14, 0.18], [0.4, -1, -0.5], [0.2, 0.2, -1], [0, -16]),
+                 foot(-0.12, 0.58, yaw=-8, knee=(-0.1, 0, 1)), foot(0.13, 0.66, pitch=10, yaw=12, knee=(0.2, 0, 1)),
+                 label="settle (moving hold)"))
+    # 0.40 (f11-f12) springs back into the dash: pitched forward, left foot peeling off, fists gathering in front
+    K.append(key(0.40, "out", [0, -0.16, 0.92], [-4, 46, 0], [-10, 64, 2], [-2, 44, 0],
+                 ([0.02, -0.10, 0.40], [-0.6, -1, 0], [0.6, 0.6, 0], [0, 10]),
+                 ([0.10, -0.24, 0.30], [0.6, -1, 0], [0.2, 0.2, -1]),
+                 foot(-0.12, 0.58, pitch=20, yaw=-6), foot(0.13, 0.66, y=0.10, pitch=55, yaw=10, knee=(0.1, -0.4, 1)),
+                 label="springs back into the dash"))
     return {"length": 0.4, "arm_space": "chest", "physics": True, "fists": True,
-            "about": "Dash > overhand right, over the top and down (lands 2D f5) > step through, re-cock high > "
-                     "follow-up overhand (2D f11) > follow-through. Travels ~1.3 m.", "keys": K}
+            "about": "Dash > wind-up > overhand right, over the top and down (lands 2D f5) > follow-through: down, "
+                     "across and wrapped by the left shoulder (2D f7-f10) > back into the dash. ONE punch. Travels ~1.1 m.", "keys": K}
 
 
 CLIPS = {"attack_normal": attack_normal}
