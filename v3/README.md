@@ -229,6 +229,12 @@ taken out of the clip (hips keep their height, so cross-fades stay put) and kept
 moves the fighter's sim position along it while it plays (facing = body +Z, clamped to the arena). Solo + Battle.
 Today only the body's `attack_normal_4` (0.3 m) qualifies among game clips; library moves applied to an action do.
 
+**Fists (anim3d, 2026-11-24).** Per hand `fist: true` (clip `"fists": true` = every hand): the wrist stays locked
+straight (the forearm twist alone turns the fist so its thumb side points along `blade`) and the fingers close into a
+punching fist (`Body.fist`). Unarmed characters (Puck) use it; `anim_audit` skips the blade checks for hands their
+`pb_body.weapons` says hold nothing. Puck's clips are authored in `v3/tools/puck/gen_puck.py` and reviewed with
+`v3/tools/puck/review/go.sh <clip> <tag>` (GIF stills beside the 2D frames).
+
 **Grip and twirl (anim3d, 2026-11-23).** Per hand `grip` "fwd" / "rev" (reverse grip: blade out of the pinky side)
 and `twirl` (deg, the weapon turned in the fingers about the axis across the fist). Between a forward and a reverse
 key the weapon flips 180 deg in the fingers while the fist's aim turns; `twirl` 360 = one spin. `blade` is always
