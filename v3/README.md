@@ -168,7 +168,8 @@ clips are now authored as key poses, one by one, and replace the 2D-guessed ones
   arms in chest space (they ride with the torso), smooth curves through the keys. Baked at 60 fps (a thrust can snap in
   one frame) into `<name>.glb`; other clips in the file are kept. `--check` audits instead of writing.
   `--clips a,b` bakes / checks only those clips (use it when the file holds a clip edited in Rig Forge 3D that the
-  spec still has an older version of, e.g. Hooded Blades' attack_normal). The new clips are written onto the file's
+  spec still has an older version of). NOTE: a full `retarget2d.py <name>` rebuild regenerates every clip that is not
+  in the spec from the 2D frames, so it wipes clips edited in Rig Forge 3D (e.g. Hooded Blades' attack_normal). The new clips are written onto the file's
   bones BY NAME (a Rig Forge 3D re-save can reorder the nodes), and `anim_audit.py` reads them by name too.
 - `retarget2d.py` keeps authored clips when it rebuilds a character (`pb_body.anim3d` lists them).
 - `python v3/tools/anim_audit.py <name | file.glb>`: per clip, frames with knees / elbows backward or off their hinge,
