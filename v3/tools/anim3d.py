@@ -42,6 +42,9 @@ File format (`characters/<name>/<name>.anim3d.json`, format `pb_anim3d`):
          "fL": {...}}, ...]}}}
 Body space: +Z = forward (toward the target), +Y = up, -X = the fighter's right (near) side, origin between the feet
 on the ground, metres. Any control left out of a key is carried from the previous key (first key: rest-ish default).
+Clip `"overlap": {group: [lag_frames, overshoot_pct]}` (groups spine, head, R, L, Rfist, Lfist; see OVERLAP_GROUPS):
+follow-through / overlapping action, the group's controls chase their keyed path through a damped spring (hips and
+feet never filtered). The part lands lag frames late, so pull the body keys that early to keep a hit on its frame.
 """
 import json
 import math
@@ -684,6 +687,71 @@ def interp(keys, t):
     return c
 
 
+# Overlap / follow-through (Daniel 2026-11-25, "improve Puck's animations": approved clips started and stopped every
+# part on the same frame). Clip `"overlap": {group: [lag_frames, overshoot_pct], ...}`: the group's controls chase
+# their keyed path through a damped spring, so they start a little after their parent, overshoot past the key and
+# settle back (successive breaking of joints). lag = frames at 60 fps the part trails by at full speed; overshoot = %
+# past the key on a sudden stop. Hips and feet are never filtered (they drive the move; planted feet stay planted).
+# Groups: spine, head (relative to the chest), R / L (hand or reach + elbow + clav, chest space when arm_space chest),
+# Rfist / Lfist (where the fist / blade / palm points: the hand turns last).
+OVERLAP_GROUPS = {"spine": [("spine",)], "head": [("head",)],
+                  "R": [("R", "hand"), ("R", "reach"), ("R", "elbow"), ("R", "clav")],
+                  "L": [("L", "hand"), ("L", "reach"), ("L", "elbow"), ("L", "clav")],
+                  "Rfist": [("R", "blade"), ("R", "fing")], "Lfist": [("L", "blade"), ("L", "fing")]}
+UNIT_FIELDS = {"blade", "fing", "elbow"}
+
+
+def overlap_filter(cs, spec_overlap, dt=1.0 / FPS, sub=8):
+    """Run each overlap group's controls through a 2nd-order spring (in place over the frame list cs)."""
+    for grp, val in (spec_overlap or {}).items():
+        lag, os_pct = float(val[0]), float(val[1] if len(val) > 1 else 0.0)
+        if lag <= 0:
+            continue
+        osf = min(max(os_pct / 100.0, 1e-4), 0.6)
+        ln = math.log(osf)
+        zeta = -ln / math.sqrt(math.pi ** 2 + ln * ln)
+        w = 2 * zeta / (lag * dt)                      # a 2nd-order follower trails a ramp by 2*zeta/w
+        for path in OVERLAP_GROUPS[grp]:
+            x = v = None
+            for c in cs:
+                if not _has(c, path):
+                    x = v = None
+                    continue
+                tgt = get(c, path)
+                unit = path[-1] in UNIT_FIELDS and np.linalg.norm(tgt) > 1e-6
+                if x is None or x.shape != tgt.shape:
+                    x, v = tgt.copy(), np.zeros_like(tgt)
+                    if unit:
+                        x = r.unit(x)
+                else:
+                    h = dt / sub
+                    for _ in range(sub):                # semi-implicit Euler
+                        if unit:
+                            # directions spring ON the sphere (angular error / velocity), like interp's slerp: a
+                            # straight-line chase cuts through the middle when a fist turns over > ~150 deg and the
+                            # direction flips (Puck's overhand follow-through, a 170 deg forearm flip, 2026-11-25)
+                            tu = r.unit(tgt)
+                            ang = math.acos(max(-1.0, min(1.0, float(np.dot(x, tu)))))
+                            ax = np.cross(x, tu)
+                            n = np.linalg.norm(ax)
+                            err = ax / n * ang if n > 1e-9 else np.zeros(3)
+                            v += h * (w * w * err - 2 * zeta * w * v)
+                            sp = np.linalg.norm(v) * h
+                            if sp > 1e-12:
+                                x = r.unit(r.rot_axis(v / np.linalg.norm(v), sp) @ x)
+                        else:
+                            v += h * (w * w * (tgt - x) - 2 * zeta * w * v)
+                            x += h * v
+                out = x.copy()
+                if unit:
+                    out = r.unit(out) * np.linalg.norm(tgt)
+                node = c
+                for p in path[:-1]:
+                    node = node[p]
+                node[path[-1]] = out.tolist()
+    return cs
+
+
 def bake_clip(B, spec, notes=None, dense=False):
     keys = full_keys(B, spec["keys"])
     for k in keys:
@@ -697,7 +765,10 @@ def bake_clip(B, spec, notes=None, dense=False):
     n = max(2, int(round(length * FPS)) + 1)
     times = [min(length, f / FPS) for f in range(n)]
     sv = Solver(B)
-    poses = [sv.pose(interp(keys, t), t) for t in times]
+    cs = [interp(keys, t) for t in times]
+    if spec.get("overlap"):
+        cs = overlap_filter([json.loads(json.dumps(c)) for c in cs], spec["overlap"])
+    poses = [sv.pose(c, t) for c, t in zip(cs, times)]
     if notes is not None:
         notes.extend(sorted(set(sv.notes)))
     if dense:

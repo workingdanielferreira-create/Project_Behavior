@@ -89,6 +89,9 @@ def key(t, ease, hips, hrot, chest, head, R, L, fR, fL, bease=None, label=None):
 # Daniel 2026-11-24: both punches come OVER the top going DOWN onto the target (never from under going up); wrists
 # locked straight with intention; bend the back - a committed punch moving forward folds the body over and the fist
 # follows through past where it hit.
+OVERLAP_LEAD = 0.025
+
+
 def attack_normal():
     K = []
     # 0.00 (2D f1-f2) wind-up on the move (Daniel: "its a windup"): the right arm FOLDED, elbow driven back, fist
@@ -148,7 +151,16 @@ def attack_normal():
                  ([0.10, -0.24, 0.30], [0.6, -1, 0], [0.2, 0.2, -1]),
                  foot(-0.12, 0.58, pitch=20, yaw=-6), foot(0.13, 0.66, y=0.10, pitch=55, yaw=10, knee=(0.1, -0.4, 1)),
                  label="springs back into the dash"))
+    # overlap lead (Daniel 2026-11-25, "pull body keys earlier"): the overlap springs make the fist trail the body,
+    # so the inner keys come 25 ms (1.5 frames) early; measured: the fist still reaches 95% extension at 167 ms and
+    # full at 183 ms, the same frames as the approved clip without overlap
+    for k in K[1:-1]:
+        k["t"] = round(k["t"] - OVERLAP_LEAD, 4)
     return {"length": 0.4, "arm_space": "chest", "physics": True, "fists": True,
+            # overlap (2026-11-25, ZZZ-snappy 1-2 frames): hips lead, chest a frame behind, the striking arm then its
+            # fist land last and overshoot most; the head trails loosest; the free left arm is tighter (counterweight)
+            "overlap": {"spine": [1.0, 8], "R": [1.5, 10], "Rfist": [1.75, 12], "head": [1.75, 12],
+                        "L": [1.0, 6], "Lfist": [1.25, 5]},
             "about": "Dash > wind-up > overhand right, over the top and down (lands 2D f5) > follow-through: down, "
                      "across and wrapped by the left shoulder (2D f7-f10) > back into the dash. ONE punch. Travels ~1.1 m.", "keys": K}
 
@@ -266,6 +278,10 @@ def attack_special():
     K.append(release(2.0, "inout", 0.09, -0.32, [-14, 25, 0], [3, 42, 0], [0, 22, 0], [0.0, 0.97, 0.0],
                      "holding the beam"))
     return {"length": 2.0, "arm_space": "chest",
+            # overlap (2026-11-25): both hands share one setting (stacked heel to heel = one unit, they must not split);
+            # the HA! drive goes hips > chest > arms > palms, the head settles last
+            "overlap": {"spine": [1.0, 6], "R": [1.5, 8], "L": [1.5, 8], "Rfist": [2.0, 6], "Lfist": [2.0, 6],
+                        "head": [2.0, 10]},
             "about": "Kamehameha in place: wide low straddle, open hands cupped at the back hip (2D f1-35), then "
                      "HA! (f36-37): hips drive forward, back leg locks out, both arms thrust, palms out heel to heel, "
                      "held to f55.", "keys": K}
@@ -296,7 +312,12 @@ def main(argv):
         "left-out control over from the key before). Ultimate = Gogeta's Big Bang Kamehameha in the air: both arms cocked back, then "
         "a one-handed palm thrust with a knee tucked; reference: arm flung far back, body arched, other hand at the "
         "face, front knee up, back leg long and straight. attack_normal_3 = shoryuken: keep the coiled crouch as a "
-        "moving hold. Moves travel (root motion); kamehamehas stay in place.")
+        "moving hold. Moves travel (root motion); kamehamehas stay in place. Overlap pass (2026-11-25, Daniel: "
+        "ZZZ-snappy 1-2 frames, per-part lag in anim3d, 'pull body keys earlier', kamehameha 'bake it'): clip "
+        "`overlap` springs (hips lead > chest > arm > fist last, head loosest, free arm tighter; the kamehameha's "
+        "stacked hands share one value so they never split); attack_normal's inner keys sit OVERLAP_LEAD 25 ms early "
+        "so the lagging fist still lands on the approved frames (95% out at 167 ms, full at 183 ms). New moves get "
+        "overlap from blocking.")
     for name in (argv or CLIPS):
         spec["clips"][name] = CLIPS[name]()
     json.dump(spec, open(OUT, "w"), indent=1)

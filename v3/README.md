@@ -246,6 +246,16 @@ real wrist extends ~60-70 deg: a locked-arm kamehameha cups its palms toward eac
 past that the solver notes "palm off by". Finger pose `Body.palm_pose` from the grip pose's own curl axes; the palm's
 facing in the hand frame (`Body.palm_frame`) = the way a curling finger moves.
 
+**Overlap / follow-through (anim3d, 2026-11-25, Puck).** Clip `"overlap": {group: [lag_frames, overshoot_pct]}`,
+groups `spine`, `head` (relative to the chest), `R` / `L` (hand or reach, elbow, clav: chest space with `arm_space`
+chest), `Rfist` / `Lfist` (where the fist / blade / palm points). Each group's interpolated controls chase their keyed
+path through a damped 2nd-order spring at 60 fps (`overlap_filter`: lag = 2 zeta / omega, zeta from the overshoot;
+directions spring on the sphere so a fist turning over never flips): parts start after their parent, overshoot the
+key and settle in turn. Hips and feet are never filtered (planted feet stay planted). Vary the values per part (fist
+latest, head loosest, a free arm tighter); hands that move as one unit (kamehameha) share one value. A lagging part
+lands late: pull the body keys that much earlier (Puck `OVERLAP_LEAD` 25 ms). Too much fist lag / overshoot on a
+turn-over can make the forearm twist flip (audit "flip"): lower it.
+
 **Grip and twirl (anim3d, 2026-11-23).** Per hand `grip` "fwd" / "rev" (reverse grip: blade out of the pinky side)
 and `twirl` (deg, the weapon turned in the fingers about the axis across the fist). Between a forward and a reverse
 key the weapon flips 180 deg in the fingers while the fist's aim turns; `twirl` 360 = one spin. `blade` is always

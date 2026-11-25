@@ -7,6 +7,32 @@
    "arm_space": "chest",
    "physics": true,
    "fists": true,
+   "overlap": {
+    "spine": [
+     1.0,
+     8
+    ],
+    "R": [
+     1.5,
+     10
+    ],
+    "Rfist": [
+     1.75,
+     12
+    ],
+    "head": [
+     1.75,
+     12
+    ],
+    "L": [
+     1.0,
+     6
+    ],
+    "Lfist": [
+     1.25,
+     5
+    ]
+   },
    "about": "Dash > wind-up > overhand right, over the top and down (lands 2D f5) > follow-through: down, across and wrapped by the left shoulder (2D f7-f10) > back into the dash. ONE punch. Travels ~1.1 m.",
    "keys": [
     {
@@ -107,7 +133,7 @@
      "label": "wind-up: right fist back, left arm leads"
     },
     {
-     "t": 0.09,
+     "t": 0.065,
      "ease": "in",
      "hips": {
       "pos": [
@@ -200,7 +226,7 @@
      "label": "load: fist cocked high"
     },
     {
-     "t": 0.13,
+     "t": 0.105,
      "ease": "in",
      "hips": {
       "pos": [
@@ -297,7 +323,7 @@
      "label": "over the top"
     },
     {
-     "t": 0.165,
+     "t": 0.14,
      "ease": "snap",
      "hips": {
       "pos": [
@@ -394,7 +420,7 @@
      "label": "OVERHAND lands (down onto the target)"
     },
     {
-     "t": 0.21,
+     "t": 0.185,
      "ease": "out",
      "hips": {
       "pos": [
@@ -491,7 +517,7 @@
      "label": "follow-through: down and across"
     },
     {
-     "t": 0.27,
+     "t": 0.245,
      "ease": "out",
      "hips": {
       "pos": [
@@ -588,7 +614,7 @@
      "label": "follow-through ends: arm wrapped across"
     },
     {
-     "t": 0.33,
+     "t": 0.305,
      "ease": "inout",
      "hips": {
       "pos": [
@@ -782,6 +808,32 @@
   "attack_special": {
    "length": 2.0,
    "arm_space": "chest",
+   "overlap": {
+    "spine": [
+     1.0,
+     6
+    ],
+    "R": [
+     1.5,
+     8
+    ],
+    "L": [
+     1.5,
+     8
+    ],
+    "Rfist": [
+     2.0,
+     6
+    ],
+    "Lfist": [
+     2.0,
+     6
+    ],
+    "head": [
+     2.0,
+     10
+    ]
+   },
    "about": "Kamehameha in place: wide low straddle, open hands cupped at the back hip (2D f1-35), then HA! (f36-37): hips drive forward, back leg locks out, both arms thrust, palms out heel to heel, held to f55.",
    "keys": [
     {
@@ -1564,5 +1616,5 @@
    ]
   }
  },
- "notes": "Puck is unarmed: every hand is a locked-wrist punching fist (anim3d `fists`). Authored in v3/tools/puck/gen_puck.py, one move at a time, each reviewed by Daniel from GIF stills (v3/tools/puck/review/go.sh). Daniel's corrections (2026-11-24/25): wrists placed with intention, never flopping; never hit with the fingers - the first two knuckles lead, forearm pointing through them at the target; bend the back - a committed punch folds the body over and the fist follows through past the target; the line of action is ONE smooth curve from the back foot through the hips and back out along the arm (no hunched kink, head on the curve); watch the punch's line (attack_normal is an OVERHAND: over the top, going down); frame 1 of attack_normal is a WIND-UP (right arm folded behind a shoulder pulled back and down, left arm leads); no extra hits he did not describe ('hook follow up' = the follow-through). attack_normal approved ('good enough') 2026-11-25. attack_special = kamehameha, IN PLACE, approved ('bake it') 2026-11-25: wide low side-on straddle, open hands cupped round a ball at the back hip (right under palm up, left on top palm down, wrists together, chest turned ~90 deg toward them, upright), then HA!: feet stay put, hips drive forward, back leg locks out, arms LOCKED straight and level, hands stacked VERTICALLY heel to heel (left fingers up, right fingers down), palms cupped ~27 deg toward each other round the beam (a wrist bends back only 60-70 deg). His 'what is happening with his arms' = bent, flared elbows crossing in an X: thrust arms are placed straight (gen_puck.meet straight=), and every open-hand key sets its clav (anim3d carries a left-out control over from the key before). Ultimate = Gogeta's Big Bang Kamehameha in the air: both arms cocked back, then a one-handed palm thrust with a knee tucked; reference: arm flung far back, body arched, other hand at the face, front knee up, back leg long and straight. attack_normal_3 = shoryuken: keep the coiled crouch as a moving hold. Moves travel (root motion); kamehamehas stay in place."
+ "notes": "Puck is unarmed: every hand is a locked-wrist punching fist (anim3d `fists`). Authored in v3/tools/puck/gen_puck.py, one move at a time, each reviewed by Daniel from GIF stills (v3/tools/puck/review/go.sh). Daniel's corrections (2026-11-24/25): wrists placed with intention, never flopping; never hit with the fingers - the first two knuckles lead, forearm pointing through them at the target; bend the back - a committed punch folds the body over and the fist follows through past the target; the line of action is ONE smooth curve from the back foot through the hips and back out along the arm (no hunched kink, head on the curve); watch the punch's line (attack_normal is an OVERHAND: over the top, going down); frame 1 of attack_normal is a WIND-UP (right arm folded behind a shoulder pulled back and down, left arm leads); no extra hits he did not describe ('hook follow up' = the follow-through). attack_normal approved ('good enough') 2026-11-25. attack_special = kamehameha, IN PLACE, approved ('bake it') 2026-11-25: wide low side-on straddle, open hands cupped round a ball at the back hip (right under palm up, left on top palm down, wrists together, chest turned ~90 deg toward them, upright), then HA!: feet stay put, hips drive forward, back leg locks out, arms LOCKED straight and level, hands stacked VERTICALLY heel to heel (left fingers up, right fingers down), palms cupped ~27 deg toward each other round the beam (a wrist bends back only 60-70 deg). His 'what is happening with his arms' = bent, flared elbows crossing in an X: thrust arms are placed straight (gen_puck.meet straight=), and every open-hand key sets its clav (anim3d carries a left-out control over from the key before). Ultimate = Gogeta's Big Bang Kamehameha in the air: both arms cocked back, then a one-handed palm thrust with a knee tucked; reference: arm flung far back, body arched, other hand at the face, front knee up, back leg long and straight. attack_normal_3 = shoryuken: keep the coiled crouch as a moving hold. Moves travel (root motion); kamehamehas stay in place. Overlap pass (2026-11-25, Daniel: ZZZ-snappy 1-2 frames, per-part lag in anim3d, 'pull body keys earlier', kamehameha 'bake it'): clip `overlap` springs (hips lead > chest > arm > fist last, head loosest, free arm tighter; the kamehameha's stacked hands share one value so they never split); attack_normal's inner keys sit OVERLAP_LEAD 25 ms early so the lagging fist still lands on the approved frames (95% out at 167 ms, full at 183 ms). New moves get overlap from blocking."
 }
