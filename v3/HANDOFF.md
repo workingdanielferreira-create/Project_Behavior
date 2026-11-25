@@ -102,6 +102,12 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
 - Confirmed by Daniel: Hooded Blades holds both blades in a FORWARD grip; blades swept back = winding up a horizontal
   double slash; bent knees = ready to lunge / dash, not a crouch. Ask him whenever a move's intent is unclear.
 - Done: `v3/tools/anim3d.py` (solver + baker), `v3/tools/anim_audit.py`, `characters/hooded_blades/hooded_blades.anim3d.json`.
+- 2026-11-25 (review of Hooded Blades): `anim_audit.py` now matches clip tracks to the shared body's bones BY NAME.
+  Rig Forge 3D's re-save (upload 2026-11-24) stores the nodes in another order (45 of 75 shifted), and the old index
+  match audited the wrong bones (feet "70 cm through the floor" even in idle). Correctly ordered files audit the same
+  as before. Open: the `attack_normal` in `hooded_blades.glb` is no longer the anim3d-authored one (Daniel's local
+  Rig Forge 3D version, 14 keys) while `pb_body.anim3d` still lists it, so `anim3d.py` / `retarget2d.py` on Hooded
+  Blades would bake the old authored clip over it. Don't run them on Hooded Blades until Daniel says which to keep.
 - First hit 1 was REJECTED by Daniel (hands stuck at the face, arms never extend, blades unreadable, no weight shift).
   Lesson: key poses as large stills beside the 2D frames first, shown to Daniel before animating (skill section
   "Key poses as stills FIRST"). Hit 1 rebuilt from six poses matched to 2D frames 7, 10, 11, 14, 17, 18 and retimed
