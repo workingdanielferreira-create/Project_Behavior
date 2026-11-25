@@ -44,13 +44,24 @@ const PIVOTS = ['spawn', 'figure'];
 const DEF3D = {lay: 'auto', tilt_deg: 0, yaw_deg: 0, pitch_deg: 0, pivot: 'spawn', anchor: '', offset: [0, 0, 0], size_pct: 100, ink_px: 0, depth_m: 0.8,
   render: 'auto', toon_bands: 3, toon_core_pct: 30, toon_shade_pct: 55, toon_core: '#ffffff', toon_ink_m: 0.02, toon_alpha_pct: 100, toon_sides: 12,
   laser_streak: 5, laser_max_m: 6, laser_width_pct: 85, beam_bulb_pct: 130, beam_flare_pct: 150, beam_wobble_pct: 8, beam_width_pct: 100,
-  impact_shell: true, impact_shell_pct: 35, impact_ring: true, impact_spikes: 8, impact_spike_pct: 90, chunk_shape: 'shard', chunk_spread_pct: 60, chunk_size_pct: 120};
+  impact_shell: true, impact_shell_pct: 35, impact_ring: true, impact_spikes: 8, impact_spike_pct: 90, chunk_shape: 'shard', chunk_spread_pct: 60, chunk_size_pct: 120,
+  strike_limb: 'auto', strike_glow_pct: 50, strike_spin_deg: 90, strike_ground: true};
 const RENDERS = ['auto', '3d', 'card'];
 const CHUNKS = ['shard', 'ball', 'cube'];
 const TOON_PRIMS = ['ribbon', 'beam', 'particles', 'glow', 'pulse'];
+// 3D strikes (Daniel 2026-11-25): the punch, the kicks and the serious punch. Energy-look parts are 3D shapes, ink / gritty
+// parts stay on the card. strike_limb = the 3D fist / foot the strike drives out from (auto = picked from the body).
+const STRIKE_KICKS = ['roundhouse_kick', 'thrust_kick', 'axe_kick', 'spinning_kick', 'rising_kick'];
+const STRIKE_LIMBS = ['auto', 'haR', 'haL', 'ftR', 'ftL', 'none'];
+const LIMB_ROOT = {haR: 'elR', haL: 'elL', ftR: 'knR', ftL: 'knL'};
+function strikeKind(fx) {
+  if (!fx || fx.prim !== 'technique') return '';
+  const s = fx.params && fx.params.style;
+  return s === 'impact_punch' ? 'punch' : STRIKE_KICKS.indexOf(s) >= 0 ? 'kick' : s === 'serious_punch' ? 'serious' : '';
+}
 const TOON_NUMS = ['toon_bands', 'toon_core_pct', 'toon_shade_pct', 'toon_ink_m', 'toon_alpha_pct', 'toon_sides', 'laser_streak', 'laser_max_m',
   'laser_width_pct', 'beam_bulb_pct', 'beam_flare_pct', 'beam_wobble_pct', 'beam_width_pct', 'impact_shell_pct', 'impact_spikes', 'impact_spike_pct',
-  'chunk_spread_pct', 'chunk_size_pct'];
+  'chunk_spread_pct', 'chunk_size_pct', 'strike_glow_pct', 'strike_spin_deg'];
 const MOVE_PATHS = ['none', 'line', 'leap', 'arc', 'zigzag', 'flank', 'hit_retreat'];
 const START_MODES = ['stay', 'blink', 'dash'];
 const MOVE_EASES = ['inout', 'linear', 'in', 'out'];
@@ -71,6 +82,8 @@ function cfg3d(fx) {
   c.anchor = typeof c.anchor === 'string' ? c.anchor : '';
   if (RENDERS.indexOf(c.render) < 0) c.render = 'auto';
   if (CHUNKS.indexOf(c.chunk_shape) < 0) c.chunk_shape = 'shard';
+  if (STRIKE_LIMBS.indexOf(c.strike_limb) < 0) c.strike_limb = 'auto';
+  c.strike_ground = c.strike_ground !== false;
   TOON_NUMS.forEach(k => { c[k] = num(c[k], DEF3D[k]); });
   c.toon_bands = Math.max(1, Math.min(6, Math.round(c.toon_bands))); c.toon_sides = Math.max(3, Math.min(48, Math.round(c.toon_sides)));
   c.impact_spikes = Math.max(0, Math.min(48, Math.round(c.impact_spikes)));
@@ -82,6 +95,7 @@ function cfg3d(fx) {
 function is3d(fx, c) {
   c = c || cfg3d(fx); if (!fx || c.render === 'card') return false;
   if (fx.prim === 'sprite') return !(fx.params && fx.params.shape === 'blade');
+  if (strikeKind(fx)) return true;
   return TOON_PRIMS.indexOf(fx.prim) >= 0;
 }
 // auto: soft / round FX (glows, particles, rings, afterimages) face the camera, everything else lies in the aim plane
@@ -141,7 +155,7 @@ function sizeCard(c, w, h) {
 // The normal is bent with it (for the bands). Tubes and cards are split along their length so they can curve.
 const TOON_VS = [
   'uniform float uR0; uniform float uR1; uniform float uTaper; uniform float uInflate; uniform vec4 uBend;',
-  'varying vec3 vN; varying vec3 vV;',
+  'varying vec3 vN; varying vec3 vV; varying float vD;',
   'vec3 bendP( vec3 p ) {',
   '  if ( uBend.w <= 0.0 ) return p;',
   '  vec2 d = p.xz - uBend.xz; float r = length( d ); if ( r < 1e-5 ) return p;',
@@ -158,7 +172,7 @@ const TOON_VS = [
   '  vec3 bp = bendP( wp.xyz );',
   '  vec3 bn = normalize( bendP( wp.xyz + nw * 0.05 ) - bp );',
   '  vec4 mv = viewMatrix * vec4( bp, 1.0 );',
-  '  vN = normalize( ( viewMatrix * vec4( bn, 0.0 ) ).xyz ); vV = normalize( -mv.xyz );',
+  '  vN = normalize( ( viewMatrix * vec4( bn, 0.0 ) ).xyz ); vV = normalize( -mv.xyz ); vD = -mv.z;',
   '  gl_Position = projectionMatrix * mv;',
   '}'].join('\n');
 const FLAT_BEND = {x: 0, y: 0, z: 0, w: 0};
@@ -166,15 +180,18 @@ const bendRef = () => (G.World3D && G.World3D.BEND) || FLAT_BEND;
 const TUBE_SEGS = 28, CARD_SEGS = 16;   // along a tube / across a card: enough to follow the globe's curve
 const TOON_FS = [
   'uniform vec3 uCol; uniform vec3 uShade; uniform vec3 uCore; uniform float uBands; uniform float uCoreT; uniform float uAlpha; uniform float uInk;',
-  'varying vec3 vN; varying vec3 vV;',
+  'varying vec3 vN; varying vec3 vV; varying float vD;',
   'void main() {',
-  '  if ( uInk > 0.5 ) { gl_FragColor = vec4( 0.02, 0.027, 0.05, uAlpha ); return; }',
+  // near the camera a shape fades out (a big shock ring / flash passing the lens never blanks the screen)
+  '  float nf = smoothstep( 0.35, 1.8, vD );',
+  '  if ( nf <= 0.0 ) discard;',
+  '  if ( uInk > 0.5 ) { gl_FragColor = vec4( 0.02, 0.027, 0.05, uAlpha * nf ); return; }',
   '  float f = abs( dot( normalize( vN ), normalize( vV ) ) );',
   '  vec3 c;',
   '  if ( uCoreT > 0.0 && f >= 1.0 - uCoreT ) c = uCore;',
   '  else { float k = f / max( 0.001, 1.0 - uCoreT ); float i = min( uBands - 1.0, floor( k * uBands ) );',
   '    c = mix( uShade, uCol, uBands > 1.0 ? i / ( uBands - 1.0 ) : 1.0 ); }',
-  '  gl_FragColor = vec4( c, uAlpha );',
+  '  gl_FragColor = vec4( c, uAlpha * nf );',
   '}'].join('\n');
 const GEO = {};
 function toonGeo(kind, sides) {
@@ -185,6 +202,7 @@ function toonGeo(kind, sides) {
   else if (kind === 'ring') g = new THREE.TorusGeometry(1, 0.045, 5, Math.max(12, sides * 3));
   else if (kind === 'shard') g = new THREE.OctahedronGeometry(1, 0);
   else if (kind === 'cube') g = new THREE.BoxGeometry(1.3, 1.3, 1.3);
+  else if (/^arc\d$/.test(kind)) g = new THREE.TorusGeometry(1, 0.045, 5, 18, Math.PI * 2 / +kind.slice(3) * 0.62);   // a broken ring's piece
   else g = new THREE.IcosahedronGeometry(1, 0);   // ball
   return (GEO[k] = g);
 }
@@ -345,6 +363,8 @@ Runner.prototype.tick = function (ctx) {
 Runner.prototype.initInst = function (l, inst) {
   if (inst._c) return;
   const src = inst.src || inst.fx; inst._c = src._c3 || cfg3d(src); inst._r3 = is3d(inst.fx, inst._c); inst._lay = layOf(inst.fx, inst._c);
+  // a 3D strike: drawn as 3D shapes (+ a card for its ink / gritty parts), hit by FX Studio's own punch / kick line
+  inst._s3 = inst._r3 ? strikeKind(inst.fx) : ''; if (inst._s3) { inst._r3 = false; inst._lay = inst._c.lay === 'auto' ? 'side' : inst._lay; }
   inst._pv = inst._c.pivot === 'figure' ? l.fig.slice() : [inst.x, inst.y];
   const an = typeof inst.fx.anchor === 'string' ? inst.fx.anchor.replace(/^3d:/, '') : '';
   const W = an && an !== 'figure' && an !== 'target' && this.ctx ? this.anchorWorld(an, new THREE.Vector3()) : null;
@@ -554,18 +574,360 @@ Runner.prototype.draw3d = function (l, inst, xf) {
     });
   }
 };
+/* ---- 3D strikes (Daniel 2026-11-25: "recreate the FX into 3D, start with punching motion and impact effects") ----
+   The punch (strikefx.js), the kicks (kickfx.js) and the serious punch (powerfx.js). FX Studio's own timeline and random
+   streams decide what happens (STRIKEFX / KICKFX .parts, POWERFX.sp); here it is rebuilt as 3D cel-shaded shapes:
+     - motion: the fist / foot starts at the REAL 3D hand / foot (strike_limb, auto = the one driving forward) and drives
+       out to FX Studio's full reach along the aim, then back; smear frames = tapered tubes of the forearm / shin, air
+       strokes = tubes spiralling round its path (strike_spin_deg), the fist = a sphere stretched by its speed
+     - impact: opens as a forward 3D cone round the blow: a white flash, pressure spheres pushed along it, rays, a star of
+       spikes, a shock ring standing across the blow (+ a broken one), sparks thrown on with gravity; the impact frame
+       (flash + focus lines) faces the camera
+     - ground (fx_env): rings, dust, sparks, the axe crater (scorch disc, cracks, debris) and the spinning kick's vortex
+       lie level on the floor (strike_ground) and spread all round
+   Only the energy look is 3D for now (Daniel: "energy first"); ink / gritty parts stay on the effect's card. Hits are
+   FX Studio's own punch / kick line in the effect's plane (unchanged). Glow sizes x strike_glow_pct (a 2D glow is soft,
+   a sphere is solid). */
+const _s1 = new THREE.Vector3(), _s2 = new THREE.Vector3(), _s3 = new THREE.Vector3(), _sq = new THREE.Quaternion(), ZV = new THREE.Vector3(0, 0, 1), XV = new THREE.Vector3(1, 0, 0);
+const SLib = () => G.SWORDFX.lib;
+function noCore(c) { return c._nc || (c._nc = Object.assign({}, c, {toon_core_pct: 0})); }
+function easeO(u) { u = Math.max(0, Math.min(1, u)); return 1 - Math.pow(1 - u, 3); }
+function easeI(u) { u = Math.max(0, Math.min(1, u)); return u * u * u; }
+// a unit vector deg away from u, turned az round it
+function coneDir(u, deg, az, out) {
+  const p1 = Math.abs(u.y) < 0.9 ? _s1.set(0, 1, 0) : _s1.set(1, 0, 0); p1.crossVectors(u, p1).normalize();
+  const p2 = _s2.crossVectors(u, p1);
+  const s = Math.sin(deg * D), cz = Math.cos(deg * D);
+  return out.copy(u).multiplyScalar(cz).addScaledVector(p1, Math.cos(az) * s).addScaledVector(p2, Math.sin(az) * s).normalize();
+}
+function strikeCard(inst) {
+  if (inst._s3 === 'serious') return false;
+  const P = inst.fx.params || {}, H = G.HITFX;
+  return ['fx_motion', 'fx_impact', 'fx_env'].some(k => { const v = H.look(P, k); return v === 'ink' || v === 'gritty'; });
+}
+// while a strike's card is painted: its energy parts and impact frame are 3D, so the card leaves them out
+function strikeCardPatch(insts) {
+  const out = [];
+  insts.forEach(i => {
+    if (!i._s3) return; const P = i.fx.params; if (!P || out.some(x => x[0] === P)) return;
+    out.push([P, P.fx_motion, P.fx_impact, P.fx_env, P.impact_frame]);
+    ['fx_motion', 'fx_impact', 'fx_env'].forEach(k => { if (G.HITFX.look(P, k) === 'energy') P[k] = 'off'; });
+    P.impact_frame = 'off';
+  });
+  return () => out.forEach(x => { ['fx_motion', 'fx_impact', 'fx_env', 'impact_frame'].forEach((k, j) => { if (x[j + 1] === undefined) delete x[0][k]; else x[0][k] = x[j + 1]; }); });
+}
+// a ring (torus) round axis n through C, radius R; zk = depth along the axis; rot = turn round n
+Runner.prototype.torus = function (c, kind, C, n, R, zk, rot, rgb, a, ink) {
+  if (!(R > 1e-3) || a <= 0.004) return null;
+  const t = this.paint(this.toon(kind, kind === 'ring' ? c.toon_sides : 0), c, rgb, a, ink);
+  _sq.setFromUnitVectors(ZV, n).multiply(_qa.setFromAxisAngle(ZV, rot || 0));
+  [t.m, t.h].forEach(x => { x.position.copy(C); x.quaternion.copy(_sq); x.scale.set(R, R, R * (zk || 1)); x.material.uniforms.uTaper.value = 0; });
+  return t;
+};
+// a strike's limb history: the 3D anchors it may drive out from, per tick of the effect
+Runner.prototype.boneRec = function (inst, ids) {
+  const h = inst._bh || (inst._bh = {}), a = Math.max(0, inst.age | 0);
+  ids.forEach(id => { const r = h[id] || (h[id] = []); if (!r[a]) { const W = this.anchorWorld(id, new THREE.Vector3()); if (W) r[a] = W; } });
+};
+Runner.prototype.boneAt = function (inst, id, t, out) {
+  const r = inst._bh && inst._bh[id]; if (!r || !r.length) return null;
+  let i0 = Math.min(r.length - 1, Math.floor(t)), i1 = Math.max(0, Math.ceil(t));
+  while (i0 >= 0 && !r[i0]) i0--; while (i1 < r.length && !r[i1]) i1++;
+  if (i0 < 0 && i1 >= r.length) return null;
+  if (i0 < 0) return out.copy(r[i1]); if (i1 >= r.length || i1 === i0) return out.copy(r[i0]);
+  return out.copy(r[i0]).lerp(r[i1], Math.max(0, Math.min(1, (t - i0) / (i1 - i0))));
+};
+// which 3D fist / foot this strike drives out from (null = FX Studio's line only)
+Runner.prototype.strikeLimbId = function (inst, S) {
+  const c = inst._c; if (c.strike_limb === 'none') return null;
+  if (c.strike_limb !== 'auto') return c.strike_limb;
+  if (inst._lim) return inst._lim;
+  const an = typeof inst.fx.anchor === 'string' ? inst.fx.anchor.replace(/^3d:/, '') : '';
+  if (LIMB_ROOT[an]) return (inst._lim = an);
+  const cand = S.kind === 'kick' ? ['ftR', 'ftL'] : ['haR', 'haL'], l = this.cur, t = inst.age;
+  let best = null, bd = -Infinity;
+  cand.forEach(id => { const r = inst._bh && inst._bh[id]; if (!r) return; const f = r.find(Boolean), n = this.boneAt(inst, id, t, _s3); if (!f || !n) return;
+    const d = n.dot(l.X) - f.dot(l.X); if (d > bd) { bd = d; best = id; } });
+  if (best && t >= S.M.tc) inst._lim = best;   // locked once the blow lands
+  return best;
+};
+// how far out the strike is (0 = at the 3D fist, 1 = at FX Studio's reach)
+function strikeOut(S, q, t) {
+  const M = S.M;
+  if (S.ext) return Math.max(0, Math.min(1, Math.hypot(q[2] - q[0], q[3] - q[1]) / Math.max(1, S.reach)));
+  if (t <= M.t0) return 0; if (t < M.tc) return easeO((t - M.t0) / Math.max(1e-3, M.tc - M.t0)); if (t <= M.tm) return 1;
+  return t < M.tout ? 1 - easeI((t - M.tm) / Math.max(1e-3, M.tout - M.tm)) : 0;
+}
+// the limb at tick t in 3D: {T tip, R root, u (unit motion), s}
+Runner.prototype.limb3 = function (inst, xf, S, t) {
+  const q = S.M.limb(t), T = this.w3(inst, xf, q[2], q[3], 0, new THREE.Vector3()), R = this.w3(inst, xf, q[0], q[1], 0, new THREE.Vector3());
+  const s = S.lim ? strikeOut(S, q, t) : 1;
+  if (S.lim && s < 1) {
+    const B = this.boneAt(inst, S.lim, t, new THREE.Vector3()); if (B) T.copy(B.lerp(T, s));
+    const BR = this.boneAt(inst, LIMB_ROOT[S.lim], t, new THREE.Vector3()); if (BR) R.copy(BR.lerp(R, s));
+  }
+  const u = xf.ax.clone().multiplyScalar(q[4]).addScaledVector(xf.ay, -q[5]);
+  if (u.lengthSq() < 1e-8) u.copy(xf.ax); u.normalize();
+  return {T, R, u, s};
+};
+Runner.prototype.drawStrike = function (l, inst, xf) {
+  const Lb = SLib(), P = inst.fx.params || {}, c = inst._c, Us = xf.Us, kind = inst._s3, H = G.HITFX, ink = c.toon_ink_m;
+  const col = Lb.colours(inst, this.host)[0], HOTc = [255, 255, 255], gk = c.strike_glow_pct / 100;
+  if (kind === 'serious') return this.drawSerious(l, inst, xf, col, gk);
+  const pt = (kind === 'punch' ? G.STRIKEFX : G.KICKFX).parts(inst, 1);
+  const S = {kind, M: pt.motion, reach: pt.reach, ext: kind === 'punch' || !!pt.thrust, lim: null};
+  const cand = kind === 'kick' ? ['ftR', 'ftL', 'knR', 'knL'] : ['haR', 'haL', 'elR', 'elL'];
+  const an = typeof inst.fx.anchor === 'string' ? inst.fx.anchor.replace(/^3d:/, '') : '';
+  if (LIMB_ROOT[an] && cand.indexOf(an) < 0) cand.push(an, LIMB_ROOT[an]);
+  if (c.strike_limb !== 'auto' && LIMB_ROOT[c.strike_limb] && cand.indexOf(c.strike_limb) < 0) cand.push(c.strike_limb, LIMB_ROOT[c.strike_limb]);
+  this.boneRec(inst, cand); S.lim = this.strikeLimbId(inst, S);
+  const t = inst.age, M = S.M;
+  // ---- motion (fx_motion)
+  if (H.look(P, 'fx_motion') === 'energy') {
+    const rf = M.rf * Us, Wd = M.W * Us;
+    if (t < M.t0) {   // wind-up: a glint drawing in
+      const L0 = this.limb3(inst, xf, S, M.t0), e = (t + 1) / Math.max(1, M.t0);
+      this.sphere(c, L0.T, rf * (0.8 + 1.2 * e) * gk, col, (120 + 100 * e) / 255, ink);
+      this.torus(noCore(c), 'ring', L0.T, L0.u, rf * (3 - 2 * e), 0.6, 0, HOTc, 150 * e / 255, 0);
+    } else {
+      const K = H.K;
+      if ((P.motion_arcs === undefined ? true : P.motion_arcs) && t <= M.tm + K.ARC_LINGER) {   // air strokes spiralling round the path
+        const te = Math.min(t, M.tm), f = t <= M.tm ? 1 : 1 - (t - M.tm) / (K.ARC_LINGER + 1);
+        for (let j = 0; j < K.ARC_N + 1; j++) {
+          const r = Lb.rngFor(inst.seed, j, 300);
+          const off = r.uniform(-1, 1) * (rf * 0.6 + Wd * 0.4), lag = r.uniform(0, 0.5), span = r.uniform(2, 3.4), gap = r.uniform(0.38, 0.55), wmax = r.uniform(1.4, 2.6) * Us;
+          const az0 = r() * Math.PI * 2, tw = r.uniform(-1, 1) * c.strike_spin_deg * D;
+          const s1 = te - lag, s0 = Math.max(M.t0, s1 - span); if (s1 - s0 < 0.3) continue;
+          [[0, gap - 0.06], [gap + 0.06, 1]].forEach(uu => {
+            const N = 6, pts = [];
+            for (let k = 0; k < N; k++) {
+              const kk = uu[0] + (uu[1] - uu[0]) * k / (N - 1), L3 = this.limb3(inst, xf, S, s0 + (s1 - s0) * kk);
+              pts.push(L3.T.addScaledVector(coneDir(L3.u, 90, az0 + tw * kk, _d), Math.abs(off)));
+            }
+            for (let k = 1; k < N; k++) this.tube(c, pts[k - 1], pts[k], wmax * 0.8 * Math.sin(Math.PI * (k - 1) / (N - 1)), wmax * 0.8 * Math.sin(Math.PI * k / (N - 1)), col, 150 / 255 * f, 0);
+          });
+        }
+      }
+      if ((P.motion_smear === undefined ? true : P.motion_smear) && t < M.tc) {   // smear frames of the forearm / shin
+        for (let k = K.SMEAR_N; k > 0; k--) {
+          const s = t - K.SMEAR_STEP * k; if (s < M.t0) continue;
+          const L3 = this.limb3(inst, xf, S, s), ln = L3.T.distanceTo(L3.R); if (ln < 2 * Us) continue;
+          const q = 1 - (k - 1) / K.SMEAR_N, Rr = _s2.copy(L3.T).lerp(L3.R, Math.min(1, K.SMEAR_LEN * rf / ln)).clone();
+          this.tube(noCore(c), Rr, L3.T, rf * 0.45, rf * (0.75 + 0.2 * q), col, 95 / 255 * q * 1.6, 0);
+        }
+      }
+      if (t < M.tout) {   // the fist / foot, stretched by its speed, with two after-glows
+        const fade = t <= M.tm ? 1 : 1 - (t - M.tm) / Math.max(1, M.tout - M.tm), L3 = this.limb3(inst, xf, S, t);
+        if (L3.T.distanceTo(L3.R) > Us) {
+          [[2, 60], [1, 100]].forEach(ja => { const g = this.limb3(inst, xf, S, Math.max(M.t0, t - ja[0])); this.sphere(noCore(c), g.T, rf * 1.8 * gk, col, ja[1] / 255 * fade, 0); });
+          const prev = this.limb3(inst, xf, S, Math.max(M.t0, t - 1)), v = L3.T.clone().sub(prev.T), sp = v.length();
+          const st = 1 + Math.min(1.6, sp / Math.max(1e-3, rf * 3));
+          _sq.setFromUnitVectors(XV, sp > 1e-4 ? v.divideScalar(sp) : L3.u);
+          this.sphere(c, L3.T, rf * 1.4 * gk * 1.6, col, fade, ink, {q: _sq.clone(), x: st, y: 1 / Math.sqrt(st), z: 1 / Math.sqrt(st)});
+        }
+      }
+    }
+  }
+  // ---- surroundings (fx_env), then the impacts (fx_impact)
+  if (H.look(P, 'fx_env') === 'energy') pt.env.forEach(ev => this.strikeEnv(l, inst, xf, ev, col, gk));
+  const doImp = H.look(P, 'fx_impact') === 'energy';
+  pt.impacts.forEach(m => {
+    const C = this.w3(inst, xf, m.x, m.y, 0, new THREE.Vector3());
+    const u3 = xf.ax.clone().multiplyScalar(m.u[0]).addScaledVector(xf.ay, -m.u[1]); if (u3.lengthSq() < 1e-8) u3.copy(xf.ax); u3.normalize();
+    this.impactFrame3d(inst, c, C, m.a, m.sc, m.salt, col, Us);
+    if (doImp) this.impact3d(inst, c, C, u3, m.a, m.sc, m.salt, col, Us, gk, c.strike_ground ? l.groundY : null);
+  });
+};
+// The energy impact as a forward 3D cone round the blow u3 (hitfx impEnergy).
+Runner.prototype.impact3d = function (inst, c, C, u3, a, sc, salt, col, Us, gk, gy) {
+  const Lb = SLib(), K = G.HITFX.K, P = inst.fx.params || {}, HOTc = [255, 255, 255], ink = c.toon_ink_m, nc = noCore(c);
+  if (!(a >= 0 && a < K.IMPACT_LIFE)) return;
+  const q = a / K.IMPACT_LIFE, d3 = new THREE.Vector3(), A = new THREE.Vector3(), B = new THREE.Vector3();
+  if (a < 6) this.sphere(nc, C, (18 + 24 * easeO(a / 6)) * sc * Us * gk, HOTc, 1 - a / 6, 0);   // flash
+  if (a < 10) { const e = easeO(a / 10);   // pressure spheres pushed along the blow
+    for (let k = 0; k < 3; k++) this.sphere(c, A.copy(C).addScaledVector(u3, (6 + 16 * k) * sc * e * Us), (22 - 5 * k) * sc * (0.6 + 0.6 * e) * Us * gk, col, (190 - 50 * k) / 255 * (1 - a / 10), 0); }
+  this.sphere(nc, C, (26 + 20 * easeO(q)) * sc * Us * gk, col, 120 / 255 * (1 - q) * 0.6, 0);   // halo
+  if (a < 9) { const f = 1 - a / 9, e = easeO(a / 4);   // rays spilling forward
+    for (let j = 0; j < 9; j++) { const r = Lb.rngFor(inst.seed, j, 500 + salt);
+      const dg = r.uniform(-38, 38), ln = r.uniform(40, 110) * sc * e * Us, w = r.uniform(3, 6) * sc * Us, d0 = 6 * sc * Us; coneDir(u3, Math.abs(dg), r() * Math.PI * 2, d3);
+      this.tube(c, A.copy(C).addScaledVector(d3, d0), B.copy(C).addScaledVector(d3, d0 + ln), w * 0.5 * f, 0, col, 170 / 255 * f, ink * 0.5); } }
+  if (a < 7) { const qs = a / 7, e = easeO(a / 3);   // a star of spikes all round
+    for (let j = 0; j < 8; j++) { const r = Lb.rngFor(inst.seed, j, 520 + salt), th = r() * Math.PI * 2, ph = Math.acos(r() * 2 - 1);
+      d3.set(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th));
+      this.tube(c, C, B.copy(C).addScaledVector(d3, (14 + 22 * e) * sc * Us * r.uniform(0.7, 1.15)), (5 + 6 * e) * 0.35 * sc * Us, 0, col, 1 - qs, ink * 0.5); }
+    this.sphere(c, C, (5 + 4 * e) * sc * Us, HOTc, Math.pow(1 - qs, 1.5), 0); }
+  [[0, 0, 1], [1, 4, 1.6]].forEach(rg => {   // shock ring standing across the blow, and a broken one further out
+    const aa = a - rg[1]; if (aa < 0) return;
+    const qq = aa / (K.IMPACT_LIFE - rg[1]), ee = easeO(qq), kk = rg[2], P0 = A.copy(C).addScaledVector(u3, 10 * sc * ee * kk * Us), R = (10 + 46 * ee) * sc * kk * Us;
+    if (rg[0] === 0) this.torus(c, 'ring', P0, u3, R, 0.7, 0, col, 210 / 255 * (1 - qq), ink * 0.5);
+    else { const r = Lb.rngFor(inst.seed, 0, 540 + salt), n = 3 + Math.trunc(r() * 3), t0 = r() * Math.PI * 2;
+      for (let i = 0; i < n; i++) this.torus(c, 'arc' + n, P0, u3, R, 0.7, t0 + i * Math.PI * 2 / n, col, 190 / 255 * (1 - qq), ink * 0.5); }
+  });
+  const nSp = Math.max(0, Math.round(14 * (+P.density || 1) * sc));   // sparks thrown on with the blow, falling
+  for (let j = 0; j < nSp; j++) {
+    const r = Lb.rngFor(inst.seed, j, 560 + salt), life = 10 + 10 * r(); if (a >= life) continue;
+    const dg = r.uniform(-65, 65), sp = r.uniform(3, 9), fd = Lb.dragDist(0.87, a), dk = Math.pow(0.87, a), q2 = a / life;
+    coneDir(u3, Math.abs(dg), r() * Math.PI * 2, d3);
+    B.copy(C).addScaledVector(d3, sp * fd * Us); B.y -= 0.1 * a * a * Us;
+    A.copy(B).addScaledVector(d3, -sp * dk * 2.4 * Us);
+    if (gy != null && B.y < gy + 0.03) { const k = Math.max(0, gy + 0.03 - A.y); B.y = A.y = gy + 0.03; A.addScaledVector(d3, -k * 0.5); }   // skid on the floor
+    this.tube(nc, A, B, 0, 0.9 * Us, Lb.mix(HOTc, col, q2), 1 - q2, 0);
+  }
+};
+// FX Studio's impact frame (strike params impact_frame local / full): a flash + focus lines, facing the camera.
+Runner.prototype.impactFrame3d = function (inst, c, C, a, sc, salt, col, Us) {
+  const P = inst.fx.params || {}, mode = P.impact_frame || 'off', SF = G.STRIKEFX;
+  if ((mode !== 'local' && mode !== 'full') || !(a >= 0 && a < SF.IMPACT_FRAME_TICKS) || SF.HIT_OPTION_STYLES.indexOf(P.style) < 0) return;
+  const full = mode === 'full', camD = this._camPos ? C.distanceTo(this._camPos) : 20;
+  const R = full ? Math.max(0.3, Math.min(7, camD * 0.6)) : (+P.impact_frame_r || 0) * sc * Us; if (R < 0.05) return;
+  const Lb = SLib(), lit = a === 0, INKc = SF.INK, bg = lit ? [255, 255, 255] : INKc, fg = lit ? INKc : Lb.mix(col, [255, 255, 255], 0.5), nc = noCore(c);
+  this.sphere(nc, C, R * (full ? 1 : 0.6), bg, (full ? (lit ? 190 : 150) : (lit ? 235 : 200)) / 255, 0);
+  const Rl = full ? R * 4 : R, n = full ? 32 : 22, F = new THREE.Vector3().copy(C).addScaledVector(_cf, R * (full ? 1 : 0.6) * 1.02), d3 = new THREE.Vector3(), A = new THREE.Vector3(), B = new THREE.Vector3();
+  for (let j = 0; j < n; j++) {
+    const r = Lb.rngFor(inst.seed, j, 130 + salt), an = (j + r.uniform(-0.4, 0.4)) * Math.PI * 2 / n, r0 = Rl * r.uniform(0.18, 0.45), hw = r.uniform(0.012, 0.03);
+    d3.copy(_cr).multiplyScalar(Math.cos(an)).addScaledVector(_cu, Math.sin(an));
+    this.tube(nc, A.copy(F).addScaledVector(d3, r0), B.copy(F).addScaledVector(d3, Rl), 0, Rl * hw, fg, (lit ? 230 : 200) / 255, 0);
+  }
+};
+// The energy surroundings (hitfx env): ev = [kind, age, x, y, ux, uy, size, salt] in the effect's 2D frame.
+Runner.prototype.strikeEnv = function (l, inst, xf, ev, col, gk) {
+  const Lb = SLib(), K = G.HITFX.K, P = inst.fx.params || {}, c = inst._c, nc = noCore(c), Us = xf.Us, kind = ev[0], a = ev[1], sc = ev[6], salt = ev[7];
+  const UP = UPV, HOTc = [255, 255, 255], ink = c.toon_ink_m;
+  const G0 = this.w3(inst, xf, ev[2], ev[3], 0, new THREE.Vector3()); if (c.strike_ground && kind !== 'vortex' && kind !== 'kickup') G0.y = l.groundY + 0.02;
+  const hx = _s3.copy(xf.ax).setY(0); if (hx.lengthSq() < 1e-6) hx.copy(l.X); hx.normalize(); const hX = hx.clone();
+  const A = new THREE.Vector3(), B = new THREE.Vector3(), d3 = new THREE.Vector3();
+  // dust puffs (hitfx puffs, energy): drifting along the ground (dirx = the way along the aim; 0 = all round), rising
+  const puffs = (life, n, spread, rise, size, sl, dirx) => {
+    for (let j = 0; j < n; j++) {
+      const r = Lb.rngFor(inst.seed, j, sl), lf = life * r.uniform(0.7, 1); if (a >= lf) continue;
+      const q = a / lf, e = easeO(q), az = dirx ? Math.atan2(0, dirx) + r.uniform(-0.7, 0.7) : (j + r.uniform(-0.3, 0.3)) * Math.PI * 2 / n;
+      const sp = spread * e * r.uniform(0.4, 1), hz = d3.copy(hX).applyAxisAngle(UP, az);
+      A.copy(G0).addScaledVector(hz, sp * Us).addScaledVector(UP, rise * e * r.uniform(0.3, 1) * Us);
+      this.sphere(nc, A, size * (0.6 + 0.9 * e) * r.uniform(0.7, 1.3) * 0.8 * Us * gk, col, 150 / 255 * (1 - q), 0);
+    }
+  };
+  if (kind === 'push') {
+    if (a < 0 || a >= 16) return; const q = a / 16, e = easeO(q);
+    this.torus(nc, 'ring', G0, UP, (6 + 26 * e) * sc * Us, 0.5, 0, col, 180 / 255 * (1 - q), 0);
+    puffs(16, 4, 26 * sc, 8 * sc, 6 * sc, 700 + salt, ev[4]); return;
+  }
+  if (kind === 'kickup') { if (a < 0 || a >= 18) return; puffs(18, Math.max(1, Math.round(5 * (+P.density || 1))), 12, 26, 7, 720 + salt, 0); return; }
+  if (kind === 'vortex') {   // wind rings round the body, level, turning with the kick
+    const Ln = ev[4], s = ev[5], fade = ev[6], cc = Lb.mix(col, HOTc, 0.3);
+    for (let j = 0; j < 3; j++) { const R = Ln * (0.8 + 0.25 * j) * Us, Cj = A.copy(G0).addScaledVector(UP, -Ln * 0.15 * (j - 1) * Us).clone();
+      for (let i = 0; i < 3; i++) this.torus(nc, 'arc3', Cj, UP, R, 0.6, -s * (a * 0.55 + j * 1.3) + i * Math.PI * 2 / 3, cc, (190 - 40 * j) / 255 * fade, 0); }
+    return;
+  }
+  if (kind === 'crater') {   // axe kick: scorch disc, cracks running out all round, debris thrown up, a ground wave
+    if (a < 0 || a >= K.CRATER_LIFE) return;
+    const q = a / K.CRATER_LIFE, e = easeO(Math.min(1, a / 8)), R = (22 + 26 * e) * sc * Us;
+    _sq.setFromUnitVectors(ZV, UP); this.sphere(nc, A.copy(G0).addScaledVector(UP, 0.01), R, K.SCORCH, 120 / 255 * (1 - q) * 1.5, 0, {q: _sq.clone(), x: 1, y: 1, z: 0.04});
+    for (let j = 0; j < 7; j++) { const r = Lb.rngFor(inst.seed, j, 780 + salt), an = (j + r.uniform(-0.35, 0.35)) * Math.PI * 2 / 7, ln = (20 + 60 * e) * sc * r.uniform(0.6, 1.2);
+      let prev = G0.clone().addScaledVector(UP, 0.03);
+      for (let k = 1; k < 5; k++) { const hz = d3.copy(hX).applyAxisAngle(UP, an + r.uniform(-0.25, 0.25)), cur = G0.clone().addScaledVector(hz, ln * k / 4 * Us).addScaledVector(UP, 0.03);
+        this.tube(c, prev, cur, 1.3 * Us * (1 - k / 6), 1.3 * Us * (1 - (k + 1) / 6), col, 1 - q, 0); prev = cur; } }
+    const n = Math.max(0, Math.round(8 * (+P.density || 1)));
+    for (let j = 0; j < n; j++) { const r = Lb.rngFor(inst.seed, j, 800 + salt), vx = r.uniform(-3, 3), vy = r.uniform(3, 7), h = vy * a - 0.225 * a * a; if (h < -4) continue;
+      const hz = d3.copy(hX).applyAxisAngle(UP, r() * Math.PI * 2); A.copy(G0).addScaledVector(hz, Math.abs(vx) * a * Us).addScaledVector(UP, Math.max(0, h) * Us);
+      const tn = this.paint(this.toon('shard', 0), c, K.ROCK, 1 - q, ink * 0.6), sz = r.uniform(2, 4) * Us, sp = a * 0.3;
+      [tn.m, tn.h].forEach(x => { x.position.copy(A); x.rotation.set(j + sp, j * 0.7 + sp * 0.6, sp * 0.4); x.scale.setScalar(sz); x.material.uniforms.uTaper.value = 0; });
+      this.sphere(nc, A, sz * 1.6 * gk, col, 200 / 255 * (1 - q) * 0.5, 0); }
+    this.strikeEnv(l, inst, xf, ['ground', a, ev[2], ev[3], 0, 0, sc * 1.2, salt + 1], col, gk); return;
+  }
+  // ground wave under an impact: a level ring, a flat glow and sparks kicked up off its edge
+  if (a < 0 || a >= K.ENV_LIFE) return;
+  const q = a / K.ENV_LIFE, e = easeO(q), R = (14 + 56 * e) * sc * Us;
+  this.torus(nc, 'ring', G0, UP, R, 0.5, 0, col, 200 / 255 * (1 - q), 0);
+  _sq.setFromUnitVectors(ZV, UP); this.sphere(nc, G0, R * 0.7, col, 90 / 255 * (1 - q) * 0.7, 0, {q: _sq.clone(), x: 1, y: 1, z: 0.05});
+  for (let j = 0; j < 6; j++) { const r = Lb.rngFor(inst.seed, j, 740 + salt), az = r() * Math.PI * 2, hz = d3.copy(hX).applyAxisAngle(UP, az).clone();
+    A.copy(G0).addScaledVector(hz, R * r.uniform(0.5, 1)); B.copy(A).addScaledVector(hz, 8 * Us).addScaledVector(UP, r.uniform(2, 10) * (1 - q) * Us);
+    this.tube(nc, A, B, 0.65 * Us, 0, Lb.mix(col, HOTc, 0.5), 220 / 255 * (1 - q), 0); }
+};
+// The serious punch (powerfx drawSerious) in 3D: a round shock cone with vapour rings, clouds blown out all round.
+Runner.prototype.drawSerious = function (l, inst, xf, c0, gk) {
+  const Lb = SLib(), SP = G.POWERFX.sp, P = inst.fx.params || {}, c = inst._c, nc = noCore(c), Us = xf.Us, t = inst.age, ink = c.toon_ink_m;
+  const cs = Lb.colours(inst, this.host), col = cs[0], bright = cs[1], HOTc = [255, 255, 255];
+  const Tw = SP.ti(P, 'swing_ticks', 1), Th = SP.ti(P, 'hold_ticks', 1), rf = +P.radius, Lr = +P.length, dens = +P.density || 1;
+  const fw = (fr, x, y, o) => { const p = fr.w(x, y); return this.w3(inst, xf, p[0], p[1], 0, o || new THREE.Vector3()); };
+  const aim = xf.ax.clone().multiplyScalar(inst.tq_f[0]).addScaledVector(xf.ay, -inst.tq_f[1]); if (aim.lengthSq() < 1e-8) aim.copy(xf.ax); aim.normalize();
+  const A = new THREE.Vector3(), B = new THREE.Vector3(), d3 = new THREE.Vector3();
+  if (t < Tw) {   // the wind-up: stillness, air pulling in, motes lifting, a glint
+    const fr0 = Lb.frame(inst), u = t / Tw, fist = fw(fr0, -rf * easeO(u), 0);
+    for (let j = 0; j < 2; j++) { const v = ((t / 9 + j * 0.5) % 1 + 1) % 1; this.torus(nc, 'ring', fist, aim, rf * (1.2 + 5 * (1 - v)) * Us, 0.6, 0, Lb.mix(col, HOTc, 0.5), 120 / 255 * u * v, 0); }
+    for (let i = 0; i < Math.max(0, Math.round(8 * dens)); i++) { const r = Lb.rngFor(inst.seed, i, 601), per = r.uniform(26, 44), v = ((t / per + r()) % 1 + 1) % 1, dx = r.uniform(-60, 60);
+      A.copy(fw(fr0, 0, 0, A)); A.addScaledVector(l.X, dx * Us).addScaledVector(l.L, r.uniform(-40, 40) * Us); A.y = l.groundY + v * 40 * Us;
+      this.sphere(nc, A, 2.2 * Us, Lb.mix(col, HOTc, 0.3), 140 / 255 * Math.sin(Math.PI * v) * u, 0); }
+    this.sphere(c, fist, rf * 2 * Us * gk, col, 100 / 255 * u + 0.25, ink);
+    if (t >= Tw - 4) { const g = (t - (Tw - 4)) / 4;
+      for (let j = 0; j < 6; j++) { coneDir(aim, 90, j * Math.PI / 3, d3); this.tube(nc, fist, B.copy(fist).addScaledVector(d3, rf * (1 + 2.5 * g) * Us * 1.4), rf * 0.25 * Us, 0, HOTc, 1, 0); }
+      this.tube(nc, A.copy(fist).addScaledVector(aim, -rf * 3 * g * Us), B.copy(fist).addScaledVector(aim, rf * 3 * g * Us), 0.0, rf * 0.3 * Us, HOTc, 1, 0); }
+    return;
+  }
+  const k = t - Tw, fr = SP.frame(inst), df = SP.cap(inst, SP.front(P, 1, k));
+  const aC = k < SP.OUT + Th ? 1 : Math.max(0, 1 - (k - SP.OUT - Th) / 14);
+  const aS = Math.max(0, Math.min(1, k / (Th * 0.6 + 1))) * (k < SP.OUT + Th ? 1 : Math.max(0, 1 - (k - SP.OUT - Th) / SP.SPLIT_LIFE));
+  const O = fw(fr, 0, 0);
+  // clouds blown apart all round the line
+  const nC = Math.max(0, Math.round(10 * dens));
+  for (let j = 0; j < nC; j++) for (let s = -1; s <= 1; s += 2) {
+    const r = Lb.rngFor(inst.seed, j, 611 + (s > 0 ? 1 : 0)), clx = (j + 0.5) / nC * Lr * 1.4; if (clx > df * 1.4) continue;
+    const push = (k - clx / (Lr * 1.4) * Th) * r.uniform(1.2, 2.4), rad = SP.hw(P, 1, Math.min(clx, Lr)) * 0.6 + Math.max(0, push), sz = r.uniform(18, 34);
+    coneDir(aim, 90, (s > 0 ? 0 : Math.PI) + r.uniform(-1.4, 1.4), d3);
+    A.copy(O).addScaledVector(aim, clx * Us).addScaledVector(d3, rad * Us);
+    this.sphere(nc, A, sz * Us * 0.55, SP.CLOUD, 60 / 255 * aS * 2.2, ink * 0.6);
+  }
+  if (aC > 0 && df > 2) {
+    // the shock cone: three nested round cones (outer colour, bright, white-hot core), curved like FX Studio's
+    [[1, col, 55], [0.6, bright, 70], [0.22, HOTc, 110]].forEach(cn => {
+      for (let i = 0; i < 4; i++) { const x0 = df * i / 4, x1 = df * (i + 1) / 4;
+        this.tube(nc, A.copy(O).addScaledVector(aim, x0 * Us), B.copy(O).addScaledVector(aim, x1 * Us), SP.hw(P, 1, x0) * cn[0] * Us, SP.hw(P, 1, x1) * cn[0] * Us, cn[1], cn[2] / 255 * aC * 1.8, 0); }
+    });
+    for (let i = 0; i < SP.RINGS; i++) {   // vapour rings left where the front passed
+      const ki = (i + 0.5) * Th / SP.RINGS, aa = k - ki; if (aa < 0 || aa >= 20) continue;
+      const qq = aa / 20, rlx = SP.front(P, 1, ki);
+      this.torus(nc, 'ring', A.copy(O).addScaledVector(aim, rlx * Us), aim, SP.hw(P, 1, rlx) * (1 + 0.3 * qq) * Us, 0.4, 0, HOTc, 170 / 255 * (1 - qq) * aC, 0);
+    }
+    for (let i = 0; i < Math.max(0, Math.round(18 * dens)); i++) {   // speed lines racing along it, all round
+      const r = Lb.rngFor(inst.seed, i, 621), v = r.uniform(-1, 1), sln = r.uniform(40, 120), slx = ((k * r.uniform(0.04, 0.08) + r()) % 1) * df;
+      coneDir(aim, 90, r() * Math.PI * 2, d3);
+      const rad = Math.abs(v) * 0.9 * Us;
+      A.copy(O).addScaledVector(aim, Math.max(0, slx - sln) * Us).addScaledVector(d3, SP.hw(P, 1, Math.max(0, slx - sln)) * rad);
+      B.copy(O).addScaledVector(aim, slx * Us).addScaledVector(d3, SP.hw(P, 1, slx) * rad);
+      this.tube(nc, A, B, 0, 0.8 * Us, Lb.mix(col, HOTc, 0.6), 200 / 255 * aC, 0);
+    }
+    if (k < SP.OUT + Th + 8) {   // the shock front
+      const aF = k < SP.OUT + Th ? 1 : 1 - (k - SP.OUT - Th) / 8, hw = SP.hw(P, 1, df); A.copy(O).addScaledVector(aim, df * Us);
+      this.torus(c, 'ring', A, aim, hw * Us, 1.6, 0, col, 120 / 255 * aF * 1.5, ink);
+      this.torus(nc, 'ring', A, aim, hw * Us * 0.97, 0.8, 0, HOTc, 230 / 255 * aF, 0);
+    }
+  }
+  if (aS > 0) {   // the sky split along its line
+    const end = Math.min(Lr * 1.6, df * 1.6); B.copy(O).addScaledVector(aim, end * Us);
+    this.tube(nc, O, B, 5 * Us, 5 * Us, col, 70 / 255 * aS, 0);
+    this.tube(nc, O, B, 1.3 * Us, 1.3 * Us, HOTc, 230 / 255 * aS, 0);
+    this.sphere(nc, B, 24 * Us * gk, HOTc, 160 / 255 * aS, 0);
+  }
+  const fist = A.copy(O).addScaledVector(aim, rf * 3 * easeO(Math.min(1, k / SP.OUT)) * Us).clone();   // the fist and its flash
+  if (aC > 0) this.sphere(c, fist, rf * 2.4 * Us * gk, col, Math.min(1, 170 / 255 * aC + 0.3), ink);
+  if (k < SP.FLASH) { const q = k / SP.FLASH, e = easeO(q);
+    this.sphere(nc, fist, (30 + 60 * e) * Us * gk, HOTc, 1 - q, 0);
+    for (let j = 0; j < 10; j++) { const r = Lb.rngFor(inst.seed, j, 631), th = r() * Math.PI * 2, ph = Math.acos(r() * 2 - 1);
+      d3.set(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th));
+      this.tube(nc, fist, B.copy(fist).addScaledVector(d3, (20 + 50 * e) * Us), (7 + 10 * e) * 0.3 * Us, 0, HOTc, 240 / 255 * (1 - q), 0); } }
+};
 /* Paint every live effect onto its card(s) and place them. cam = the THREE camera, H = drawing buffer height (px).
    opts.hidden: hide body-bound FX (blinked out). */
 Runner.prototype.draw = function (cam, H, opts) {
   const ctx = this.ctx; this.cards.forEach(c => { c.used = false; }); this.toons.forEach(t => { t.used = false; });
   if (!ctx) { this.cards.forEach(c => { c.mesh.visible = false; }); this.toons.forEach(t => { t.m.visible = t.h.visible = false; }); return; }
-  const hidden = !!(opts && opts.hidden), tanH = Math.tan(cam.fov * Math.PI / 360);
+  const hidden = !!(opts && opts.hidden), tanH = Math.tan(cam.fov * Math.PI / 360); this._camPos = cam.position;
   _cr.set(1, 0, 0).applyQuaternion(cam.quaternion); _cu.set(0, 1, 0).applyQuaternion(cam.quaternion); _cf.set(0, 0, 1).applyQuaternion(cam.quaternion);
   const groups = new Map(), solid = [];
   for (const l of this.lanes) for (const inst of l.player.insts) {
     if (hidden && FXK.bodyBound(inst)) continue;
     this.initInst(l, inst);
     if (inst._r3) { solid.push([l, inst]); continue; }   // 3D cel-shaded shape, no card
+    if (inst._s3) { solid.push([l, inst]); if (!strikeCard(inst)) continue; }   // 3D strike (+ a card for its ink / gritty parts)
     const src = inst.src || inst.fx, k = l.id + '|' + (src.id || src.name) + (inst._c.pivot === 'spawn' ? '|' + inst.seed + '|' + (inst.ep == null ? '' : inst.ep) : '');
     let g = groups.get(k); if (!g) { g = {l, insts: []}; groups.set(k, g); } g.insts.push(inst);
   }
@@ -596,9 +958,9 @@ Runner.prototype.draw = function (cam, H, opts) {
       sizeCard(c, cw, ch); const q2 = c.ctx;
       q2.setTransform(1, 0, 0, 1, 0, 0); q2.clearRect(0, 0, c.cv.width, c.cv.height); q2.globalAlpha = 1; q2.globalCompositeOperation = 'source-over';
       q2.setTransform(dens, 0, 0, dens, -x0 * dens, -y0 * dens);
-      const keep = l.player.insts; l.player.insts = g.insts;
+      const keep = l.player.insts, unpatch = strikeCardPatch(g.insts); l.player.insts = g.insts;
       try { lays.forEach(ly => l.player.draw(q2, this.host, ly, 1, false)); } catch (err) { console.error('fx3d draw', err); }
-      l.player.insts = keep;
+      l.player.insts = keep; unpatch();
       c.tex.repeat.set(cw / c.cv.width, ch / c.cv.height); c.tex.offset.set(0, 1 - ch / c.cv.height); c.tex.needsUpdate = true;
       c.u.uInk.value = Math.max(0, i0._c.ink_px);
       const m = c.mesh; m.visible = true;
@@ -609,7 +971,7 @@ Runner.prototype.draw = function (cam, H, opts) {
   }
   const xs = {P: new THREE.Vector3(), q: new THREE.Quaternion(), Us: U, bill: false};
   for (const [l, inst] of solid) { this.cur = l; this.xform(l, inst, xs); this.axes(l, xs);
-    try { this.draw3d(l, inst, xs); } catch (err) { console.error('fx3d draw3d', err); } }
+    try { if (inst._s3) this.drawStrike(l, inst, xs); else this.draw3d(l, inst, xs); } catch (err) { console.error('fx3d draw3d', err); } }
   this.cur = null;
   this.cards.forEach(c => { if (!c.used) c.mesh.visible = false; });
   this.toons.forEach(t => { if (!t.used) t.m.visible = t.h.visible = false; });
@@ -706,6 +1068,6 @@ function movePlan(cfg, S, T, frames, frameMs, rnd) {
   return {at, total, face: c.face, P0, E: endP, S, T, startEnd, t0, t1, samples, cfg: c, blink: c.start_mode === 'blink'};
 }
 
-G.FX3D = {U, HURT, ANCHORS, LAYS, PIVOTS, DEF3D, MOVE_DEFAULTS, MOVE_PATHS, START_MODES, MOVE_EASES, RENDERS, CHUNKS, TOON_PRIMS,
-  cfg3d, is3d, autoLay, layOf, moveCfg, byAction, Runner, movePlan, spotAround, easeU};
+G.FX3D = {U, HURT, ANCHORS, LAYS, PIVOTS, DEF3D, MOVE_DEFAULTS, MOVE_PATHS, START_MODES, MOVE_EASES, RENDERS, CHUNKS, TOON_PRIMS, STRIKE_LIMBS,
+  strikeKind, cfg3d, is3d, autoLay, layOf, moveCfg, byAction, Runner, movePlan, spotAround, easeU};
 })(window);

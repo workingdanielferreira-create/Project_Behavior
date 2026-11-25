@@ -322,6 +322,20 @@ v3-animation skill ("Review questions").
   overhead), attack_normal_3 (shoryuken uppercut jump), attack_normal_4 (180 spin > backhand), attack_special_2 (hands
   pumping forward and back). Puck's other clips are still the 2D-guessed ones (the audit's hard faults are theirs).
 
+## 3D punches, kicks and impacts (2026-11-25)
+
+- Daniel: "recreate the FX we have into 3D versions; start with punching motion effects and impact effects".
+- His picks: scope = impact punch + kicks + ground FX + serious punch; fist path = from the real 3D fist out along the aim
+  to FX Studio's reach (hits stay FX Studio's line); impact = forward 3D cone (flash / focus lines face the camera);
+  **energy look first** (ink / gritty parts stay cards).
+- Done: `fx3d.js drawStrike / impact3d / impactFrame3d / strikeEnv / drawSerious` + `strike_*` keys, FX Studio 3D
+  "Strike" rows, exports `STRIKEFX.parts`, `KICKFX.parts`, `POWERFX.sp`, `HITFX.K` (no 2D change), 3D FX fade near the
+  camera. README "3D punches, kicks and impacts".
+- Checked headless (Playwright + SwiftShader): every style in a test kit, then Watch battles with Puck / Puff / Sync /
+  Sueko / new_fighter: punches, thrust / spinning / rising kicks and the serious punch draw in 3D, hands / feet picked
+  automatically, no errors; FX Studio 3D loads.
+- **Next:** Daniel's verdict in game + studio; then the ink and gritty looks in 3D, ki barrage, the other techniques.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,

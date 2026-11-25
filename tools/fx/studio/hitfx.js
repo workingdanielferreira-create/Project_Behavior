@@ -565,6 +565,10 @@ function squashOf(P) {
   return [n, amt, !!P.squash_flash];
 }
 
-G.HITFX = {LOOKS: LOOKS, PARTS: PARTS, IMPACT_LIFE: IMPACT_LIFE, FEET_DROP: FEET_DROP, INK: INK, Motion: Motion, look: look,
+// Constants for FX Studio 3D (v3/js/fx3d.js), which rebuilds the energy look as 3D shapes.
+var K = {IMPACT_LIFE: IMPACT_LIFE, ENV_LIFE: ENV_LIFE, CRATER_LIFE: CRATER_LIFE, SMEAR_N: SMEAR_N, SMEAR_STEP: SMEAR_STEP, SMEAR_LEN: SMEAR_LEN,
+         ARC_N: ARC_N, ARC_LINGER: ARC_LINGER, INK: INK, ROCK: ROCK, SCORCH: SCORCH, DUST: DUST};
+
+G.HITFX = {K: K, LOOKS: LOOKS, PARTS: PARTS, IMPACT_LIFE: IMPACT_LIFE, FEET_DROP: FEET_DROP, INK: INK, Motion: Motion, look: look,
            motion: motion, impact: impact, env: env, shake: shake, squashOf: squashOf};
 })(window);

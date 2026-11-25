@@ -443,12 +443,22 @@ function drawPunch(pen, inst, host, ps) {
   pen.add(false);
 }
 
+// The punch's pieces as data (what drawPunch draws), for FX Studio 3D (v3/js/fx3d.js): the motion (HITFX.Motion),
+// the impacts {a, x, y, sc, salt, tick, u} and the fx_env events.  Drawing in 2D is unchanged.
+function parts(inst, ps) {
+  var P = inst.fx.params, fr = L_().frame(inst), h = flips(P)[0], p0 = inst.tq_path[0], u = [inst.tq_f[0] * h, inst.tq_f[1] * h];
+  var imps = impacts(inst, P, fr, ps).map(function (m) { return {a: m[0], x: m[1], y: m[2], sc: m[3], salt: m[4], tick: m[5], u: u}; });
+  var env = [["push", inst.age, p0[0], p0[1] + H_().FEET_DROP * ps, -inst.tq_m * h, 0, 0.8, 0]];
+  imps.forEach(function (m) { env.push(["ground", m.a, m.x, feet(inst, m.tick, ps), 0, 0, m.sc * 0.7, m.salt]); });
+  return {motion: punchMotion(inst, P, fr, ps), impacts: imps, env: env, reach: +P.length * ps};
+}
+
 function draw(pen, inst, host, ps) {
   if (L_().style(inst.fx.params) === "ki_barrage") drawKi(pen, inst, host, ps);
   else drawPunch(pen, inst, host, ps);
 }
 
 G.STRIKEFX = {STYLES: STYLES, HIT_OPTION_STYLES: HIT_OPTION_STYLES, FLIP_STYLES: FLIP_STYLES, flips: flips, hitDir: hitDir, hitFreeze: hitFreeze, hitstopStep: hitstopStep, freeze: freeze,
-                impactFrame: impactFrame, PUNCH_IMPACT_LIFE: PUNCH_IMPACT_LIFE, INK: INK, draw: draw, hit: hit, body: body, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints, trackStep: trackStep,
+                impactFrame: impactFrame, parts: parts, IMPACT_FRAME_TICKS: IMPACT_FRAME_TICKS, FULL_FRAME: FULL_FRAME, PUNCH_IMPACT_LIFE: PUNCH_IMPACT_LIFE, INK: INK, draw: draw, hit: hit, body: body, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints, trackStep: trackStep,
                 shotIds: shotIds, shotAt: shotAt, trackShots: trackShots};
 })(window);
