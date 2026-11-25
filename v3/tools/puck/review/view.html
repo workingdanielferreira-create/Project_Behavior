@@ -16,8 +16,8 @@ new THREE.GLTFLoader().parse(bin,'',g=>{const m=g.scene;
     o.material=new THREE.MeshLambertMaterial({color:/Joints/.test(o.material.name)?0x2a3a6a:0xffb030,skinning:true});o.frustumCulled=false;}
     if(o.name==='Hips')hips=o;});
   S.add(m);mixer=new THREE.AnimationMixer(m);action=mixer.clipAction(g.animations[0]);action.play();window.READY=true;});
-window.shot=(t,view,cx,cz)=>{action.time=t;mixer.update(0);S.updateMatrixWorld(true);
-  const tx=cx||0, tz=cz||0, ty=0.85;
+window.shot=(t,view,cx,cz,cy)=>{action.time=t;mixer.update(0);S.updateMatrixWorld(true);
+  const tx=cx||0, tz=cz||0, ty=cy||0.85;   // cy: follow the hips up on jumps (ultimate, 2026-11-25)
   tgt.visible=view!=='front';
   if(view==='side'){cam.position.set(tx-5.2,ty+0.3,tz);}
   else if(view==='q34'){cam.position.set(tx-3.4,ty+1.4,tz+3.7);}

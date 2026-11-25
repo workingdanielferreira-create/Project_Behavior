@@ -287,7 +287,118 @@ def attack_special():
                      "held to f55.", "keys": K}
 
 
-CLIPS = {"attack_normal": attack_normal, "attack_special": attack_special}
+# ---------------------------------------------------------------- ultimate: aerial two-handed kamehameha
+# Daniel 2026-11-25 (blocking): jump from the ground; in the air BOTH arms pulled back like a bird's wings on the
+# backstroke ("only the pull back of the motion"; replaces his first pick, hands cupped at the hip): back leg long,
+# front knee up, body arched; at 2D f10-f11 (~0.9 s) BOTH palms thrust,
+# flat, side by side (thumbs together, fingers up: a two-handed push), knee tucked; the beam FX fires at frame 13
+# (~1.2 s) as drawn; ends tucked in the air (both knees forward). 2D: 27 frames x 92.6 ms = 2.5 s. He hangs at the apex
+# through the charge and beam (an anime hang, not real flight time).
+REST_HIPS = 0.917
+
+
+def air_feet(H, back="long", front="knee", hz=0.0):
+    """Ankles for a body whose hips are H m above rest: back (right) leg long and trailing / hanging straight down /
+    tucked; front (left) knee up (thigh forward, shin hanging) / tucked / hanging."""
+    hy = REST_HIPS + H - 0.05                         # hip joints
+    legs = {"long": ([-0.10, hy - 0.60, hz - 0.56], (-0.1, -0.3, 1), 55),
+            "down": ([-0.10, hy - 0.80, hz - 0.08], (-0.1, 0.0, 1), 30),
+            "knee": ([0.12, hy - 0.30, hz + 0.40], (0.1, 0.5, 1), 35),
+            "tuck": ([0.13, hy - 0.26, hz + 0.26], (0.1, 0.7, 1), 40),
+            "rtuck": ([-0.13, hy - 0.34, hz + 0.26], (-0.1, 0.6, 1), 40)}
+    a, kr, pr = legs[back]
+    b, kl, pl = legs[front]
+    return ({"ankle": r3(a), "knee": r3(U(kr)), "yaw": -10, "pitch": pr},
+            {"ankle": r3(b), "knee": r3(U(kl)), "yaw": 10, "pitch": pl})
+
+
+def ultimate():
+    K = []
+
+    def push(t, ease, H, hz, hrot, chest, head, feet, at_y, label, bease=None, bent=None):
+        """Both palms flat toward the target, side by side, thumbs together, fingers up and tipped a little forward
+        (a wrist only bends back 60-70 deg, so locked level arms can't stand the fingers straight up)."""
+        M = rot_euler(*chest)
+        k = key(t, ease, [0, H, hz], hrot, chest, head,
+                ([0, 0, 0.6], [-0.6, -1, 0], [0, 0, 1]), ([0, 0, 0.6], [0.6, -1, 0], [0, 0, 1]),
+                feet[0], feet[1], bease=bease, label=label)
+        k["R"] = palm(M, [0.08, -0.1, 0.5], [-0.4, -1, 0.1], [0, -0.45, 1], [0.12, 1, 0.45], 0.1, clav=[-4, 22])
+        k["L"] = palm(M, [-0.08, -0.1, 0.5], [0.4, -1, 0.1], [0, -0.45, 1], [-0.12, 1, 0.45], 0.1, clav=[-4, 22])
+        k["_M"] = chest
+        y = REST_HIPS + H + at_y                      # at_y above the hips (shoulders sit ~0.5 up)
+        if bent:                                      # the whip: the wings swing forward wide, hands closing in
+            return meet(k, {"R": [-0.34, y, hz + bent], "L": [0.36, y + 0.03, hz + bent]})
+        return meet(k, {"R": [-0.05, y, hz], "L": [0.05, y, hz]}, straight=0.544)
+
+    def wing(t, ease, H, hz, hrot, chest, head, feet, Rr, Lr, label, curl=0.15, bease=None, fwd=False):
+        """Daniel 2026-11-25: on the pull back the arms are a bird's wings on the BACKSTROKE only: both arms long,
+        spread and swept back behind the shoulders, palms open facing back / down, fingers trailing, shoulder blades
+        squeezed (clav pulled back), chest thrust out. Rr / Lr = body-space reach from each shoulder (m); the two
+        sides differ a little (never twinned)."""
+        M = rot_euler(*chest)
+        k = key(t, ease, [0, H, hz], hrot, chest, head,
+                (Rr, [-0.3, -1, -0.4], [0, -0.5, -1]), (Lr, [0.3, -1, -0.4], [0, -0.5, -1]),
+                feet[0], feet[1], bease=bease, label=label)
+        back = lambda r_, sx: palm(M, r_, [0.3 * sx, -1, -0.5], [0.15 * sx, -0.6, -1], [1.0 * sx, -0.15, -0.7], curl,
+                                    clav=[4, -24])
+        if fwd:                                       # mid-swing forward: palms turning to the target, fingers out
+            back = lambda r_, sx: palm(M, r_, [0.35 * sx, -1, -0.7], [0.1 * sx, -0.5, 1], [1.0 * sx, -0.25, 0.1], curl,
+                                        clav=[2, 6])
+        k["R"], k["L"] = back(Rr, -1), back(Lr, 1)
+        return k
+
+    ground = (foot(-0.17, -0.20, yaw=-20, knee=(-0.4, 0.1, 1)), foot(0.15, 0.20, yaw=15, knee=(0.4, 0.1, 1)))
+    # 0.00 (before 2D f1) crouch to jump: knees buried, chest folded forward over them, both arms swung back low
+    # behind the hips (the jump's arm swing, the wings starting their pull back)
+    K.append(wing(0.0, "inout", -0.40, -0.04, [-8, 38, 4], [-14, 50, 6], [-6, 30, 0], ground,
+                  [-0.16, -0.48, -0.22], [0.14, -0.50, -0.18], "crouch: arms swung back low"))
+    # 0.10 (f1-f2) take-off: legs drive out straight, heels up, toes pushing off; the arms sweep out to the sides on
+    # the way up, the chest starting to open
+    K.append(wing(0.10, "in", 0.02, 0.08, [-10, 18, 4], [-16, 14, 6], [-8, 10, 0],
+                  (foot(-0.17, -0.20, y=0.07, pitch=62, yaw=-20, knee=(-0.3, 0.1, 1)),
+                   foot(0.15, 0.20, y=0.07, pitch=62, yaw=15, knee=(0.3, 0.1, 1))),
+                  [-0.46, -0.30, -0.16], [0.44, -0.26, -0.12], "take-off: arms sweep out"))
+    # 0.45 (f5) apex: WINGS PULLED BACK: both arms long and spread, swept behind the shoulders, palms back / down,
+    # fingers trailing; shoulder blades squeezed, chest thrust out, back ARCHED; the right leg long and trailing, the
+    # left knee up, eyes on the target
+    K.append(wing(0.45, "out", 0.85, 0.10, [-10, -16, 4], [-14, -26, 6], [-6, 10, 0], air_feet(0.85, "long", "knee", 0.10),
+                  [-0.25, -0.20, -0.47], [0.28, -0.16, -0.46], "apex: wings pulled back"))
+    # 0.74 (f9) load (moving hold): the wings pull further back and a little up, the arch deepens
+    K.append(wing(0.74, "inout", 0.88, 0.06, [-12, -22, 6], [-16, -34, 8], [-8, 12, 0], air_feet(0.88, "long", "knee", 0.06),
+                  [-0.21, -0.13, -0.50], [0.24, -0.09, -0.49], "load: wings all the way back"))
+    # 0.83 (f10) whip (breakdown): the hips come forward first, the chest folds over a beat behind, the arms swing
+    # forward from the wings and the hands meet at chest height, arms still bent; the front knee starts to tuck, the back leg swings under
+    K.append(wing(0.83, "in", 0.88, 0.10, [-4, 6, 2], [-8, 14, 4], [-4, 6, 0], air_feet(0.88, "down", "knee", 0.10),
+                  [-0.54, -0.16, 0.12], [0.53, -0.12, 0.16], "whip: wings swing forward", fwd=True))
+    # 0.93 (f11) PUSH: both arms snap out locked and level, palms flat side by side; knee tucked high, the other leg
+    # hanging straight down; chest square to the target and leaning into it
+    K.append(push(0.93, "snap", 0.86, 0.14, [0, -6, 0], [0, 18, 0], [0, 6, 0], air_feet(0.86, "down", "tuck", 0.14),
+                  0.47, "PUSH: palms out, side by side"))
+    # 1.20 (f13-14) the beam fires (moving hold up to it): a breath deeper into the push
+    K.append(push(1.20, "inout", 0.86, 0.16, [0, -4, 0], [0, 22, 0], [0, 8, 0], air_feet(0.86, "down", "tuck", 0.16),
+                  0.47, "beam fires"))
+    # 1.30 recoil: the beam shoves him back in the air, chest rocked up, legs swinging forward
+    K.append(push(1.30, "out", 0.88, 0.02, [0, -14, 0], [0, 8, 0], [0, 2, 0], air_feet(0.88, "down", "tuck", 0.02),
+                  0.49, "recoil: the beam pushes back"))
+    # 2.04 (f23) holding the beam (moving hold): leaning back into it
+    K.append(push(2.04, "inout", 0.86, 0.06, [0, -8, 0], [0, 16, 0], [0, 6, 0], air_feet(0.86, "down", "tuck", 0.06),
+                  0.47, "holding the beam"))
+    # 2.13 (f24) the legs drop out straight as the beam ends
+    K.append(push(2.13, "inout", 0.84, 0.06, [0, -4, 0], [0, 16, 0], [0, 6, 0], air_feet(0.84, "down", "knee", 0.06),
+                  0.46, "legs drop out"))
+    # 2.50 (f26-27) tucked in the air: both knees up forward, sitting back, arms still out, starting to fall
+    K.append(push(2.50, "out", 0.74, 0.04, [0, -22, 0], [0, 4, 0], [0, -2, 0], air_feet(0.74, "rtuck", "tuck", 0.04),
+                  0.44, "tucked in the air"))
+    return {"length": 2.5, "arm_space": "chest",
+            # overlap from blocking: the two hands move as one unit (side by side) so they share one value
+            "overlap": {"spine": [1.0, 6], "R": [1.5, 8], "L": [1.5, 8], "Rfist": [2.0, 6], "Lfist": [2.0, 6],
+                        "head": [2.0, 10]},
+            "about": "Aerial two-handed kamehameha: jump, both arms pulled back like wings at the apex (2D f2-f9), "
+                     "both palms pushed out flat side by side (f10-f11), beam from frame 13 held to f23, ends tucked "
+                     "in the air (f26-27).", "keys": K}
+
+
+CLIPS = {"attack_normal": attack_normal, "attack_special": attack_special, "ultimate": ultimate}
 
 
 def main(argv):
