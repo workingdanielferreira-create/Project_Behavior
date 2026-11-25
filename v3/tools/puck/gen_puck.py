@@ -153,7 +153,112 @@ def attack_normal():
                      "across and wrapped by the left shoulder (2D f7-f10) > back into the dash. ONE punch. Travels ~1.1 m.", "keys": K}
 
 
-CLIPS = {"attack_normal": attack_normal}
+def palm(M, reach, elbow, face, fing, curl, clav=None):
+    """Open hand (anim3d `palm`): body-space reach / elbow, the way the palm FACES and the way the fingers point."""
+    out = arm(M, reach, elbow, face, clav)
+    out.update({"palm": True, "fing": r3(M.T @ U(fing)), "curl": curl})
+    return out
+
+
+_BODY = None
+
+
+def meet(k, want, it=6):
+    """Move the hands' reach until the wrists sit exactly at want = {"R": body-space point, "L": ...} (heel to heel):
+    the shoulders move with the chest, the clavicles and the torso, so solve the key and correct."""
+    global _BODY
+    import anim3d
+    _BODY = _BODY or anim3d.Body()
+    B = _BODY
+    M = rot_euler(*k.pop("_M"))
+    for _ in range(it):
+        c = anim3d.full_keys(B, [k])[0]
+        c["arm_space"] = "chest"
+        sv = anim3d.Solver(B)
+        sv.pose(c, 0.0)
+        W, P = sv.fk()
+        err = 0.0
+        for sd, S in (("R", "Right"), ("L", "Left")):
+            d = np.array(want[sd], float) - P[B.rig.i(S + "Hand")]
+            err = max(err, np.linalg.norm(d))
+            v = np.array(k[sd]["reach"]) + M.T @ d
+            k[sd]["reach"] = r3(v * min(1.0, 0.64 / np.linalg.norm(v)))       # never past a locked arm
+        if err < 0.004:
+            break
+    return k
+
+
+# ---------------------------------------------------------------- attack_special: kamehameha (stays in place)
+# Daniel 2026-11-25: "he's doing the kamehameha". 2D: 55 frames x 36.4 ms = 2.0 s; f1-35 the charge, hands cupped
+# at the (back) hip in a wide low straddle; f36-55 the release, both arms thrust straight forward at shoulder
+# height, the front knee over the foot (thigh flat), the back leg long and straight. The feet never move (both 2D
+# phases put them on the same spots): the hips drive forward and the back leg locks out. OPEN palms, heel to heel.
+FR_BACK, FL_FRONT = (-0.13, -0.58), (0.13, 0.50)
+
+
+def attack_special():
+    K = []
+    fR = lambda **kw: foot(FR_BACK[0], FR_BACK[1], yaw=-30, **kw)
+    fL = lambda **kw: foot(FL_FRONT[0], FL_FRONT[1], yaw=15, **kw)
+
+    def charge(t, ease, hz, hy, hrot, chest, head, hip_pt, gap, curl, back_knee, label):
+        """Hands cupped at the right (back) hip round a ball: right hand under, palm up; left on top, palm down;
+        wrists together, fingers curling forward round it."""
+        M = rot_euler(*chest)
+        k = key(t, ease, [0, hy, hz], hrot, chest, head,
+                ([-0.1, -0.4, -0.1], [-0.5, -0.6, -0.8], [0.15, 1, 0.1]),
+                ([-0.4, -0.4, 0.1], [0.3, -1, 0.5], [0.0, 1, 0]),
+                fR(knee=back_knee), fL(knee=(0.4, 0.3, 1)), label=label)
+        k["R"] = palm(M, k["R"]["reach"] and [-0.1, -0.4, -0.1], [-0.6, -0.5, -0.7], [0.15, 1, 0.15], [-0.25, -0.2, 1], curl)
+        k["L"] = palm(M, [-0.4, -0.4, 0.1], [0.4, -1, 0.6], [-0.05, -0.9, -0.4], [-0.6, -0.3, 0.75], curl, clav=[0, 20])
+        k["_M"] = chest
+        hp = np.array(hip_pt, float)
+        return meet(k, {"R": hp + [0.0, -gap / 2, 0.02], "L": hp + [0.02, gap / 2, 0.0]})
+
+    def release(t, ease, hz, hy, hrot, chest, head, at, label, bease=None):
+        """Arms thrust straight forward at shoulder height; palms to the target, heels together: left hand on top,
+        fingers up; right hand under it, fingers down; the palms open a little like a flower (the bottom one is at
+        the end of the forearm's twist)."""
+        M = rot_euler(*chest)
+        k = key(t, ease, [0, hy, hz], hrot, chest, head,
+                ([0, 0, 0.6], [-0.6, -1, 0], [0, 0, 1]), ([0, 0, 0.6], [0.6, -1, 0], [0, 0, 1]),
+                fR(pitch=-10, knee=(-0.2, -0.3, 1)), fL(knee=(0.2, 0.1, 1)), bease=bease, label=label)
+        k["R"] = palm(M, [0.1, -0.1, 0.6], [-0.7, -1, 0.1], [0, 0.3, 1], [0, -1, 0.3], 0.15, clav=[-5, 30])
+        k["L"] = palm(M, [-0.1, -0.1, 0.6], [0.7, -1, 0.1], [0, -0.25, 1], [0, 1, 0.25], 0.15, clav=[-5, 30])
+        k["_M"] = chest
+        a = np.array(at, float)
+        return meet(k, {"R": a + [0, -0.035, 0], "L": a + [0, 0.035, 0]})
+
+    # 0.00 (f1) the hands sweep back to the hip: wide low straddle, body already coiling to the right
+    K.append(charge(0.0, "inout", -0.04, -0.30, [-20, 14, 4], [-38, 18, 6], [-10, 10, 0],
+                    [-0.30, 0.86, -0.04], 0.16, 0.2, (-0.6, 0.3, -0.7), "hands sweep back to the hip"))
+    # 0.29 (f9) cupped at the back hip: coiled - hips turned right, chest wrung further back and side-bent over the
+    # hands, eyes on the target
+    K.append(charge(0.29, "out", -0.08, -0.38, [-30, 16, 8], [-58, 22, 16], [-20, 12, 0],
+                    [-0.33, 0.70, -0.14], 0.11, 0.6, (-0.6, 0.3, -0.7), "KA-ME: cupped at the back hip"))
+    # 0.80 (f23) moving hold: the coil keeps sinking
+    K.append(charge(0.80, "inout", -0.10, -0.40, [-33, 17, 9], [-63, 24, 18], [-24, 13, 0],
+                    [-0.34, 0.68, -0.15], 0.11, 0.65, (-0.6, 0.3, -0.7), "HA-ME: charging (moving hold)"))
+    # 1.24 (f35) load: deepest coil, hips back over the back leg, the ball squeezed
+    K.append(charge(1.24, "in", -0.14, -0.42, [-36, 16, 10], [-68, 24, 20], [-28, 14, 0],
+                    [-0.35, 0.66, -0.18], 0.10, 0.7, (-0.6, 0.3, -0.7), "load: deepest coil"))
+    # 1.29 (f36) HA!: the hips drive forward, the back leg locks out long and straight, the back folds forward on one
+    # line from the back heel out through the arms; both arms snap straight forward, palms out, heels together
+    K.append(release(1.29, "snap", 0.10, -0.33, [-14, 26, 0], [-4, 44, 0], [0, 22, 0], [0.0, 1.00, 0.95],
+                     "HA! arms thrust, palms out, heel to heel"))
+    # 1.42 (f40) the beam's kick: rocked back a hair on the long back leg, arms locked
+    K.append(release(1.42, "out", 0.06, -0.31, [-14, 22, 0], [-4, 38, 0], [0, 20, 0], [0.0, 1.02, 0.88],
+                     "recoil: the beam pushes back"))
+    # 2.00 (f55) holding the beam (moving hold): leaning back in
+    K.append(release(2.0, "inout", 0.09, -0.32, [-14, 25, 0], [-4, 42, 0], [0, 22, 0], [0.0, 1.01, 0.93],
+                     "holding the beam"))
+    return {"length": 2.0, "arm_space": "chest",
+            "about": "Kamehameha in place: wide low straddle, open hands cupped at the back hip (2D f1-35), then "
+                     "HA! (f36-37): hips drive forward, back leg locks out, both arms thrust, palms out heel to heel, "
+                     "held to f55.", "keys": K}
+
+
+CLIPS = {"attack_normal": attack_normal, "attack_special": attack_special}
 
 
 def main(argv):

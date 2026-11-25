@@ -32,6 +32,10 @@ File format (`characters/<name>/<name>.anim3d.json`, format `pb_anim3d`):
          "R": {..., "fist": true}                         (unarmed: wrist locked straight, `blade` = where the thumb
                                                            side points, reached by forearm twist only; clip "fists": true
                                                            = every key's hands)
+         "R": {..., "palm": true, "fing": [x, y, z], "curl": 0..1}   (open hand, e.g. a kamehameha: `blade` = the way
+                                                           the PALM faces, `fing` = the way the fingers point, `curl`
+                                                           0 = flat open .. 1 = cupped round a ball; the forearm twist
+                                                           and a wrist bent up to PALM_WRIST deg get the hand there)
          "L": {...},
          "fR": {"ankle": [x, y, z], "pole": [x, y, z], "yaw": deg, "pitch": deg},
          "fL": {...}}, ...]}}}
@@ -55,6 +59,7 @@ FPS = 60                # fast anime snaps (a thrust to a recoil in 30 ms) need 
 FLEX_MAX = {"elbow": 150.0, "knee": 155.0}
 PRONATE = 95.0          # forearm twist either way
 WRIST = 75.0            # wrist bend
+PALM_WRIST = 88.0       # open hand: a kamehameha bends the wrists right back (Daniel 2026-11-25)
 SWIVEL = 35.0           # the solver may swing an elbow this far round the shoulder->hand line to save twist / wrist
 SPINE_SPLIT = (0.25, 0.35, 0.40)
 HEAD_SPLIT = (0.4, 0.6)
@@ -101,6 +106,7 @@ class Body:
         rig = self.rig = r.Rig(self.j, self.b)
         self.grip = r.grip_pose(rig)
         self.fist = self._fist()
+        self.palm_frame, self.palm_axes = self._palm()
         self.HI = rig.i("Hips")
         self.hp = rig.parent[self.HI]
         self.hinge = self._hinges()
@@ -125,6 +131,45 @@ class Body:
             if want is None:
                 continue
             out[side][i] = rig.R[i] @ r.rot_axis(aa / ang, want * D2R)
+        return out
+
+    # open hand (Daniel 2026-11-25, Puck's kamehameha): fingers long and together, a little bend at `curl` 0, cupped
+    # round a ball at 1; the thumb spread off the palm
+    OPEN_DEG = {"1": 6.0, "2": 8.0, "3": 6.0}
+    CUP_DEG = {"1": 30.0, "2": 38.0, "3": 30.0}
+    THUMB_OPEN = {"1": 0.0, "2": 6.0, "3": 6.0}
+    THUMB_CUP = {"1": 0.0, "2": 22.0, "3": 22.0}
+
+    def _palm(self):
+        """({side: (fingers, palm normal) in the hand's frame}, {side: [(bone, curl axis, kind)]}) from the grip pose:
+        the fingers' own curl axes say which way the palm faces (a curling finger moves toward the palm)."""
+        rig = self.rig
+        axes = {"Right": [], "Left": []}
+        frame = {}
+        for i, m in self.grip.items():
+            n = rig.names[i]
+            side = "Right" if n.startswith("Right") else "Left"
+            aa = axis_angle(rig.R[i].T @ m)
+            ang = np.linalg.norm(aa)
+            if ang < 1e-6 or n[-1] not in "123":
+                continue
+            axes[side].append((i, aa / ang, n[-1], "Thumb" in n))
+        for side in ("Right", "Left"):
+            ih, im1, im2 = rig.i(side + "Hand"), rig.i(side + "HandMiddle1"), rig.i(side + "HandMiddle2")
+            f_h = r.unit(rig.T[im1])
+            k = next(a for i, a, _, _ in axes[side] if i == im1)
+            fi = r.unit(rig.T[im2])
+            n_h = rig.R[im1] @ r.unit(r.rot_axis(k, 0.3) @ fi - fi)
+            n_h = r.unit(n_h - f_h * np.dot(n_h, f_h))
+            frame[side] = (f_h, n_h)
+        return frame, axes
+
+    def palm_pose(self, side, curl):
+        """{bone: local rotation} for an open hand, curl 0 (flat) .. 1 (cupped)."""
+        rig, out = self.rig, {}
+        for i, ax, j, thumb in self.palm_axes[side]:
+            a0, a1 = (self.THUMB_OPEN, self.THUMB_CUP) if thumb else (self.OPEN_DEG, self.CUP_DEG)
+            out[i] = rig.R[i] @ r.rot_axis(ax, (a0[j] + (a1[j] - a0[j]) * curl) * D2R)
         return out
 
     def P(self, name):
@@ -244,7 +289,10 @@ class Solver:
         to_body = self.chest_xform() if c.get("arm_space") == "chest" else (lambda p, d=False: np.array(p, float))
         for side, S in (("R", "Right"), ("L", "Left")):
             a = c[side]
-            if a.get("fist"):
+            palm = bool(a.get("palm"))
+            if palm:
+                self.local.update(B.palm_pose(S, float(a.get("curl", 0.0))))
+            elif a.get("fist"):
                 self.local.update(B.fist[S])
             hand, pole = to_body(a["hand"]), to_body(a["pole"])
             if side == "L" and a.get("hilt"):
@@ -272,6 +320,10 @@ class Solver:
             # and a reverse key the weapon turns 180 deg in the fingers (the flip). `twirl` = extra turns (deg).
             g = a["g"] if a.get("g") is not None else (1.0 if a.get("grip") == "rev" else 0.0)
             self.weapon(S, a.get("twirl", 0.0) + 180.0 * g)
+            if palm:                                     # open hand: palm faces `blade`, fingers point along `fing`
+                self.limb(S + "Arm", S + "ForeArm", S + "Hand", hand, pole, "elbow")
+                self.palm(S, want, to_body(a.get("fing") or [0, 1.0, 0], True), t)
+                continue
             if want is not None:                         # the fist aims as for a forward grip: reverse = the other way
                 want = to_body(a["aim"], True) if a.get("aim") is not None else (-want if g > 0.5 else want)
             self.limb(S + "Arm", S + "ForeArm", S + "Hand", hand, pole, "elbow", swivel=a.get("swivel", SWIVEL),
@@ -402,6 +454,40 @@ class Solver:
         fing = r.unit(rig.T[rig.i(S + "HandMiddle1")])
         ax = r.unit(np.cross(blade_h, fing))
         self.local[iw] = r.rot_axis(ax, deg * D2R) @ rig.R[iw]
+
+    def palm(self, S, face, fing, t):
+        """Open hand: the palm faces `face` with the fingers along `fing` (made square to it). The forearm twist
+        (within PRONATE, no jump from last frame) leaves the least for the wrist, which bends the rest up to
+        PALM_WRIST deg (a kamehameha's wrists are bent right back)."""
+        rig = self.rig
+        side = "R" if S == "Right" else "L"
+        f_h, n_h = self.B.palm_frame[S]
+        N = r.unit(face)
+        F = r.unit(np.array(fing, float) - N * np.dot(fing, N))
+        want = np.column_stack([F, N, np.cross(F, N)]) @ np.column_stack([f_h, n_h, np.cross(f_h, n_h)]).T
+        W, P = self.fk()
+        ifa, ih = rig.i(S + "ForeArm"), rig.i(S + "Hand")
+        axis_l = r.unit(rig.T[ih])
+        base_fa = self.local.get(ifa, rig.R[ifa])
+        Wpar = W[rig.parent[ifa]]
+        prev = self.prev.get("tw" + side)
+        best = None
+        for tw in np.linspace(-PRONATE, PRONATE, 77):
+            Wfa = Wpar @ base_fa @ r.rot_axis(axis_l, tw * D2R)
+            ang = math.degrees(np.linalg.norm(axis_angle((Wfa @ rig.R[ih]).T @ want)))
+            sc = ang + abs(tw) * 0.02 + (0 if prev is None else abs(tw - prev) * 0.3)
+            if best is None or sc < best[0]:
+                best = (sc, tw, ang)
+        _, tw, ang = best
+        self.prev["tw" + side] = tw
+        self.local[ifa] = base_fa @ r.rot_axis(axis_l, tw * D2R)
+        Wfa = Wpar @ self.local[ifa]
+        bend = axis_angle(rig.R[ih].T @ Wfa.T @ want)      # wrist bend, in the hand's rest-local frame
+        if ang > PALM_WRIST:
+            if ang > PALM_WRIST + 8:
+                self.notes.append("t=%.2f %s palm off by %.0f deg (wrist limit)" % (t, side, ang - PALM_WRIST))
+            bend = bend * (PALM_WRIST / ang)
+        self.local[ih] = rig.R[ih] @ r.rot_axis(r.unit(bend), np.linalg.norm(bend)) if np.linalg.norm(bend) > 1e-9 else rig.R[ih]
 
     def blade(self, S, want, roll, t, apply=True, fist=False):
         """Point the blade: forearm twist (within PRONATE) brings the blade round the forearm, the wrist bends the rest
@@ -570,6 +656,14 @@ def interp(keys, t):
         else:
             c[s].pop("aim", None)
         c[s]["twirl"] = k1[s].get("twirl", 0) * (1 - u) + k2[s].get("twirl", 0) * u
+        if k1[s].get("palm") or k2[s].get("palm"):     # open hands: fingers slerp like the blade, curl blends
+            fa = r.unit(np.array(k1[s].get("fing") or [0, 1.0, 0], float))
+            fb = r.unit(np.array(k2[s].get("fing") or [0, 1.0, 0], float))
+            ang = math.acos(max(-1, min(1, np.dot(fa, fb))))
+            ax = r.unit(np.cross(fa, fb)) if 1e-6 < ang < math.pi - 1e-3 else r.unit(np.cross(fa, [0, 0, 1.0]))
+            c[s]["fing"] = (r.rot_axis(ax, ang * u) @ fa).tolist() if ang > 1e-6 else fa.tolist()
+            c[s]["curl"] = k1[s].get("curl", 0) * (1 - u) + k2[s].get("curl", 0) * u
+            c[s]["palm"] = bool(k2[s].get("palm") if u > 0.5 else k1[s].get("palm"))
         ca, cb = k1[s].get("clav") or [0, 0], k2[s].get("clav") or [0, 0]
         c[s]["clav"] = [ca[0] * (1 - u) + cb[0] * u, ca[1] * (1 - u) + cb[1] * u]
     for s in ("fR", "fL"):
