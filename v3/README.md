@@ -449,7 +449,8 @@ motion, the lunge, drift and gravity stand aside; afterwards a ground fighter fa
 
 **3D cel-shaded FX (Daniel 2026-11-24: "3D in shape, 2D in cell shading", starting with the foundational kinds).**
 Per effect `fx3d.render`: `auto` (default) = a real 3D shape for the kinds below, a card for the rest; `3d`; `card` =
-the 2D drawing as before. Blades and every technique / gun / kick / defender style stay cards for now.
+the 2D drawing as before. Blades and the other technique / gun / defender styles stay cards for now; punches and kicks are
+3D since 2026-11-25 (below).
 
 | Kind | 3D shape |
 |---|---|
@@ -466,7 +467,35 @@ Look (every effect, tunable in FX Studio 3D's "3D shape & cel look"): `toon_band
 `toon_sides` facets. Colours = FX Studio's colour mode / palette. Hits: a 3D shape hits with its 3D shape. The enemy's
 distance off the effect's plane is folded into its 2D offset from the nearest point of the shape (exact for spheres
 and tubes), so FX Studio's own rules (damage, re-hit, pierce, pulse ring sweep, per-particle hits) still decide.
-`depth_m` applies to cards only.
+`depth_m` applies to cards only. Every 3D shape fades out within ~1.8 m of the camera (`TOON_FS`), so a big ring or
+flash passing the lens never blanks the screen.
+
+**3D punches, kicks and impacts (Daniel 2026-11-25: "recreate the FX we have into 3D versions, start with punching
+motion effects and impact effects").** Techniques `impact_punch`, the five kicks (`roundhouse_kick`, `thrust_kick`,
+`axe_kick`, `spinning_kick`, `rising_kick`) and `serious_punch` draw as 3D cel-shaded shapes (`render` auto / 3d).
+FX Studio's own timeline and random streams decide everything (`STRIKEFX.parts` / `KICKFX.parts` / `POWERFX.sp`,
+exported for this with no change to 2D drawing); `fx3d.js drawStrike` builds the shapes. His picks:
+
+- **Energy look first:** only parts set to `energy` (`fx_motion` / `fx_impact` / `fx_env`) are 3D; `ink` / `gritty`
+  parts stay on the effect's card (painted with the 3D parts left out). The serious punch is 3D whole.
+- **Fist path = from the 3D fist, out along the aim:** the fist / foot starts at the real 3D hand / foot and drives out
+  to FX Studio's full reach along the aim, then back. `strike_limb` auto = the effect's own anchor if it is a hand / foot,
+  else the hand (punch) or foot (kick) that moves furthest forward, locked when the blow lands. Hits stay FX Studio's
+  own punch / kick line in the effect's plane (unchanged), so damage and reach are as in 2D.
+- **Impact = a forward 3D cone:** flash, pressure spheres pushed along the blow, rays and sparks thrown in a cone round
+  it (sparks fall and skid on the floor), a star of spikes, a shock ring standing across the blow + a broken one; the
+  impact frame (`impact_frame` local / full: flash + focus lines) faces the camera.
+
+| Part | 3D shape |
+|---|---|
+| motion (`fx_motion`) | wind-up glint + ring; smear frames = tapered tubes of the forearm / shin; air strokes = tubes spiralling round the path (`strike_spin_deg`); the fist / foot = a sphere stretched by its speed + two after-glows |
+| impact (`fx_impact`) | the forward cone above |
+| ground (`fx_env`) | level rings, dust spheres drifting all round, sparks off the wave's edge; axe crater = scorch disc + cracks running out all round + rock shards thrown up; spinning kick vortex = level broken rings turning round the body (on the floor with `strike_ground`) |
+| serious punch | wind-up rings + motes, a round 3-layer shock cone (colour / bright / white-hot) with vapour rings, speed lines all round, the shock front ring, clouds blown out all round the line, the sky split, the fist flash + spikes |
+
+Strike keys (FX Studio 3D "3D shape & cel look", section Strike): `strike_limb` auto / haR / haL / ftR / ftL / none (FX
+Studio's line only), `strike_glow_pct` (50: spheres for FX Studio's soft glows, % of the glow radius), `strike_spin_deg`
+(90), `strike_ground` (true). The usual toon_* keys apply.
 
 ## Movement: continuous + sprint (Daniel 2026-11-24)
 

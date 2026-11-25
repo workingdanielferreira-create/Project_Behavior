@@ -1151,5 +1151,7 @@ function draw(pen, inst, host, ps) {
 }
 
 G.POWERFX = {STYLES: STYLES, metStep: metStep, PULL_STYLES: PULL_STYLES, AURA_N: AURA_N, outlineFromAlpha: outlineFromAlpha, activeTicks: activeTicks, totalTicks: totalTicks, onSpawn: onSpawn,
-             hit: hit, body: body, beam: beam, onHit: onHit, draw: draw};
+             hit: hit, body: body, beam: beam, onHit: onHit, draw: draw,
+             // the serious punch's geometry, for FX Studio 3D (v3/js/fx3d.js)
+             sp: {frame: spFrame, front: spFront, hw: spHw, cap: spCap, OUT: SP_OUT, FLASH: SP_FLASH, RINGS: SP_RINGS, SPLIT_LIFE: SP_SPLIT_LIFE, CLOUD: CLOUD, ti: ti}};
 })(window);

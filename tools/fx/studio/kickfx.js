@@ -244,6 +244,24 @@ function draw(pen, inst, host, ps) {
   pen.add(false);
 }
 
-G.KICKFX = {STYLES: STYLES, ARC_STYLES: ARC_STYLES, draw: draw, hit: hit, body: body, onHit: onHit, hitDir: hitDir, hitstopStep: hitstopStep,
+// The kick's pieces as data (what draw() draws), for FX Studio 3D (v3/js/fx3d.js): the motion (HITFX.Motion), the
+// impacts {a, x, y, sc (heavy included), salt, tick, u} and the fx_env events.  Drawing in 2D is unchanged.
+function parts(inst, ps) {
+  var L = L_(), P = inst.fx.params, st = L.style(P), t = inst.age, Ts = L.swing(P), Th = hold(P), hv = HEAVY[st], fl = K_().flips(P);
+  var imps = impacts(inst, P, ps).map(function (m) { return {a: m[0], x: m[1], y: m[2], sc: m[5] * hv, salt: m[6], tick: m[7], u: [m[3], m[4]]}; });
+  var p0 = inst.tq_path[Math.min(WIND, inst.tq_path.length - 1)], env = [["push", t - WIND, p0[0], p0[1] + FEET_DROP * ps, -inst.tq_m * fl[0], 0, hv, 0]];
+  if (st === "rising_kick") { var w = pose(inst, WIND, ps); env.push(["kickup", t - WIND, w[0], w[1], 0, 0, 1, 0]); }
+  if (st === "spinning_kick" && t >= WIND && t < WIND + Ts + Th + RETRACT && (P.spin_mode || "centered") === "centered") {
+    var q = pose(inst, t, ps);
+    env.push(["vortex", t, q[2], q[3], +P.length * ps, inst.tq_m * fl[0] * fl[1], t < WIND + Ts + Th ? 1 : 1 - (t - WIND - Ts - Th) / RETRACT, 0]);
+  }
+  imps.forEach(function (m) {
+    if (st === "axe_kick") { var g = craterAt(inst, P, ps, m.x, m.y, m.tick); env.push(["crater", m.a, g[0], g[1], 0, 0, m.sc, m.salt]); }
+    else env.push(["ground", m.a, m.x, feet(inst, m.tick, ps), 0, 0, m.sc, m.salt]);
+  });
+  return {motion: kickMotion(inst, P, ps), impacts: imps, env: env, reach: +P.length * ps, thrust: st === "thrust_kick"};
+}
+
+G.KICKFX = {parts: parts, STYLES: STYLES, ARC_STYLES: ARC_STYLES, draw: draw, hit: hit, body: body, onHit: onHit, hitDir: hitDir, hitstopStep: hitstopStep,
               activeTicks: activeTicks, totalTicks: totalTicks, contactTick: contactTick, pose: pose};
 })(window);
