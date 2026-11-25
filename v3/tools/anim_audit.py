@@ -274,12 +274,18 @@ class Auditor:
         """held = {"R": bool, "L": bool}: which hands hold a blade (pb_body.weapons; unarmed = not checked)."""
         self.held = held if held is not None else held_from(j)
         out = {}
+        # Tracks are matched to the shared body's bones BY NAME: a file re-saved by Rig Forge 3D can store its nodes
+        # in another order (hooded_blades 2026-11-24: 45 of 75 shifted), and an index match then audits the wrong bones.
+        body_idx = {nd.get("name"): i for i, nd in enumerate(self.J["nodes"]) if nd.get("name")}
+        names = [nd.get("name", "") for nd in j["nodes"]]
+        self.names = {i: nd.get("name", "") for i, nd in enumerate(self.J["nodes"])}
         for an in j["animations"]:
             if only and an["name"] not in only:
                 continue
             pk = (((j.get("scenes") or [{}])[0].get("extras") or {}).get("pb_keys") or {}).get(an["name"]) or {}
-            self.names = {i: nd.get("name", "") for i, nd in enumerate(j["nodes"])}
-            out[an["name"]] = self.clip(self.tracks(j, b, an), pk)
+            tr = {(body_idx[names[node]], path): v for (node, path), v in self.tracks(j, b, an).items()
+                  if names[node] in body_idx}
+            out[an["name"]] = self.clip(tr, pk)
         return out
 
 
