@@ -517,6 +517,21 @@ exported for this with no change to 2D drawing); `fx3d.js drawStrike` builds the
 | ground (`fx_env`) | level rings, dust spheres drifting all round, sparks off the wave's edge; axe crater = scorch disc + cracks running out all round + rock shards thrown up; spinning kick vortex = level broken rings turning round the body (on the floor with `strike_ground`) |
 | serious punch | wind-up rings + motes, a round 3-layer shock cone (colour / bright / white-hot) with vapour rings, speed lines all round, the shock front ring, clouds blown out all round the line, the sky split, the fist flash + spikes |
 
+**3D sword FX (Daniel 2026-11-25, batch 2 of "more 3D FX": sword slashes + crescents; then gunfire + ki barrage, ethereal
+blades, auras + power techniques).** Every slash-family style (`SWORDFX.CUTS`: rising / horizontal / diagonal / overhead
+slash, forward sweep, the combos), `straight_slash`, `crescent_wave`, the six crescent styles, `forward_thrust` and the
+`arc` kind draw in 3D (`fx3d.js drawBlade`, geometry from `SWORDFX.geo`, `SLASHLINE.span/slices`, `CRESCENTFX.pts/moons`,
+`FXK.arcSegs`, all exported with no 2D change). The blade is a **band**: FX Studio's crescent outline given a real
+lens-section thickness (`blade_thick_pct`, 35 % of its width; each face its own vertices so it shades bright with a ridge),
+its tail fading per vertex (`aA` attribute in the toon shader). Slashes: aura band, blade, white-hot edge, air lines,
+the glowing path, the pressure line, the head glint, sparks thrown out of the plane with gravity, hit marks; combo_cross's
+X. Straight slash the same along its line. Crescents (wave + styles): aura, blade, a deep core standing proud of both faces,
+white-hot leading edge, flame tongues fanning out of the plane, afterimages, embers, launch bursts, X glints (helix /
+split / scatter), end shards as spinning 3D chips; the ground drag and moonfall stand on the floor (`strike_ground`) with
+the contact glow, chips and sparks thrown back, the slam's light pillar, level rings and shards. Thrust: a layered
+tapered spear, speed lines all round, pressure rings, sparks, the pierced line. Arc kind: a band round its centre with a
+white core. Hits stay FX Studio's own. `blade_extension` (no character uses it) stays a card.
+
 Strike keys (FX Studio 3D "3D shape & cel look", section Strike): `strike_limb` auto / haR / haL / ftR / ftL / none (FX
 Studio's line only), `strike_glow_pct` (50: spheres for FX Studio's soft glows, % of the glow radius), `strike_spin_deg`
 (90), `strike_ground` (true). The usual toon_* keys apply.

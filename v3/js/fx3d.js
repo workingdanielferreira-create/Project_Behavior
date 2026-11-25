@@ -45,7 +45,7 @@ const DEF3D = {lay: 'auto', tilt_deg: 0, yaw_deg: 0, pitch_deg: 0, pivot: 'spawn
   render: 'auto', toon_bands: 3, toon_core_pct: 30, toon_shade_pct: 55, toon_core: '#ffffff', toon_ink_m: 0.02, toon_alpha_pct: 100, toon_sides: 12,
   laser_streak: 5, laser_max_m: 6, laser_width_pct: 85, beam_bulb_pct: 130, beam_flare_pct: 150, beam_wobble_pct: 8, beam_width_pct: 100,
   impact_shell: true, impact_shell_pct: 35, impact_ring: true, impact_spikes: 8, impact_spike_pct: 90, chunk_shape: 'shard', chunk_spread_pct: 60, chunk_size_pct: 120,
-  strike_limb: 'auto', strike_glow_pct: 50, strike_spin_deg: 90, strike_ground: true};
+  strike_limb: 'auto', strike_glow_pct: 50, strike_spin_deg: 90, strike_ground: true, blade_thick_pct: 35};
 const RENDERS = ['auto', '3d', 'card'];
 const CHUNKS = ['shard', 'ball', 'cube'];
 const TOON_PRIMS = ['ribbon', 'beam', 'particles', 'glow', 'pulse'];
@@ -61,7 +61,7 @@ function strikeKind(fx) {
 }
 const TOON_NUMS = ['toon_bands', 'toon_core_pct', 'toon_shade_pct', 'toon_ink_m', 'toon_alpha_pct', 'toon_sides', 'laser_streak', 'laser_max_m',
   'laser_width_pct', 'beam_bulb_pct', 'beam_flare_pct', 'beam_wobble_pct', 'beam_width_pct', 'impact_shell_pct', 'impact_spikes', 'impact_spike_pct',
-  'chunk_spread_pct', 'chunk_size_pct', 'strike_glow_pct', 'strike_spin_deg'];
+  'chunk_spread_pct', 'chunk_size_pct', 'strike_glow_pct', 'strike_spin_deg', 'blade_thick_pct'];
 const MOVE_PATHS = ['none', 'line', 'leap', 'arc', 'zigzag', 'flank', 'hit_retreat'];
 const START_MODES = ['stay', 'blink', 'dash'];
 const MOVE_EASES = ['inout', 'linear', 'in', 'out'];
@@ -95,7 +95,7 @@ function cfg3d(fx) {
 function is3d(fx, c) {
   c = c || cfg3d(fx); if (!fx || c.render === 'card') return false;
   if (fx.prim === 'sprite') return !(fx.params && fx.params.shape === 'blade');
-  if (strikeKind(fx)) return true;
+  if (strikeKind(fx) || bladeKind(fx)) return true;
   return TOON_PRIMS.indexOf(fx.prim) >= 0;
 }
 // auto: soft / round FX (glows, particles, rings, afterimages) face the camera, everything else lies in the aim plane
@@ -154,8 +154,9 @@ function sizeCard(c, w, h) {
 // taper / ink inflate, so a beam laid level on the flat sim plane is drawn following the ground at the same height.
 // The normal is bent with it (for the bands). Tubes and cards are split along their length so they can curve.
 const TOON_VS = [
-  'uniform float uR0; uniform float uR1; uniform float uTaper; uniform float uInflate; uniform vec4 uBend;',
-  'varying vec3 vN; varying vec3 vV; varying float vD;',
+  'uniform float uR0; uniform float uR1; uniform float uTaper; uniform float uInflate; uniform vec4 uBend; uniform float uVA;',
+  'attribute float aA;',
+  'varying vec3 vN; varying vec3 vV; varying float vD; varying float vA;',
   'vec3 bendP( vec3 p ) {',
   '  if ( uBend.w <= 0.0 ) return p;',
   '  vec2 d = p.xz - uBend.xz; float r = length( d ); if ( r < 1e-5 ) return p;',
@@ -163,6 +164,7 @@ const TOON_VS = [
   '  return vec3( uBend.x + dir.x * sin( th ) * rr, cos( th ) * rr - uBend.w, uBend.z + dir.y * sin( th ) * rr );',
   '}',
   'void main() {',
+  '  vA = uVA > 0.5 ? aA : 1.0;',
   '  vec3 p = position;',
   '  if ( uTaper > 0.5 ) p.xz *= mix( uR0, uR1, clamp( p.y + 0.5, 0.0, 1.0 ) );',
   '  vec4 wp = modelMatrix * vec4( p, 1.0 );',
@@ -180,10 +182,10 @@ const bendRef = () => (G.World3D && G.World3D.BEND) || FLAT_BEND;
 const TUBE_SEGS = 28, CARD_SEGS = 16;   // along a tube / across a card: enough to follow the globe's curve
 const TOON_FS = [
   'uniform vec3 uCol; uniform vec3 uShade; uniform vec3 uCore; uniform float uBands; uniform float uCoreT; uniform float uAlpha; uniform float uInk;',
-  'varying vec3 vN; varying vec3 vV; varying float vD;',
+  'varying vec3 vN; varying vec3 vV; varying float vD; varying float vA;',
   'void main() {',
   // near the camera a shape fades out (a big shock ring / flash passing the lens never blanks the screen)
-  '  float nf = smoothstep( 0.35, 1.8, vD );',
+  '  float nf = smoothstep( 0.35, 1.8, vD ) * vA;',
   '  if ( nf <= 0.0 ) discard;',
   '  if ( uInk > 0.5 ) { gl_FragColor = vec4( 0.02, 0.027, 0.05, uAlpha * nf ); return; }',
   '  float f = abs( dot( normalize( vN ), normalize( vV ) ) );',
@@ -208,12 +210,12 @@ function toonGeo(kind, sides) {
 }
 function toonUniforms(ink) {
   return {uCol: {value: new THREE.Color()}, uShade: {value: new THREE.Color()}, uCore: {value: new THREE.Color()}, uBands: {value: 3}, uCoreT: {value: 0.3},
-    uAlpha: {value: 1}, uInk: {value: ink ? 1 : 0}, uR0: {value: 1}, uR1: {value: 1}, uTaper: {value: 0}, uInflate: {value: 0}, uBend: {value: bendRef()}};
+    uAlpha: {value: 1}, uInk: {value: ink ? 1 : 0}, uR0: {value: 1}, uR1: {value: 1}, uTaper: {value: 0}, uInflate: {value: 0}, uVA: {value: 0}, uBend: {value: bendRef()}};
 }
 function makeToon(scene, kind, sides) {
-  const geo = toonGeo(kind, sides);
-  const mk = ink => new THREE.ShaderMaterial({uniforms: toonUniforms(ink), vertexShader: TOON_VS, fragmentShader: TOON_FS,
-    transparent: true, depthWrite: true, side: ink ? THREE.BackSide : THREE.FrontSide});
+  const geo = kind === 'band' ? bandGeo() : toonGeo(kind, sides);   // a band (sword FX) has its own changing geometry
+  const mk = ink => { const m = new THREE.ShaderMaterial({uniforms: toonUniforms(ink), vertexShader: TOON_VS, fragmentShader: TOON_FS,
+    transparent: true, depthWrite: true, side: ink ? THREE.BackSide : THREE.FrontSide}); m.uniforms.uVA.value = kind === 'band' ? 1 : 0; return m; };
   const m = new THREE.Mesh(geo, mk(false)), h = new THREE.Mesh(geo, mk(true));
   m.renderOrder = 4; h.renderOrder = 5; m.frustumCulled = h.frustumCulled = false; scene.add(m); scene.add(h);
   return {key: kind + sides, m, h, used: false};
@@ -267,7 +269,7 @@ Runner.prototype.reload = function (fx) { this.o.fx = fx; this.by = byAction(fx)
 Runner.prototype.reset = function () { this.lanes = []; this.cards.forEach(c => { c.mesh.visible = false; }); this.toons.forEach(t => { t.m.visible = t.h.visible = false; }); };
 Runner.prototype.clear = function () {
   this.lanes = [];
-  this.toons.forEach(t => { [t.m, t.h].forEach(x => { if (x.parent) x.parent.remove(x); x.material.dispose(); }); }); this.toons = [];
+  this.toons.forEach(t => { [t.m, t.h].forEach(x => { if (x.parent) x.parent.remove(x); x.material.dispose(); }); if (t.key === 'band0') t.m.geometry.dispose(); }); this.toons = [];
   this.cards.forEach(c => { if (c.mesh.parent) c.mesh.parent.remove(c.mesh); c.tex.dispose(); c.mat.dispose(); c.mesh.geometry.dispose(); });
   this.cards = [];
 };
@@ -364,7 +366,7 @@ Runner.prototype.initInst = function (l, inst) {
   if (inst._c) return;
   const src = inst.src || inst.fx; inst._c = src._c3 || cfg3d(src); inst._r3 = is3d(inst.fx, inst._c); inst._lay = layOf(inst.fx, inst._c);
   // a 3D strike: drawn as 3D shapes (+ a card for its ink / gritty parts), hit by FX Studio's own punch / kick line
-  inst._s3 = inst._r3 ? strikeKind(inst.fx) : ''; if (inst._s3) { inst._r3 = false; inst._lay = inst._c.lay === 'auto' ? 'side' : inst._lay; }
+  inst._s3 = inst._r3 ? strikeKind(inst.fx) || bladeKind(inst.fx) : ''; if (inst._s3) { inst._r3 = false; inst._lay = inst._c.lay === 'auto' ? 'side' : inst._lay; }
   inst._pv = inst._c.pivot === 'figure' ? l.fig.slice() : [inst.x, inst.y];
   const an = typeof inst.fx.anchor === 'string' ? inst.fx.anchor.replace(/^3d:/, '') : '';
   const W = an && an !== 'figure' && an !== 'target' && this.ctx ? this.anchorWorld(an, new THREE.Vector3()) : null;
@@ -601,7 +603,7 @@ function coneDir(u, deg, az, out) {
   return out.copy(u).multiplyScalar(cz).addScaledVector(p1, Math.cos(az) * s).addScaledVector(p2, Math.sin(az) * s).normalize();
 }
 function strikeCard(inst) {
-  if (inst._s3 === 'serious') return false;
+  if (inst._s3 !== 'punch' && inst._s3 !== 'kick') return false;
   const P = inst.fx.params || {}, H = G.HITFX;
   return ['fx_motion', 'fx_impact', 'fx_env'].some(k => { const v = H.look(P, k); return v === 'ink' || v === 'gritty'; });
 }
@@ -609,7 +611,7 @@ function strikeCard(inst) {
 function strikeCardPatch(insts) {
   const out = [];
   insts.forEach(i => {
-    if (!i._s3) return; const P = i.fx.params; if (!P || out.some(x => x[0] === P)) return;
+    if (i._s3 !== 'punch' && i._s3 !== 'kick') return; const P = i.fx.params; if (!P || out.some(x => x[0] === P)) return;
     out.push([P, P.fx_motion, P.fx_impact, P.fx_env, P.impact_frame]);
     ['fx_motion', 'fx_impact', 'fx_env'].forEach(k => { if (G.HITFX.look(P, k) === 'energy') P[k] = 'off'; });
     P.impact_frame = 'off';
@@ -674,6 +676,7 @@ Runner.prototype.drawStrike = function (l, inst, xf) {
   const Lb = SLib(), P = inst.fx.params || {}, c = inst._c, Us = xf.Us, kind = inst._s3, H = G.HITFX, ink = c.toon_ink_m;
   const col = Lb.colours(inst, this.host)[0], HOTc = [255, 255, 255], gk = c.strike_glow_pct / 100;
   if (kind === 'serious') return this.drawSerious(l, inst, xf, col, gk);
+  if (kind !== 'punch' && kind !== 'kick') return this.drawBlade(l, inst, xf);
   const pt = (kind === 'punch' ? G.STRIKEFX : G.KICKFX).parts(inst, 1);
   const S = {kind, M: pt.motion, reach: pt.reach, ext: kind === 'punch' || !!pt.thrust, lim: null};
   const cand = kind === 'kick' ? ['ftR', 'ftL', 'knR', 'knL'] : ['haR', 'haL', 'elR', 'elL'];
@@ -915,6 +918,479 @@ Runner.prototype.drawSerious = function (l, inst, xf, c0, gk) {
       d3.set(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th));
       this.tube(nc, fist, B.copy(fist).addScaledVector(d3, (20 + 50 * e) * Us), (7 + 10 * e) * 0.3 * Us, 0, HOTc, 240 / 255 * (1 - q), 0); } }
 };
+/* ---- 3D sword FX (Daniel 2026-11-25, batch 2 "sword slashes + crescents") ----
+   Slash-family techniques (every SWORDFX.CUTS style incl. the combos), straight_slash, crescent_wave, the six crescent
+   styles, forward_thrust and the `arc` kind. The blade itself is a BAND: FX Studio's crescent outline (outer rim -> inner
+   edge, slice by slice) given a real bevelled thickness (blade_thick_pct of its width, a lens section) with its tail fading
+   per vertex, an aura band round it, a white-hot leading edge and (crescents) a dark core and flame tongues off its back.
+   Around it: the head glint, air lines, the afterglow path, sparks (thrown out of the plane too, with gravity), hit marks,
+   launch bursts, X glints, embers, end shards, the drag's contact point and the moonfall's slam on the floor. Ground
+   crescents (drag / fall) stand on the floor (strike_ground). Hits stay FX Studio's own (unchanged). */
+const BAND_MAX = 64, BAND_IX = [];
+function bandIndex(flip) {
+  if (BAND_IX[flip]) return BAND_IX[flip];
+  // 6 vertices a row: the +nz face (outer, ridge, inner) and the -nz face (inner, ridge, outer), each face its own
+  // vertices so it shades flat-bright with a light ridge (shared edges made the whole face fall into the shade band)
+  const ix = [];
+  for (let i = 0; i < BAND_MAX - 1; i++) for (const r of [0, 1, 3, 4]) {
+    const a = i * 6 + r, b = a + 1, c = a + 6, d = b + 6;
+    if (flip) ix.push(a, b, c, b, d, c); else ix.push(a, c, b, b, c, d);
+  }
+  return (BAND_IX[flip] = new THREE.BufferAttribute(new Uint16Array(ix), 1));
+}
+function bandGeo() {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(BAND_MAX * 18), 3).setUsage(THREE.DynamicDrawUsage));
+  g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(BAND_MAX * 18), 3).setUsage(THREE.DynamicDrawUsage));
+  g.setAttribute('aA', new THREE.BufferAttribute(new Float32Array(BAND_MAX * 6), 1).setUsage(THREE.DynamicDrawUsage));
+  g.setIndex(bandIndex(0)); return g;
+}
+const BLADE_STYLES = ['straight_slash', 'crescent_wave', 'forward_thrust'];
+function bladeKind(fx) {
+  if (!fx) return '';
+  if (fx.prim === 'arc') return 'arc';
+  if (fx.prim !== 'technique') return '';
+  const s = fx.params && fx.params.style, SW = G.SWORDFX, CR = G.CRESCENTFX;
+  if (SW && SW.CUTS[s]) return 'slash';
+  if (s === 'straight_slash') return 'line';
+  if (s === 'crescent_wave') return 'wave';
+  if (s === 'forward_thrust') return 'thrust';
+  if (CR && CR.STYLES.indexOf(s) >= 0) return 'crescent';
+  return '';
+}
+const _bm = new THREE.Vector3(), _bo = new THREE.Vector3(), _bs = new THREE.Vector3(), _bc = new THREE.Vector3();
+/* rows [{O, I, th (m), a}] -> a closed lens-section band (outer, +nz face, inner, -nz face) */
+Runner.prototype.band = function (c, rows, nz, rgb, alpha, ink) {
+  const n = Math.min(BAND_MAX, rows.length); if (n < 2 || alpha <= 0.004) return null;
+  const t = this.paint(this.toon('band', 0), c, rgb, alpha, ink), g = t.m.geometry, P = g.attributes.position.array, A = g.attributes.aA.array;
+  for (let i = 0; i < BAND_MAX; i++) {
+    const r = rows[Math.min(i, n - 1)], th = Math.max(0, r.th || 0), a = r.a == null ? 1 : Math.max(0, Math.min(1, r.a)), k = i * 18;
+    _bm.copy(r.O).add(r.I).multiplyScalar(0.5);
+    const V = [r.O, null, r.I, r.I, null, r.O];
+    for (let j = 0; j < 6; j++) {
+      const q = k + j * 3;
+      if (V[j]) { P[q] = V[j].x; P[q + 1] = V[j].y; P[q + 2] = V[j].z; }
+      else { const sg = j === 1 ? th : -th; P[q] = _bm.x + nz.x * sg; P[q + 1] = _bm.y + nz.y * sg; P[q + 2] = _bm.z + nz.z * sg; }
+      A[i * 6 + j] = a;
+    }
+  }
+  // winding so the faces point out (the ink hull inflates along the normals)
+  const r0 = rows[0], r1 = rows[n - 1];
+  _bs.copy(r1.O).add(r1.I).sub(r0.O).sub(r0.I); _bo.copy(rows[n >> 1].O).sub(rows[n >> 1].I);
+  const flip = _bc.crossVectors(_bs, _bo).dot(nz) > 0 ? 1 : 0;
+  if (g.index !== bandIndex(flip)) g.setIndex(bandIndex(flip));
+  g.attributes.position.needsUpdate = true; g.attributes.aA.needsUpdate = true;
+  g.computeVertexNormals(); g.setDrawRange(0, (n - 1) * 24);
+  [t.m, t.h].forEach(x => { x.position.set(0, 0, 0); x.quaternion.identity(); x.scale.set(1, 1, 1); x.material.uniforms.uTaper.value = 0; });
+  return t;
+};
+// a thin lens-section line through world points pts, half width r (m)
+Runner.prototype.line3 = function (c, pts, r, nz, rgb, alpha, ink, aFn) {
+  if (pts.length < 2 || r <= 0) return null;
+  const rows = pts.map((p, i) => {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], tg = _bs.copy(b).sub(a);
+    const n = _bo.crossVectors(tg, nz); if (n.lengthSq() < 1e-12) n.set(0, 1, 0); n.normalize();
+    return {O: p.clone().addScaledVector(n, r), I: p.clone().addScaledVector(n, -r), th: r, a: aFn ? aFn(i / (pts.length - 1)) : 1};
+  });
+  return this.band(c, rows, nz, rgb, alpha, ink);
+};
+// a diamond streak A -> B (thick in the middle), as two cones
+Runner.prototype.diamond3 = function (c, A, B, w, rgb, a, ink) {
+  const M = _bm.copy(A).add(B).multiplyScalar(0.5).clone();
+  this.tube(c, A, M, 0, w, rgb, a, ink); this.tube(c, M, B, w, 0, rgb, a, ink);
+};
+// FX Studio's hit marks (swordfx hitMarks): an X glint, a ring and a flash where each hit landed
+Runner.prototype.hitMarks3 = function (inst, xf, WP, col, u2, dirf, gk) {
+  const Lb = SLib(), Gm = G.SWORDFX.geo, c = inst._c, nc = noCore(c), Us = xf.Us, t = inst.age, HOTc = [255, 255, 255];
+  (inst.tq_hits || []).forEach(h => {
+    const k = t - h[2]; if (k < 0 || k >= Gm.HIT_MARK_LIFE) return;
+    const u0 = dirf ? dirf(h[2]) : u2, f = 1 - k / Gm.HIT_MARK_LIFE, e = easeO(k / 4), L = (18 + 10 * e) * Us, C = WP(h[0], h[1]);
+    [u0, FXK.rot(u0.slice(), 70)].forEach(u => {
+      const d = this.dir3(xf, u);
+      this.diamond3(nc, C.clone().addScaledVector(d, -L), C.clone().addScaledVector(d, L), 1.6 * Us * f + 0.01, col, 220 / 255 * f, 0);
+    });
+    this.torus(nc, 'ring', C, _cf, (4 + 20 * easeO(k / Gm.HIT_MARK_LIFE)) * Us, 0.5, 0, col, 200 / 255 * f, 0);
+    this.sphere(nc, C, 14 * Us * f * gk, HOTc, 230 / 255 * f, 0);
+  });
+};
+Runner.prototype.dir3 = function (xf, u) { const d = xf.ax.clone().multiplyScalar(u[0]).addScaledVector(xf.ay, -u[1]); return d.lengthSq() > 1e-12 ? d.normalize() : d.copy(xf.ax); };
+// a 2D spark (start, 2D velocity, drag, age, gravity px/tick^2) thrown out of the plane by vz, streaked along its motion
+Runner.prototype.spark3 = function (c, xf, P0, vx, vy, vz, drag, k, grav, len, r, rgb, a, gy) {
+  const Us = xf.Us, fd = SLib().dragDist(drag, k), dk = Math.pow(drag, k);
+  const v = this.dir3(xf, [vx, vy]).multiplyScalar(Math.hypot(vx, vy) * Us).addScaledVector(xf.az, vz * Us);
+  const B = P0.clone().addScaledVector(v, fd); B.y -= 0.5 * grav * k * k * Us;
+  const cv = v.clone().multiplyScalar(dk); cv.y -= grav * k * Us;
+  const A = B.clone().addScaledVector(cv, -len);
+  if (gy != null && B.y < gy + 0.03) { B.y = gy + 0.03; A.y = Math.max(A.y, gy + 0.03); }
+  this.tube(c, A, B, 0, r, rgb, a, 0);
+};
+Runner.prototype.drawBlade = function (l, inst, xf) {
+  const kind = inst._s3, Lb = SLib(), cs = kind === 'arc' ? FXK.colorPair(inst.fx, this.lut) : Lb.colours(inst, this.host), c = inst._c, gk = c.strike_glow_pct / 100;
+  const gy = c.strike_ground ? l.groundY : null;
+  let dy = 0;
+  if (kind === 'crescent' && c.strike_ground && G.CRESCENTFX.onGround(inst)) {   // a ground crescent stands on the floor
+    const gp = G.CRESCENTFX.groundPoint(inst, 1); dy = l.groundY + 0.02 - this.w3(inst, xf, gp[0], gp[1], 0, _bc).y;
+  }
+  const WP = (x, y, o) => { o = this.w3(inst, xf, x, y, 0, o || new THREE.Vector3()); o.y += dy; return o; };
+  const A = {l, inst, xf, WP, col: cs[0], bright: cs[1], deep: cs[2] || cs[0], gk, gy, kth: c.blade_thick_pct / 100};
+  if (kind === 'slash') this.slash3(A);
+  else if (kind === 'line') this.sline3(A);
+  else if (kind === 'wave') this.wave3(A);
+  else if (kind === 'crescent') this.crescent3(A);
+  else if (kind === 'thrust') this.thrust3(A);
+  else if (kind === 'arc') this.arc3(A);
+};
+/* slash family (swordfx drawSlash / drawCut / drawCross) */
+Runner.prototype.slash3 = function (A) {
+  const {inst, xf, WP, col, bright, gk} = A, SW = G.SWORDFX, Gm = SW.geo, Lb = SLib(), P = inst.fx.params, fr = Lb.frame(inst);
+  const starts = Gm.cutStarts(P), end = Lb.swing(P) + Gm.fadeT(P) + Gm.SPARK_LIFE, geos = starts.map((s, ci) => new Gm.SlashGeo(inst, 1, ci));
+  starts.forEach((s, ci) => { const t = inst.age - s; if (t >= 0 && t < end) this.cut3(A, geos[ci], fr, t, ci); });
+  if (P.style === 'combo_cross') this.cross2(A, fr, geos, starts);
+  const dirf = starts.length > 1 ? b => { let ci = 0; starts.forEach((s, i) => { if (s <= b) ci = i; }); return fr.d(geos[ci].d[0], geos[ci].d[1]); } : null;
+  this.hitMarks3(inst, xf, WP, col, fr.d(geos[0].d[0], geos[0].d[1]), dirf, gk);
+};
+Runner.prototype.cut3 = function (A, g, fr, t, ci) {
+  const {inst, xf, WP, col, bright, gk, gy, kth} = A, Lb = SLib(), P = inst.fx.params, c = inst._c, nc = noCore(c), Us = xf.Us, nz = xf.az, ink = c.toon_ink_m, HOTc = [255, 255, 255];
+  const st = g.state(t), tail = st[0], head = st[1], ga = st[2], R = g.R, Ts = g.Ts, sl = g.slices(t);
+  const W = (s, r) => { const q = g.local(s, r), p = fr.w(q[0], q[1]); return WP(p[0], p[1]); };
+  if (sl.length) {
+    if (t <= Ts + 6) { const bf = ga * (t <= Ts ? 1 : 1 - (t - Ts) / 6); this.sphere(nc, W(tail + (head - tail) * 0.7, R), Math.min(0.9 * R, 36) * Us * gk * 0.8, col, 80 / 255 * bf, 0); }
+    const hz = 5;
+    this.band(nc, sl.map(q => ({O: W(q[0], R + 0.3 * q[2] + hz), I: W(q[0], R - 0.7 * q[2] - hz), th: q[2] * kth * Us * 0.3, a: ga * Math.pow(q[1], 0.9)})), nz, col, 70 / 255, 0);
+    this.band(c, sl.map(q => ({O: W(q[0], R + 0.3 * q[2]), I: W(q[0], R - 0.7 * q[2]), th: q[2] * kth * Us * 0.5, a: ga * Math.pow(q[1], 0.9)})), nz, Lb.mix(col, bright, 0.55), 235 / 255, ink);
+    this.band(nc, sl.map(q => { const e = Math.max(1.2, 0.3 * q[2]); return {O: W(q[0], R + 0.3 * q[2] + 0.3), I: W(q[0], R + 0.3 * q[2] - e), th: q[2] * kth * Us * 0.55, a: Math.pow(ga * Math.pow(q[1], 0.9), 1.2)}; }), nz, HOTc, 1, 0);
+  }
+  if (t <= Ts + 4 && head - tail > 0.05) {   // air lines riding the cut
+    const sf = t <= Ts ? 1 : 1 - (t - Ts) / 4;
+    for (let k = 0; k < 3; k++) { const r = R + 5 + 4 * k, sa = Math.max(tail, head - 0.45 + 0.1 * k), sb = head - 0.05; if (sb - sa < 0.02) continue;
+      const pl = []; for (let j = 0; j < 10; j++) pl.push(W(sa + (sb - sa) * j / 9, r));
+      this.line3(nc, pl, 0.55 * Us, nz, col, 120 / 255 * sf * (1 - k * 0.25), 0, u => Math.sin(Math.PI * u)); }
+  }
+  const k2 = (t - (Ts - 1)) / 10;   // the whole path, glowing as it ends
+  if (k2 >= 0 && k2 < 1) { const path = []; for (let j = 0; j < 25; j++) path.push(W(j / 24, R + 0.1 * g.W));
+    this.line3(nc, path, 1.75 * Us, nz, col, 160 / 255 * (1 - k2), 0); this.line3(nc, path, 0.6 * Us, nz, HOTc, Math.pow(1 - k2, 2), 0); }
+  const k3 = (t - Ts) / 12;   // a pressure line widening off it
+  if (k3 >= 0 && k3 < 1) { const rr = R * (1 + 0.35 * easeO(k3)), pw = []; for (let j = 0; j < 21; j++) pw.push(W(0.1 + 0.8 * j / 20, rr));
+    this.line3(nc, pw, (1 * (1 - k3) + 0.1) * Us, nz, col, 130 / 255 * (1 - k3), 0, u => Math.sin(Math.PI * u)); }
+  if (t <= Ts + 3) {   // the head glint
+    const fa = t <= Ts ? 1 : 1 - (t - Ts) / 3, hp = W(head, R), pp = W(Math.max(0, head - 0.03), R), u = hp.clone().sub(pp); if (u.lengthSq() < 1e-10) u.copy(xf.ax); u.normalize();
+    this.sphere(c, hp, 7 * Us * gk, col, Math.min(1, 200 / 255 * fa + 0.2), ink * 0.5); this.sphere(nc, hp, 6 * Us * gk, HOTc, fa, 0);
+    const v = _bo.crossVectors(u, nz).normalize().clone();
+    this.diamond3(nc, hp.clone().addScaledVector(u, -16 * Us), hp.clone().addScaledVector(u, 16 * Us), 0.9 * Us, HOTc, 230 / 255 * fa, 0);
+    this.diamond3(nc, hp.clone().addScaledVector(v, -6 * Us), hp.clone().addScaledVector(v, 6 * Us), 0.7 * Us, HOTc, 230 / 255 * fa, 0);
+  }
+  const nsp = Math.max(0, Math.round(16 * (+P.density || 1)));   // sparks thrown off the edge, out of the plane too
+  for (let i = 0; i < nsp; i++) {
+    const rg = Lb.rngFor(inst.seed, i, 7 + 100 * ci), b = 1 + rg() * (Ts - 1), life = 10 + rg() * 10, kk = t - b; if (kk < 0 || kk >= life) continue;
+    const sb2 = easeO(b / Ts), q0 = g.local(sb2, R + 0.2 * g.W), q1 = g.local(Math.min(1, sb2 + 0.02), R + 0.2 * g.W), p0 = fr.w(q0[0], q0[1]), p1 = fr.w(q1[0], q1[1]);
+    let tx = p1[0] - p0[0], ty = p1[1] - p0[1]; const nn = Math.hypot(tx, ty) || 1; tx /= nn; ty /= nn;
+    const ph = g.phi(sb2), rd = fr.d(ph[0], ph[1]), sp = rg.uniform(2.5, 6.5), out = rg.uniform(0.1, 0.7), vz = rg.uniform(-0.8, 0.8) * sp, q = kk / life;
+    this.spark3(nc, xf, WP(p0[0], p0[1]), (tx + rd[0] * out) * sp, (ty + rd[1] * out) * sp, vz, 0.88, kk, 0.22, 1.6, 0.8 * Us, Lb.mix(HOTc, col, q), 1 - q, gy);
+  }
+};
+Runner.prototype.cross2 = function (A, fr, geos, starts) {   // combo_cross: the X flaring where the two cuts cross
+  const {inst, xf, WP, col, gk} = A, Lb = SLib(), Gm = G.SWORDFX.geo, c = inst._c, nc = noCore(c), Us = xf.Us, HOTc = [255, 255, 255];
+  const a = inst.age - (starts[1] + Lb.swing(inst.fx.params)); if (a < 0 || a >= Gm.CROSS_LIFE) return;
+  const ga = geos[0], gb = geos[1], pa = ga.local(0.5, ga.R), pb = gb.local(0.5, gb.R), m = fr.w((pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2), C = WP(m[0], m[1]);
+  const q = a / Gm.CROSS_LIFE, e = easeO(a / 6), L = (0.9 + 0.5 * e) * ga.R * Us;
+  [ga, gb].forEach(gg => { const d = this.dir3(xf, fr.d(gg.d[0], gg.d[1]));
+    this.diamond3(c, C.clone().addScaledVector(d, -L), C.clone().addScaledVector(d, L), 3 * Us * (1 - q) + 0.01, col, 230 / 255 * (1 - q), c.toon_ink_m * 0.5); });
+  this.sphere(nc, C, (20 + 26 * e) * Us * (1 - q) * gk, HOTc, 240 / 255 * (1 - q), 0);
+  this.torus(nc, 'ring', C, xf.az, (8 + 0.9 * ga.R * easeO(q)) * Us, 0.6, 0, col, 200 / 255 * (1 - q), 0);
+  for (let i = 0; i < 10; i++) { const r = Lb.rngFor(inst.seed, i, 31), life = 10 + 8 * r(); if (a >= life) continue;
+    const an = r.uniform(0, Math.PI * 2), sp = r.uniform(3, 8), qq = a / life;
+    this.spark3(nc, xf, C, Math.cos(an) * sp, Math.sin(an) * sp, r.uniform(-1, 1) * sp, 0.86, a, 0, 1.8, 0.75 * Us, Lb.mix(HOTc, col, qq), 1 - qq, null); }
+};
+/* straight_slash (slashline.js) */
+Runner.prototype.sline3 = function (A) {
+  const {inst, xf, WP, col, bright, gk, gy, kth} = A, Lb = SLib(), SL = G.SLASHLINE, P = inst.fx.params, t = inst.age, c = inst._c, nc = noCore(c), Us = xf.Us, nz = xf.az, ink = c.toon_ink_m, HOTc = [255, 255, 255];
+  const S = SL.size(inst, 1), g = new SL.Geo(inst, S), fr = Lb.frame(inst), Ts = Lb.swing(P), hd = SL.hold(P);
+  const sp = SL.span(P, t), lo = sp[0], hi = sp[1], head = sp[2], ga = sp[3], wf = sp[4];
+  const AT = s => { const p = fr.w.apply(fr, g.at(s)); return WP(p[0], p[1]); };
+  const E = (s, off) => { const p = g.at(s), tg = g.tangent(s), q = fr.w(p[0] - tg[1] * off, p[1] + tg[0] * off); return WP(q[0], q[1]); };
+  if (t < Ts + hd + SL.fade(P) && hi - lo > 0.004 && ga > 0.01) {
+    const sl = SL.slices(g, lo, hi, wf), uA = s => head !== null && hi > lo ? 1 - Math.abs(s - head) / Math.max(1e-6, hi - lo) : 0.7;
+    if (t <= Ts + 6) this.sphere(nc, AT((lo + hi) / 2), Math.min(0.45 * g.L, 40 * S) * Us * gk * 0.8, col, 80 / 255 * (t <= Ts ? 1 : 1 - (t - Ts) / 6) * ga, 0);
+    const hz = 5 * S;
+    this.band(nc, sl.map(q => ({O: E(q[0], 0.5 * q[1] + hz), I: E(q[0], -0.5 * q[1] - hz), th: q[1] * kth * Us * 0.3, a: ga * (0.35 + 0.65 * uA(q[0]))})), nz, col, 70 / 255, 0);
+    this.band(c, sl.map(q => ({O: E(q[0], 0.5 * q[1]), I: E(q[0], -0.5 * q[1]), th: q[1] * kth * Us * 0.5, a: ga * (0.35 + 0.65 * uA(q[0]))})), nz, Lb.mix(col, bright, 0.55), 235 / 255, ink);
+    this.band(nc, sl.map(q => { const e = Math.max(0.8 * S, 0.22 * q[1]); return {O: E(q[0], e * 0.5), I: E(q[0], -e * 0.5), th: q[1] * kth * Us * 0.56, a: Math.pow(ga * (0.35 + 0.65 * uA(q[0])), 1.2)}; }), nz, HOTc, 1, 0);
+    if (t <= Ts + 4) { const sf = t <= Ts ? 1 : 1 - (t - Ts) / 4;
+      for (let k = 0; k < 2; k++) [1, -1].forEach(sd => { const off = sd * (g.W * 0.5 + (5 + 5 * k) * S), a0 = lo + (hi - lo) * (0.1 + 0.1 * k), a1 = hi - (hi - lo) * 0.05; if (a1 - a0 < 0.02) return;
+        const pl = []; for (let j = 0; j < 10; j++) pl.push(E(a0 + (a1 - a0) * j / 9, off));
+        this.line3(nc, pl, 0.55 * S * Us, nz, col, 110 / 255 * sf * (1 - 0.35 * k), 0, u => Math.sin(Math.PI * u)); }); }
+  }
+  const k2 = (t - (Ts - 1)) / 10;
+  if (k2 >= 0 && k2 < 1) { const path = []; for (let j = 0; j < 25; j++) path.push(AT(j / 24));
+    this.line3(nc, path, 1.75 * S * Us, nz, col, 160 / 255 * (1 - k2), 0); this.line3(nc, path, 0.6 * S * Us, nz, HOTc, Math.pow(1 - k2, 2), 0); }
+  const k3 = (t - Ts) / 12;
+  if (k3 >= 0 && k3 < 1) { const off3 = g.W * 0.5 + 18 * S * easeO(k3);
+    [1, -1].forEach(sd => { const pl = []; for (let j = 0; j <= 20; j++) pl.push(E(0.1 + 0.8 * j / 20, sd * off3));
+      this.line3(nc, pl, (0.9 * S * (1 - k3) + 0.1) * Us, nz, col, 110 / 255 * (1 - k3), 0, u => Math.sin(Math.PI * u)); }); }
+  const frm = SL.from_(P);
+  if (t <= Ts + 3) { const fa = t <= Ts ? 1 : 1 - (t - Ts) / 3, kk = Lb.easeOut3(Math.min(t, Ts) / Ts);
+    (frm === 'end' ? [1 - kk] : frm === 'centre' ? [0.5 - 0.5 * kk, 0.5 + 0.5 * kk] : [kk]).forEach(hs => {
+      const hp = AT(hs); let u = this.dir3(xf, fr.d.apply(fr, g.tangent(hs))); if (frm === 'end' || (frm === 'centre' && hs < 0.5)) u.negate();
+      this.sphere(c, hp, 7 * S * Us * gk, col, Math.min(1, 200 / 255 * fa + 0.2), ink * 0.5); this.sphere(nc, hp, 6 * S * Us * gk, HOTc, fa, 0);
+      const v = _bo.crossVectors(u, nz).normalize().clone();
+      this.diamond3(nc, hp.clone().addScaledVector(u, -16 * S * Us), hp.clone().addScaledVector(u, 16 * S * Us), 0.9 * S * Us, HOTc, 230 / 255 * fa, 0);
+      this.diamond3(nc, hp.clone().addScaledVector(v, -6 * S * Us), hp.clone().addScaledVector(v, 6 * S * Us), 0.7 * S * Us, HOTc, 230 / 255 * fa, 0); }); }
+  const nSp = Math.max(0, Math.round(16 * (+P.density || 1)));
+  for (let i = 0; i < nSp; i++) {
+    const r = Lb.rngFor(inst.seed, i, 211), b = 1 + r() * (Ts - 1), life = 10 + r() * 10, kt = t - b; if (kt < 0 || kt >= life) continue;
+    const kb = Lb.easeOut3(b / Ts), sb = frm === 'end' ? 1 - kb : frm === 'centre' ? 0.5 + (i % 2 ? 0.5 : -0.5) * kb : kb;
+    const p0 = fr.w.apply(fr, g.at(sb)), td = fr.d.apply(fr, g.tangent(sb)); let tx = td[0], ty = td[1];
+    if (frm === 'end' || (frm === 'centre' && i % 2 === 0)) { tx = -tx; ty = -ty; }
+    const side = r.uniform(-0.7, 0.7), spd = r.uniform(2.5, 6.5) * S, vz = r.uniform(-0.8, 0.8) * spd, q = kt / life;
+    this.spark3(nc, xf, WP(p0[0], p0[1]), (tx - ty * side) * spd, (ty + tx * side) * spd, vz, 0.88, kt, 0.22 * S, 1.6, 0.8 * S * Us, Lb.mix(HOTc, col, q), 1 - q, gy);
+  }
+  this.hitMarks3(inst, xf, WP, col, SL.cutDir(inst), null, gk);
+};
+/* one crescent moon in 3D (crescentfx blade / swordfx drawWave): fr = its 2D frame (w(x, y)) */
+Runner.prototype.moon3 = function (A, fr, R, W, k, tl, mi, fade, half) {
+  const {inst, xf, WP, col, deep, gk, kth} = A, Lb = SLib(), CR = G.CRESCENTFX, c = inst._c, nc = noCore(c), Us = xf.Us, nz = xf.az, ink = c.toon_ink_m, HOTc = [255, 255, 255];
+  if (fade <= 0) return;
+  const ph = (inst.seed % 1000) * 0.01 + mi * 1.7, pts = CR.pts(R, W, k, 20, half), P3 = (x, y) => { const p = fr.w(x, y); return WP(p[0], p[1]); };
+  const rowsAt = (o0, o1, thk) => pts.map(q => ({O: P3(q[1][0] - q[2][0] * q[3] * o0, q[1][1] - q[2][1] * q[3] * o0), I: P3(q[1][0] - q[2][0] * q[3] * o1, q[1][1] - q[2][1] * q[3] * o1), th: q[3] * kth * Us * thk}));
+  this.band(nc, pts.map(q => ({O: P3(q[1][0] + q[2][0] * 6 * k, q[1][1] + q[2][1] * 6 * k), I: P3(q[1][0] - q[2][0] * (q[3] + 4 * k), q[1][1] - q[2][1] * (q[3] + 4 * k)), th: q[3] * kth * Us * 0.3})), nz, col, 80 / 255 * fade, 0);
+  this.band(c, rowsAt(0, 1, 0.5), nz, Lb.mix(col, HOTc, 0.25), 235 / 255 * fade, ink);
+  const e = half ? pts.length : pts.length - 2;   // the dark core, standing just proud of both faces
+  this.band(nc, pts.slice(2, e).map(q => { const mm = q[3] * (0.88 + 0.2 * Lb.flame(q[0], tl, ph)); return {O: P3(q[1][0] - q[2][0] * q[3] * 0.3, q[1][1] - q[2][1] * q[3] * 0.3), I: P3(q[1][0] - q[2][0] * mm, q[1][1] - q[2][1] * mm), th: q[3] * kth * Us * 0.56}; }), nz, Lb.mix(deep, col, 0.3), 240 / 255 * fade, 0);
+  const front = []; pts.forEach(q => { if (Math.abs(q[0]) < 0.85) front.push(P3(q[1][0], q[1][1])); });
+  this.line3(nc, front, 1.1 * k * Us, nz, HOTc, fade, 0, u => Math.pow(Math.sin(Math.PI * u), 0.5));
+  for (let i = 0; i < 11; i++) {   // flame tongues off its back, fanning out of the plane
+    const v = -0.9 + 1.8 * i / 10, r = Lb.rngFor(inst.seed, i, 17 + 40 * mi), u1 = r.uniform(0.6, 1.4), u2 = r.uniform(3.4, 5.2), zf = r.uniform(-0.45, 0.45);
+    if (half && v > 0.05) continue;
+    const a = v * CR.K.ARC_DEG * D, dx = Math.cos(a), dy = Math.sin(a), ww = W * k * Math.pow(1 - Math.pow(Math.abs(v), 1.8), 0.85);
+    const bx = (CR.K.CX * R + R * dx) * k - dx * ww * 0.8, by = R * dy * k - dy * ww * 0.8;
+    const ln = (18 + 30 * Lb.flame(v, tl, ph + i) * u1) * k * (1 - 0.45 * Math.abs(v));
+    const ux = -1, uy = 0.6 * v + 0.25 * Math.sin(tl * 0.7 + i * 1.7 + mi), n = Math.hypot(ux, uy);
+    const B0 = P3(bx, by), B1 = P3(bx + ux / n * ln, by + uy / n * ln).addScaledVector(nz, zf * ln * Us);
+    this.tube(nc, B0, B1, u2 * k * Us * 0.5, 0, col, 170 / 255 * fade, 0);
+  }
+  const mid = half ? pts[pts.length - 1] : pts[pts.length >> 1];
+  this.sphere(nc, P3(mid[1][0], mid[1][1]), 20 * k * Us * gk * 0.7, col, 130 / 255 * fade, 0);
+};
+// launch flash (crescentfx burst): glow, a cross-cut diamond and a ring (flat < 1 = lying on the ground)
+Runner.prototype.burst3 = function (A, x, y, vx, vy, t, flat) {
+  const {inst, xf, WP, col, gk} = A, nc = noCore(inst._c), Us = xf.Us, HOTc = [255, 255, 255]; if (t < 0 || t >= 14) return;
+  const q = t / 14, e = easeO(q), C = WP(x, y), d = this.dir3(xf, [vx, vy]);
+  this.sphere(nc, C, (14 + 30 * e) * Us * gk, col, 160 / 255 * (1 - q), 0);
+  this.diamond3(nc, C.clone().addScaledVector(d, -45 * Us), C.clone().addScaledVector(d, 45 * Us), 2 * Us * (1 - q) + 0.01, col, 220 / 255 * (1 - q), 0);
+  this.diamond3(nc, C.clone().addScaledVector(d, -40 * Us), C.clone().addScaledVector(d, 40 * Us), 0.7 * Us * (1 - q) + 0.01, HOTc, 1 - q, 0);
+  this.torus(nc, 'ring', C, flat != null && flat < 1 ? UPV : xf.az, (6 + 26 * e) * Us, 0.6, 0, col, 180 / 255 * (1 - q), 0);
+};
+// an X glint where blades cross / split (crescentfx cross)
+Runner.prototype.xglint3 = function (A, x, y, f, a, life, size) {
+  const {inst, xf, WP, col, gk} = A, nc = noCore(inst._c), Us = xf.Us, HOTc = [255, 255, 255], C = WP(x, y), q = a / life, e = easeO(a / 5), ln = size * (0.7 + 0.5 * e) * Us;
+  [38, -38].forEach(dg => { const d = this.dir3(xf, FXK.rot([f[0], f[1]], dg));
+    this.diamond3(inst._c, C.clone().addScaledVector(d, -ln), C.clone().addScaledVector(d, ln), 1.7 * Us * (1 - q) + 0.01, col, 230 / 255 * (1 - q), inst._c.toon_ink_m * 0.5); });
+  this.sphere(nc, C, (10 + 16 * e) * Us * (1 - q) * gk, HOTc, 230 / 255 * (1 - q), 0);
+  this.torus(nc, 'ring', C, xf.az, (6 + size * 0.8 * easeO(q)) * Us, 0.6, 0, col, 190 / 255 * (1 - q), 0);
+};
+// a blade shattering where it ended (crescentfx shards): spinning 3D diamond chips
+Runner.prototype.shards3 = function (A, fr, R, k, mi, a, half, cnt) {
+  const {inst, xf, WP, col, gk} = A, Lb = SLib(), CR = G.CRESCENTFX, c = inst._c, Us = xf.Us, HOTc = [255, 255, 255], q = a / CR.K.SHARD_LIFE; if (q >= 1 || a < 0) return;
+  const ff = 1 - Math.min(1, a / 10), cp = fr.w((CR.K.CX + 1) * R * k * 0.5, half ? -0.4 * R * k : 0);
+  this.sphere(noCore(c), WP(cp[0], cp[1]), 40 * k * Us * ff * gk * 0.7, HOTc, 200 / 255 * ff, 0);
+  for (let i = 0; i < cnt; i++) {
+    const r = Lb.rngFor(inst.seed, i, 91 + 40 * mi); let v = r.uniform(-0.9, 0.9); const j1 = r.uniform(-0.4, 0.4), j2 = r.uniform(-0.4, 0.4), sp = r.uniform(2, 6);
+    const rot = r.uniform(0, Math.PI * 2) + r.uniform(-0.25, 0.25) * a, ln = r.uniform(7, 12) * (0.6 + 0.4 * k), vz = r.uniform(-0.7, 0.7) * sp;
+    if (half) v = -Math.abs(v);
+    const an = v * CR.K.ARC_DEG * D, p = fr.w((CR.K.CX * R + R * Math.cos(an)) * k, R * Math.sin(an) * k), dd = fr.d(Math.cos(an) + j1, Math.sin(an) + j2), fd = Lb.dragDist(0.93, a);
+    const X = WP(p[0], p[1]).addScaledVector(this.dir3(xf, dd), sp * fd * Us * Math.hypot(dd[0], dd[1])).addScaledVector(xf.az, vz * fd * Us); X.y -= 0.05 * a * a * Us;
+    const tn = this.paint(this.toon('shard', 0), c, Lb.mix(col, HOTc, 0.35), 1 - q, c.toon_ink_m * 0.6);
+    [tn.m, tn.h].forEach(x => { x.position.copy(X); x.rotation.set(rot, rot * 0.7 + i, a * 0.2); x.scale.set(ln * Us, 2.4 * Us * (1 - q) + 0.01, 1.2 * Us); x.material.uniforms.uTaper.value = 0; });
+  }
+};
+// embers shed off the blades' backs (crescentfx embers), as small glowing chips (capped)
+Runner.prototype.embers3 = function (A, list, R, W) {
+  const {inst, xf, WP, col, deep} = A, Lb = SLib(), CR = G.CRESCENTFX, P = inst.fx.params, nc = noCore(inst._c), Us = xf.Us, HOTc = [255, 255, 255], t = inst.age;
+  const per = Math.max(0, Math.round(3 * (+P.density || 1) / Math.sqrt(Math.max(1, list.n)))); if (!per) return;
+  let left = 40;
+  for (let b = t - 1; b >= Math.max(0, t - CR.K.EMBER_LIFE) && left > 0; b--) {
+    const mo = list.at(b);
+    for (const m of mo) {
+      const mi = m[0], fr = m[1], k = m[2], half = m[5]; if (m[6] >= 0) continue;
+      for (let j = 0; j < per && left > 0; j++) {
+        const r = Lb.rngFor(inst.seed, b * 16 + mi, 300 + j), life = 14 + 16 * r(), a = t - b; let v = r.uniform(-0.9, 0.9); const bv = r.uniform(0.5, 2.5), pv = r.uniform(-1.2, 1.2);
+        if (a >= life) continue; if (half) v = -Math.abs(v);
+        const an = v * CR.K.ARC_DEG * D, ww = W * Math.pow(1 - Math.pow(Math.abs(v), 1.8), 0.85);
+        const s = fr.w((CR.K.CX * R + R * Math.cos(an) - Math.cos(an) * ww) * k, (R * Math.sin(an) - Math.sin(an) * ww) * k), vv = fr.d(-bv, pv), fd = Lb.dragDist(0.93, a);
+        const X = WP(s[0] + vv[0] * fd, s[1] + vv[1] * fd).addScaledVector(xf.az, Math.sin(b * 1.7 + j * 2.3 + mi) * 1.6 * fd * Us); X.y -= 0.5 * 0.18 * a * a * Us;
+        const q = a / life, ec = q < 0.5 ? Lb.mix(HOTc, col, Math.min(1, q * 2)) : Lb.mix(col, deep, (q - 0.5) * 2);
+        this.sphere(nc, X, 1.6 * Us * (1 - q * 0.5), ec, 230 / 255 * (1 - q), 0); left--;
+      }
+    }
+  }
+};
+/* crescent_wave (swordfx drawWave): one travelling moon */
+Runner.prototype.wave3 = function (A) {
+  const {inst, xf, WP, col, gk} = A, Lb = SLib(), Gm = G.SWORDFX.geo, P = inst.fx.params, t = inst.age, g = new Gm.WaveGeo(inst, 1), fr = Lb.frame(inst), Us = xf.Us, nc = noCore(inst._c);
+  const L = g.L, k = g.grow(t), fade = t < L ? 1 : 1 - Lb.cl((t - L) / 8), f = inst.tq_f, o0 = inst.tq_o;
+  const spd = Math.hypot(inst.x - o0[0], inst.y - o0[1]) / Math.max(1, Math.min(t, L)), posAt = b => { b = Math.min(b, L); return [o0[0] + f[0] * spd * b, o0[1] + f[1] * spd * b]; };
+  const aim = this.dir3(xf, f);
+  for (let b = 0; b <= Math.min(t, L); b += 8) { const a = t - b; if (a >= 14) continue;   // pressure rings left along its path
+    const e = easeO(a / 14), cc = posAt(b); this.torus(nc, 'ring', WP(cc[0] - f[0] * 0.2 * g.R, cc[1] - f[1] * 0.2 * g.R), aim, (0.9 + 0.6 * e) * g.R * k * Us, 0.3, 0, col, 90 / 255 * (1 - a / 14), 0); }
+  this.burst3(A, o0[0], o0[1], fr.vx, fr.vy, t);
+  if (fade > 0) {
+    for (let j = 1; j < 4; j++) { const ox = -spd * 2.2 * j, frj = {w: (x, y) => fr.w(x + ox, y)}, pts = G.CRESCENTFX.pts(g.R, g.W, k, 20, false);   // afterimages
+      this.band(nc, pts.map(q => ({O: WP.apply(null, frj.w(q[1][0], q[1][1])), I: WP.apply(null, frj.w(q[1][0] - q[2][0] * q[3], q[1][1] - q[2][1] * q[3])), th: q[3] * A.kth * Us * 0.3})), xf.az, col, 55 / 255 / j * fade, 0); }
+    this.moon3(A, fr, g.R, g.W, k, t, 0, fade, false);
+  }
+  this.embers3(A, {n: 1, at: b => { if (b >= L) return []; const p = posAt(b); return [[0, new Lb.Frame(p[0], p[1], f, inst.tq_m), g.grow(b), 1, b, false, -1]]; }}, g.R, g.W);
+  if (t >= L) this.shards3(A, fr, g.R, k, 0, t - L, false, 10);
+  this.hitMarks3(inst, xf, WP, col, f, null, gk);
+};
+/* the six crescent styles (crescentfx draw) */
+Runner.prototype.crescent3 = function (A) {
+  const {inst, xf, WP, col, gk, gy} = A, Lb = SLib(), CR = G.CRESCENTFX, P = inst.fx.params, st = P.style, t = inst.age, R = +P.radius, W = +P.thickness, Us = xf.Us;
+  const c = inst._c, nc = noCore(c), HOTc = [255, 255, 255], f = inst.tq_f, m = inst.tq_m, o = inst.tq_o, nx = -f[1] * m, ny = f[0] * m, Lf = CR.activeTicks(P);
+  // under the blades: launch flashes, crossing glints, the moonfall's mark
+  if (st === 'crescent_drag') this.burst3(A, o[0], o[1] + CR.gp(inst, 1), 0, -1, t, 0.4);
+  else if (st === 'crescent_helix' || st === 'crescent_split' || st === 'crescent_return') this.burst3(A, o[0], o[1], nx, ny, t);
+  const spd = CR.spd(inst);
+  if (st === 'crescent_helix' && spd > 0.01) {
+    const d0 = CR.reach(inst, 1), wv = Math.max(0.25, +(P.weaves == null ? 2 : P.weaves));
+    for (let j = 1; j < 40; j++) { const sj = j * d0 / wv, tj = sj / spd; if (tj >= Lf) break; const a = t - tj; if (a >= 0 && a < 10) this.xglint3(A, o[0] + f[0] * sj, o[1] + f[1] * sj, f, a, 10, 0.8 * R); }
+  } else if (st === 'crescent_split' && spd > 0.01) {
+    const ss = Lb.cl(+(P.split_pct == null ? 45 : P.split_pct) / 100) * CR.reach(inst, 1), a = t - ss / spd;
+    if (a >= 0 && a < 14 && ss / spd < Lf) { this.xglint3(A, o[0] + f[0] * ss, o[1] + f[1] * ss, f, a, 14, 1.5 * R); this.xglint3(A, o[0] + f[0] * ss, o[1] + f[1] * ss, [nx, ny], a, 14, R); }
+  } else if (st === 'crescent_scatter') {
+    CR.scatterPlan(inst, P, CR.count(P)).forEach(pl => { const a2 = t - pl[0]; if (a2 < 0 || a2 >= 8) return;
+      const q = a2 / 8, d = FXK.rot([f[0], f[1]], pl[1] * m), ln = 38 * pl[3], C = WP(o[0], o[1]);
+      this.sphere(nc, C, (10 + 18 * easeO(q)) * Us * gk, col, 150 / 255 * (1 - q), 0);
+      this.diamond3(nc, WP(o[0] + d[1] * ln, o[1] - d[0] * ln), WP(o[0] - d[1] * ln, o[1] + d[0] * ln), 1.5 * Us * (1 - q) + 0.01, col, 220 / 255 * (1 - q), 0);
+      this.diamond3(nc, C, WP(o[0] + d[0] * ln * 1.6, o[1] + d[1] * ln * 1.6), 0.7 * Us * (1 - q) + 0.01, HOTc, 240 / 255 * (1 - q), 0); });
+  } else if (st === 'crescent_fall') {
+    const ti = CR.impactTick(P), g = CR.groundPoint(inst, 1);
+    if (t < ti) { const u = t / ti, rx = R * (1.6 - 0.5 * u), G0 = WP(g[0], g[1]), th = +(P.fall_angle_deg == null ? 18 : P.fall_angle_deg) * D, hh = (+P.length || 0) + 2 * R;
+      this.torus(nc, 'ring', G0, UPV, rx * Us, 0.5, 0, col, (60 + 160 * u) / 255, 0); this.torus(nc, 'ring', G0, UPV, rx * 0.55 * Us, 0.5, 0, HOTc, 140 / 255 * u * u, 0);
+      this.tube(nc, WP(g[0] - Math.sin(th) * m * hh, g[1] - Math.cos(th) * hh), G0, 0.4 * Us * (1 + u), 0.6 * Us * (1 + u), col, (30 + 90 * u) / 255, 0);
+      this.sphere(nc, G0, (8 + 14 * u) * Us * gk, col, 120 / 255 * u, 0); }
+  }
+  const mo = CR.moons(inst, 1, t);
+  (st === 'crescent_fall' && t > CR.impactTick(P) + 1 ? [] : [3, 2, 1]).forEach(j => {   // afterimages
+    CR.moons(inst, 1, t - 2 * j).forEach(q => { if (q[6] >= 0) return; const now = mo.find(z => z[0] === q[0]); if (!now || now[3] <= 0) return;
+      const pts = CR.pts(R, W, q[2], 20, q[5]), fr = q[1];
+      this.band(nc, pts.map(p => { const a = fr.w(p[1][0], p[1][1]), b = fr.w(p[1][0] - p[2][0] * p[3], p[1][1] - p[2][1] * p[3]); return {O: WP(a[0], a[1]), I: WP(b[0], b[1]), th: p[3] * A.kth * Us * 0.3}; }), xf.az, col, 55 / 255 / j * now[3], 0); });
+  });
+  mo.forEach(q => { if (q[3] > 0) this.moon3(A, q[1], R, W, q[2], q[4], q[0], q[3], q[5]); });
+  const n = ['crescent_helix', 'crescent_scatter', 'crescent_split'].indexOf(st) >= 0 ? CR.count(P) : 1;
+  this.embers3(A, {n, at: b => CR.moons(inst, 1, b)}, R, W);
+  if (st === 'crescent_drag') this.drag3(A, mo, R, W);
+  else if (st === 'crescent_fall') this.fall3(A, mo, R, W);
+  const cnt = mo.length <= 1 ? 10 : 6;
+  mo.forEach(q => { if (q[6] >= 0) this.shards3(A, q[1], R, q[2], q[0], q[6], q[5], cnt); });
+  this.hitMarks3(inst, xf, WP, col, f, null, gk);
+};
+// the ground drag: wind streaks off the fin, the white-hot contact point, sparks / chips thrown back along the floor
+Runner.prototype.drag3 = function (A, mo, R, W) {
+  const {inst, xf, WP, col, gk, gy} = A, Lb = SLib(), CR = G.CRESCENTFX, P = inst.fx.params, t = inst.age, Us = xf.Us, c = inst._c, nc = noCore(c), HOTc = [255, 255, 255];
+  const f = inst.tq_f, m = inst.tq_m, Lf = CR.activeTicks(P), dens = +P.density || 1, sx = (m >= 0 ? 1 : -1) * Math.max(Math.abs(f[0]), 0.3), gp = CR.gp(inst, 1);
+  if (t < Lf && mo.length) {
+    const fr = mo[0][1], k = mo[0][2];
+    for (let j = 0; j < Math.round(6 * dens); j++) {
+      const slot = Math.floor((t + j * 3) / 5), r = Lb.rngFor(inst.seed, slot, 600 + j), v = -r.uniform(0.05, 0.92), ln = r.uniform(1.4, 3.6) * R, rise = r.uniform(-0.18, 0.1);
+      const u = ((t + j * 3) % 5) / 5, an = v * CR.K.ARC_DEG * D, ww = W * k * Math.pow(1 - Math.pow(Math.abs(v), 1.8), 0.85);
+      const p0 = fr.w((CR.K.CX * R + R * Math.cos(an)) * k - Math.cos(an) * ww - u * 0.5 * R, R * Math.sin(an) * k), p1 = [p0[0] - sx * ln * (0.4 + 0.6 * u), p0[1] - f[1] * ln * (0.4 + 0.6 * u) + rise * ln];
+      this.tube(nc, WP(p1[0], p1[1]), WP(p0[0], p0[1]), 0, (0.5 + 0.7 * (1 - Math.abs(v))) * Us, col, 150 / 255 * Math.sin(Math.PI * u), 0);
+    }
+    const g = CR.groundPoint(inst, 1), G0 = WP(g[0], g[1]), fl = 0.75 + 0.25 * Math.sin(t * 1.9 + (inst.seed % 97));
+    this.sphere(nc, G0, 26 * k * Us * gk * 0.7, col, 170 / 255 * fl, 0); this.sphere(nc, G0, 11 * k * Us * gk, HOTc, fl, 0);
+    this.torus(nc, 'ring', G0, UPV, 0.9 * R * k * Us, 0.5, t * 0.3, col, 150 / 255 * fl, 0);
+  }
+  const per = Math.max(0, Math.round(4 * dens)), grav = 0.34;
+  for (let b = Math.max(0, t - 20); b < Math.min(t, Lf); b++) {
+    const pp = inst.tq_path[Math.max(0, Math.min(inst.tq_path.length - 1, b))], px = pp[0], py = pp[1] + gp, P0 = WP(px, py);
+    for (let j = 0; j < per; j++) {
+      const r = Lb.rngFor(inst.seed, b, 500 + j), life = 8 + 12 * r(), a = t - b, bv = r.uniform(1.5, 7.5), up = r.uniform(0.6, 5.5), side = r.uniform(-1, 1), chip = r() < 0.3; if (a >= life) continue;
+      const q = a / life, vz = side * 2.5;
+      if (chip) { const fd = Lb.dragDist(0.9, a), X = P0.clone().addScaledVector(this.dir3(xf, [-sx, 0]), bv * fd * Us).addScaledVector(xf.az, vz * fd * Us);
+        X.y += Math.max(0, up * fd - 0.5 * grav * a * a) * Us;
+        const tn = this.paint(this.toon('shard', 0), c, Lb.mix(col, HOTc, 0.2), 1 - q, c.toon_ink_m * 0.5);
+        [tn.m, tn.h].forEach(x => { x.position.copy(X); x.rotation.set(a * 0.4 + j, b, a * 0.3); x.scale.setScalar(2 * Us * (1 - q * 0.4)); x.material.uniforms.uTaper.value = 0; }); }
+      else this.spark3(nc, xf, P0, -sx * bv + side * 0.4, -f[1] * bv - up, vz, 0.9, a, grav, 1.9, 0.75 * Us, Lb.mix(HOTc, col, q), 1 - q, gy);
+    }
+  }
+};
+// the moonfall: speed lines as it drops, then the slam on the floor
+Runner.prototype.fall3 = function (A, mo, R, W) {
+  const {inst, xf, WP, col, gk, gy} = A, Lb = SLib(), CR = G.CRESCENTFX, P = inst.fx.params, t = inst.age, Us = xf.Us, c = inst._c, nc = noCore(c), HOTc = [255, 255, 255];
+  const m = inst.tq_m, ti = CR.impactTick(P), th = +(P.fall_angle_deg == null ? 18 : P.fall_angle_deg) * D, ax = Math.sin(th) * m, ay = Math.cos(th), g = CR.groundPoint(inst, 1), G0 = WP(g[0], g[1]);
+  if (t >= CR.K.FALL_WIND && t < ti && mo.length) {
+    const fr = mo[0][1], k = mo[0][2];
+    for (let j = 0; j < 7; j++) { const r = Lb.rngFor(inst.seed, Math.floor(t / 2), 700 + j), yy = r.uniform(-0.95, 0.95) * R * k, ln = r.uniform(1.2, 3.2) * R, p0 = fr.w(CR.K.CX * R * k - 0.2 * R, yy);
+      this.tube(nc, WP(p0[0] - ax * ln, p0[1] - ay * ln).addScaledVector(xf.az, r.uniform(-0.6, 0.6) * R * Us), WP(p0[0], p0[1]), 0, 0.7 * Us, col, 150 / 255, 0); }
+  }
+  const a = t - ti; if (a < 0 || a >= 24) return;
+  const q = a / 24, e = easeO(a / 9), ff = 1 - Math.min(1, a / 10);
+  this.sphere(nc, G0, (30 + 50 * e) * Us * gk, HOTc, 240 / 255 * ff, 0);
+  this.sphere(nc, G0, 2.2 * R * (0.5 + 0.5 * e) * Us * gk, col, 150 / 255 * (1 - q), 0);
+  const hh = ((+P.length || 0) * 0.6 + 2.5 * R) * (1 - 0.3 * q);   // the light pillar along its fall
+  this.diamond3(nc, G0, WP(g[0] - ax * hh, g[1] - ay * hh), ((0.5 * W + 6) * ff + 0.3) * Us * 0.5, col, 200 / 255 * ff, 0);
+  this.diamond3(nc, G0, WP(g[0] - ax * hh * 0.92, g[1] - ay * hh * 0.92), ((0.16 * W + 2) * ff + 0.2) * Us * 0.5, HOTc, ff, 0);
+  for (let j = 0; j < 3; j++) { const aa = a - j * 3; if (aa < 0) continue; const qq = aa / 20; if (qq >= 1) continue;
+    this.torus(j ? nc : c, 'ring', G0, UPV, (0.5 + 2.3 * easeO(qq)) * R * (1 + 0.25 * j) * Us, 0.5, 0, j ? col : HOTc, 220 / 255 * (1 - qq), j ? 0 : c.toon_ink_m * 0.5); }
+  for (let i = 0; i < Math.max(0, Math.round(18 * (+P.density || 1))); i++) {   // shards thrown up all round
+    const r = Lb.rngFor(inst.seed, i, 720), life = 12 + 12 * r(), an = -Math.PI * r.uniform(0.08, 0.92), sp = r.uniform(3, 10), ln = r.uniform(5, 11); if (a >= life) continue;
+    const az = r() * Math.PI * 2, hz = new THREE.Vector3(Math.cos(az), 0, Math.sin(az)), fd = Lb.dragDist(0.92, a), q2 = a / life;
+    const X = G0.clone().addScaledVector(hz, Math.cos(an) * sp * fd * Us * Math.sign(Math.cos(an) || 1)).addScaledVector(UPV, Math.max(0, -Math.sin(an) * sp * fd - 0.15 * a * a) * Us);
+    const tn = this.paint(this.toon('shard', 0), c, Lb.mix(col, HOTc, 0.3), 1 - q2, c.toon_ink_m * 0.5);
+    [tn.m, tn.h].forEach(x => { x.position.copy(X); x.rotation.set(a * 0.3 + i, az, a * 0.2); x.scale.set(ln * Us, 1.1 * Us * (1 - q2) + 0.01, 1.1 * Us); x.material.uniforms.uTaper.value = 0; });
+  }
+};
+/* forward_thrust (swordfx drawThrust): a tapered spear of light */
+Runner.prototype.thrust3 = function (A) {
+  const {inst, xf, WP, col, bright, gk, gy} = A, Lb = SLib(), Gm = G.SWORDFX.geo, P = inst.fx.params, t = inst.age, fr = Lb.frame(inst), c = inst._c, nc = noCore(c), Us = xf.Us, HOTc = [255, 255, 255], ink = c.toon_ink_m;
+  const Lmax = +P.length, Wd = +P.thickness, T = Gm.thrTimes(P), l = Gm.thrLen(P, t, Lmax), O = WP(inst.x, inst.y), aim = this.dir3(xf, inst.tq_f), dens = +P.density || 1;
+  if (t < T[0] + 1) { const cp = Lb.cl(t / T[0]), fa = t < T[0] ? 1 : 0.5; this.tube(nc, O.clone().addScaledVector(aim, -14 * cp * Us), O, 0, 1 * Us, Lb.mix(col, HOTc, cp), 200 / 255 * fa, 0);
+    this.sphere(nc, O, (5 + 8 * cp) * Us * gk, HOTc, 220 / 255 * fa, 0); }
+  if (t >= T[0] && t < T[1] + 6) { const fa = t < T[1] ? 1 : 1 - (t - T[1]) / 6, reach = t < T[1] ? l : Lmax;   // speed lines all round it
+    for (let i = 0; i < Math.max(0, Math.round(7 * dens)); i++) { const r = Lb.rngFor(inst.seed, i, 21), side = r.uniform(-2.4, 2.4) * Wd, su0 = r.uniform(0, 0.45), su1 = Math.min(1, su0 + r.uniform(0.3, 0.55)), az = r() * Math.PI * 2;
+      const off = coneDir(aim, 90, az, new THREE.Vector3()).multiplyScalar(Math.abs(side) * Us);
+      this.tube(nc, O.clone().addScaledVector(aim, su0 * reach * Us).add(off), O.clone().addScaledVector(aim, su1 * reach * Us).add(off), 0, 0.55 * Us, Lb.mix(col, HOTc, 0.4), 150 / 255 * fa, 0); } }
+  if (l > 1) {
+    const segs = 4, at = u => O.clone().addScaledVector(aim, u * l * Us);
+    for (let j = 0; j < segs; j++) { const u0 = j / segs, u1 = (j + 1) / segs, h0 = Gm.thrHw(u0, Wd) * Us, h1 = Gm.thrHw(u1, Wd) * Us;
+      this.tube(nc, at(u0), at(u1), h0 * 1.6, h1 * 1.6, col, 110 / 255, 0);
+      this.tube(c, at(u0), at(u1), h0, h1, Lb.mix(col, bright, u1), 225 / 255, ink);
+      this.tube(nc, at(u0), at(u1), h0 * 0.35, h1 * 0.35, HOTc, 1, 0); }
+    const tip = at(1); this.sphere(nc, tip, 8 * Us * gk, col, 110 / 255, 0); this.sphere(nc, tip, 7 * Us * gk, HOTc, 230 / 255, 0);
+    const v = coneDir(aim, 90, 0, new THREE.Vector3());
+    this.diamond3(nc, tip.clone().addScaledVector(aim, -14 * Us), tip.clone().addScaledVector(aim, 14 * Us), 0.6 * Us, HOTc, 230 / 255, 0);
+    this.diamond3(nc, tip.clone().addScaledVector(v, -5 * Us), tip.clone().addScaledVector(v, 5 * Us), 0.6 * Us, HOTc, 230 / 255, 0);
+    this.sphere(nc, O, 7 * Us * gk, col, 150 / 255, 0);
+  }
+  const a = t - T[1];
+  if (a >= 0 && a < 12) {   // pressure rings round the point + sparks thrown forward
+    const q = a / 12, e = easeO(q), tip = O.clone().addScaledVector(aim, Lmax * Us);
+    this.torus(nc, 'ring', tip, aim, (5 + 22 * e) * Us, 0.4, 0, col, 220 / 255 * (1 - q), 0);
+    this.torus(nc, 'ring', O.clone().addScaledVector(aim, Lmax * (0.72 - 0.1 * e) * Us), aim, (4 + 14 * e) * Us, 0.4, 0, HOTc, 160 / 255 * (1 - q), 0);
+    this.sphere(nc, tip, 22 * Us * (1 - q) * gk, HOTc, 210 / 255 * (1 - q), 0);
+    for (let i = 0; i < Math.max(0, Math.round(10 * dens)); i++) { const r = Lb.rngFor(inst.seed, i, 23), life = 9 + 7 * r(); if (a >= life) continue;
+      const dg = r.uniform(-35, 35), sp = r.uniform(3, 8), qq = a / life, d3 = coneDir(aim, Math.abs(dg), r() * Math.PI * 2, new THREE.Vector3()), fd = Lb.dragDist(0.86, a), dk = Math.pow(0.86, a);
+      const B = tip.clone().addScaledVector(d3, sp * fd * Us); this.tube(nc, B.clone().addScaledVector(d3, -sp * dk * 1.5 * Us), B, 0, 0.6 * Us, Lb.mix(HOTc, col, qq), 1 - qq, 0); }
+  }
+  if (t >= T[2] && t < T[3] + Gm.THR_FADE) { const q = (t - T[2]) / (Gm.THR_RETRACT + Gm.THR_FADE), bt = O.clone().addScaledVector(aim, Lmax * Us);   // the pierced line, hanging
+    this.tube(nc, O, bt, (1.3 * (1 - q) + 0.15) * Us, (1.3 * (1 - q) + 0.15) * Us, col, 150 / 255 * (1 - q), 0);
+    this.tube(nc, O, bt, 0.5 * Us, 0.5 * Us, HOTc, 220 / 255 * (1 - q) * (1 - q), 0); }
+  this.hitMarks3(inst, xf, WP, col, inst.tq_f, null, gk);
+};
+/* the `arc` kind (FXK arcSegs): a crescent band round its centre, its tail fading, a white core */
+Runner.prototype.arc3 = function (A) {
+  const {inst, xf, WP, col, kth} = A, P = inst.fx.params, c = inst._c, nc = noCore(c), Us = xf.Us, segs = FXK.arcSegs(inst, 1), R = +P.radius;
+  if (!segs.length) return;
+  const rows = [], core = [];
+  segs.slice().sort((p, q) => p[5] - q[5]).forEach((q, i, arr) => {
+    const ends = i === arr.length - 1 ? [q[0], q[0] + q[1]] : [q[0]];
+    ends.forEach(a0 => { const a = a0 * D, dx = Math.cos(a), dy = -Math.sin(a), w = q[2], cw = P.width * P.core_width * (0.25 + 0.75 * q[3]);
+      rows.push({O: WP(inst.x + dx * (R + w / 2), inst.y + dy * (R + w / 2)), I: WP(inst.x + dx * (R - w / 2), inst.y + dy * (R - w / 2)), th: w * kth * Us * 0.5, a: q[4] / 255});
+      core.push({O: WP(inst.x + dx * (R + cw / 2), inst.y + dy * (R + cw / 2)), I: WP(inst.x + dx * (R - cw / 2), inst.y + dy * (R - cw / 2)), th: w * kth * Us * 0.56, a: q[4] / 255 * P.core_alpha}); });
+  });
+  this.band(c, rows, xf.az, col, 1, c.toon_ink_m);
+  this.band(nc, core, xf.az, [255, 255, 255], 1, 0);
+};
 /* Paint every live effect onto its card(s) and place them. cam = the THREE camera, H = drawing buffer height (px).
    opts.hidden: hide body-bound FX (blinked out). */
 Runner.prototype.draw = function (cam, H, opts) {
@@ -1069,5 +1545,5 @@ function movePlan(cfg, S, T, frames, frameMs, rnd) {
 }
 
 G.FX3D = {U, HURT, ANCHORS, LAYS, PIVOTS, DEF3D, MOVE_DEFAULTS, MOVE_PATHS, START_MODES, MOVE_EASES, RENDERS, CHUNKS, TOON_PRIMS, STRIKE_LIMBS,
-  strikeKind, cfg3d, is3d, autoLay, layOf, moveCfg, byAction, Runner, movePlan, spotAround, easeU};
+  strikeKind, bladeKind, cfg3d, is3d, autoLay, layOf, moveCfg, byAction, Runner, movePlan, spotAround, easeU};
 })(window);
