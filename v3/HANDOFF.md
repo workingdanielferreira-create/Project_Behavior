@@ -312,6 +312,12 @@ v3-animation skill ("Review questions").
   (solves a key until the wrists land on given points; `straight=` locks the arms). Gotcha he caught ("what is
   happening with his arms"): anim3d carries a control a key leaves out (e.g. `clav`) over from the key before, so a
   helper that solves a key alone must key it explicitly.
+- **Overlap pass (2026-11-25), baked:** Daniel picked per-part lag in anim3d, ZZZ-snappy 1-2 frames. anim3d clip
+  `overlap` (README "Overlap / follow-through") on both approved clips: before, every part started and stopped on the
+  same frame; now hips > chest > arm > fist settle in turn, head loosest. "Pull body keys earlier": attack_normal's
+  inner keys 25 ms early, the fist lands on the approved frames. Kamehameha "bake it" (10 -> 13 keys for the settle).
+  Audit: no hard faults (a 170 deg forearm flip from the fist spring was fixed: directions spring on the sphere, Rfist
+  1.75 frames). New moves get `overlap` from blocking.
 - **Next, in order:** ultimate (Big Bang Kamehameha), attack_normal_2 (double axe handle
   overhead), attack_normal_3 (shoryuken uppercut jump), attack_normal_4 (180 spin > backhand), attack_special_2 (hands
   pumping forward and back). Puck's other clips are still the 2D-guessed ones (the audit's hard faults are theirs).
