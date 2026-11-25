@@ -235,6 +235,13 @@ punching fist (`Body.fist`). Unarmed characters (Puck) use it; `anim_audit` skip
 `pb_body.weapons` says hold nothing. Puck's clips are authored in `v3/tools/puck/gen_puck.py` and reviewed with
 `v3/tools/puck/review/go.sh <clip> <tag>` (GIF stills beside the 2D frames).
 
+**Open hands (anim3d, 2026-11-25, Puck's kamehameha).** Per hand `palm: true`: `blade` = the way the PALM faces,
+`fing` = the way the fingers point (made square to it), `curl` 0 (flat) .. 1 (cupped round a ball), all tweened between
+keys. The forearm twist (within `PRONATE`) does what it can and the wrist bends the rest up to `PALM_WRIST` 75 deg (a
+real wrist extends ~60-70 deg: a locked-arm kamehameha cups its palms toward each other instead of facing them square);
+past that the solver notes "palm off by". Finger pose `Body.palm_pose` from the grip pose's own curl axes; the palm's
+facing in the hand frame (`Body.palm_frame`) = the way a curling finger moves.
+
 **Grip and twirl (anim3d, 2026-11-23).** Per hand `grip` "fwd" / "rev" (reverse grip: blade out of the pinky side)
 and `twirl` (deg, the weapon turned in the fingers about the axis across the fist). Between a forward and a reverse
 key the weapon flips 180 deg in the fingers while the fist's aim turns; `twirl` 360 = one spin. `blade` is always
