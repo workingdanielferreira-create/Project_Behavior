@@ -155,17 +155,20 @@ def attack_normal():
 
 def palm(M, reach, elbow, face, fing, curl, clav=None):
     """Open hand (anim3d `palm`): body-space reach / elbow, the way the palm FACES and the way the fingers point."""
-    out = arm(M, reach, elbow, face, clav)
-    out.update({"palm": True, "fing": r3(M.T @ U(fing)), "curl": curl})
+    out = arm(M, reach, elbow, face)
+    # always keyed: anim3d carries a control a key leaves out over from the key before, but meet() solves the key alone
+    out.update({"palm": True, "fing": r3(M.T @ U(fing)), "curl": curl, "clav": clav or [0, 0]})
     return out
 
 
 _BODY = None
 
 
-def meet(k, want, it=6):
+def meet(k, want, it=8, straight=None):
     """Move the hands' reach until the wrists sit exactly at want = {"R": body-space point, "L": ...} (heel to heel):
-    the shoulders move with the chest, the clavicles and the torso, so solve the key and correct."""
+    the shoulders move with the chest, the clavicles and the torso, so solve the key and correct.
+    straight = arm length (m): the wrists' depth (z) is pushed out until the SHORTER arm is that long (a locked
+    thrust), keeping their x / y."""
     global _BODY
     import anim3d
     _BODY = _BODY or anim3d.Body()
@@ -177,6 +180,10 @@ def meet(k, want, it=6):
         sv = anim3d.Solver(B)
         sv.pose(c, 0.0)
         W, P = sv.fk()
+        if straight:
+            z = min(P[B.rig.i(S + "Arm")][2] + np.sqrt(max(0.0, straight ** 2 - (want[sd][0] - P[B.rig.i(S + "Arm")][0]) ** 2
+                    - (want[sd][1] - P[B.rig.i(S + "Arm")][1]) ** 2)) for sd, S in (("R", "Right"), ("L", "Left")))
+            want = {sd: [want[sd][0], want[sd][1], z] for sd in want}
         err = 0.0
         for sd, S in (("R", "Right"), ("L", "Left")):
             d = np.array(want[sd], float) - P[B.rig.i(S + "Hand")]
@@ -224,34 +231,36 @@ def attack_special():
         k = key(t, ease, [0, hy, hz], hrot, chest, head,
                 ([0, 0, 0.6], [-0.6, -1, 0], [0, 0, 1]), ([0, 0, 0.6], [0.6, -1, 0], [0, 0, 1]),
                 fR(pitch=-10, knee=(-0.2, -0.3, 1)), fL(knee=(0.2, 0.1, 1)), bease=bease, label=label)
-        k["R"] = palm(M, [0.1, -0.1, 0.6], [-0.7, -1, 0.1], [0, 0.3, 1], [0, -1, 0.3], 0.15, clav=[-5, 30])
-        k["L"] = palm(M, [-0.1, -0.1, 0.6], [0.7, -1, 0.1], [0, -0.25, 1], [0, 1, 0.25], 0.15, clav=[-5, 30])
+        k["R"] = palm(M, [0.1, -0.1, 0.5], [-0.25, -1, 0.1], [0, 0.3, 1], [0, -1, 0.3], 0.15)
+        k["L"] = palm(M, [-0.1, -0.1, 0.5], [0.25, -1, 0.1], [0, -0.25, 1], [0, 1, 0.25], 0.15)
         k["_M"] = chest
         a = np.array(at, float)
-        return meet(k, {"R": a + [0, -0.035, 0], "L": a + [0, 0.035, 0]})
+        # arms LOCKED straight (Daniel 2026-11-25 "what is happening with his arms": bent, flared elbows crossing in
+        # an X in front of the face); they converge from the shoulders to the wrists, elbows down
+        return meet(k, {"R": a + [0, -0.035, 0], "L": a + [0, 0.035, 0]}, straight=0.544)
 
     # 0.00 (f1) the hands sweep back to the hip: wide low straddle, body already coiling to the right
     K.append(charge(0.0, "inout", -0.04, -0.30, [-20, 14, 4], [-38, 18, 6], [-10, 10, 0],
-                    [-0.30, 0.86, -0.04], 0.16, 0.2, (-0.8, 0.3, -0.45), "hands sweep back to the hip"))
+                    [-0.24, 0.84, 0.02], 0.16, 0.2, (-0.8, 0.3, -0.45), "hands sweep back to the hip"))
     # 0.30 (f9) cupped at the back hip: coiled - hips turned right, chest wrung further back and side-bent over the
     # hands, eyes on the target
-    K.append(charge(0.30, "out", -0.08, -0.38, [-30, 16, 8], [-58, 22, 16], [-20, 12, 0],
-                    [-0.33, 0.70, -0.14], 0.11, 0.6, (-0.8, 0.3, -0.45), "KA-ME: cupped at the back hip"))
+    K.append(charge(0.30, "out", -0.08, -0.38, [-34, 16, 8], [-74, 20, 16], [-20, 12, 0],
+                    [-0.27, 0.72, -0.12], 0.11, 0.6, (-0.8, 0.3, -0.45), "KA-ME: cupped at the back hip"))
     # 0.80 (f23) moving hold: the coil keeps sinking
-    K.append(charge(0.80, "inout", -0.10, -0.40, [-33, 17, 9], [-63, 24, 18], [-24, 13, 0],
-                    [-0.34, 0.68, -0.15], 0.11, 0.65, (-0.8, 0.3, -0.45), "HA-ME: charging (moving hold)"))
+    K.append(charge(0.80, "inout", -0.10, -0.40, [-37, 17, 9], [-78, 22, 18], [-24, 13, 0],
+                    [-0.28, 0.70, -0.14], 0.11, 0.65, (-0.8, 0.3, -0.45), "HA-ME: charging (moving hold)"))
     # 1.25 (f35) load: deepest coil, hips back over the back leg, the ball squeezed
-    K.append(charge(1.25, "in", -0.14, -0.42, [-36, 16, 10], [-68, 24, 20], [-28, 14, 0],
-                    [-0.35, 0.66, -0.18], 0.10, 0.7, (-0.8, 0.3, -0.45), "load: deepest coil"))
+    K.append(charge(1.25, "in", -0.14, -0.42, [-40, 16, 10], [-82, 22, 20], [-28, 14, 0],
+                    [-0.29, 0.68, -0.16], 0.10, 0.7, (-0.8, 0.3, -0.45), "load: deepest coil"))
     # 1.30 (f36) HA!: the hips drive forward, the back leg locks out long and straight, the back folds forward on one
     # line from the back heel out through the arms; both arms snap straight forward, palms out, heels together
-    K.append(release(1.30, "snap", 0.10, -0.33, [-14, 26, 0], [-4, 44, 0], [0, 22, 0], [0.0, 1.00, 0.95],
+    K.append(release(1.30, "snap", 0.10, -0.33, [-14, 26, 0], [3, 44, 0], [0, 22, 0], [0.0, 0.96, 0.0],
                      "HA! arms thrust, palms out, heel to heel"))
     # 1.40 (f39) the beam's kick: rocked back a hair on the long back leg, arms locked
-    K.append(release(1.40, "out", 0.06, -0.31, [-14, 22, 0], [-4, 38, 0], [0, 20, 0], [0.0, 1.02, 0.88],
+    K.append(release(1.40, "out", 0.06, -0.31, [-14, 22, 0], [3, 38, 0], [0, 20, 0], [0.0, 0.98, 0.0],
                      "recoil: the beam pushes back"))
     # 2.00 (f55) holding the beam (moving hold): leaning back in
-    K.append(release(2.0, "inout", 0.09, -0.32, [-14, 25, 0], [-4, 42, 0], [0, 22, 0], [0.0, 1.01, 0.93],
+    K.append(release(2.0, "inout", 0.09, -0.32, [-14, 25, 0], [3, 42, 0], [0, 22, 0], [0.0, 0.97, 0.0],
                      "holding the beam"))
     return {"length": 2.0, "arm_space": "chest",
             "about": "Kamehameha in place: wide low straddle, open hands cupped at the back hip (2D f1-35), then "
