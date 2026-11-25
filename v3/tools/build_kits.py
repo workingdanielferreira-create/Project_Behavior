@@ -36,6 +36,7 @@ ROOT = os.path.dirname(V3)
 CHARS = os.path.join(ROOT, "characters")
 OUT = os.path.join(V3, "data", "kits.gen.js")
 BODY_GLB = os.path.join(CHARS, "ual_swordsman", "ual_swordsman.glb")
+WEAPONS_DIR = os.path.join(CHARS, "weapons3d")      # shared weapon meshes (weapons3d.js shape "mesh"), not a character
 BODY_OUT = os.path.join(V3, "data", "body.gen.js")
 WORLD_JSON = os.path.join(CHARS, "world3d.json")   # World Studio 3D settings (the little planet)
 WORLD_OUT = os.path.join(V3, "data", "world.gen.js")
@@ -55,7 +56,7 @@ def build():
     kits, skipped = {}, []
     for folder in sorted(os.listdir(CHARS)):
         d = os.path.join(CHARS, folder)
-        if not os.path.isdir(d):
+        if not os.path.isdir(d) or os.path.abspath(d) == os.path.abspath(WEAPONS_DIR):
             continue
         ch_path = os.path.join(d, "character.json")
         fx_paths = glob.glob(os.path.join(d, "*.fxkit.json"))
@@ -120,6 +121,14 @@ def write_body(kits):
                 data = base64.b64encode(g.read()).decode("ascii")
             f.write("window.PB3_BODIES[%s]=\"%s\";\n" % (json.dumps(folder), data))
             print("V3 body: %s wears its own %s.glb (%d KB)" % (folder, folder, len(data) // 1024))
+        # modelled weapons (weapons3d.js shape "mesh", e.g. Oathkeeper & Oblivion): window.PB3_WEAPONS = {id: glb}
+        f.write("window.PB3_WEAPONS={};\n")
+        for path in sorted(glob.glob(os.path.join(WEAPONS_DIR, "*.glb"))):
+            wid = os.path.splitext(os.path.basename(path))[0]
+            with open(path, "rb") as g:
+                data = base64.b64encode(g.read()).decode("ascii")
+            f.write("window.PB3_WEAPONS[%s]=\"%s\";\n" % (json.dumps(wid), data))
+            print("V3 weapon mesh: %s (%d KB)" % (wid, len(data) // 1024))
     os.replace(tmp, BODY_OUT)
 
 

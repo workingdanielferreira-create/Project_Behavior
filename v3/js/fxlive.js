@@ -17,7 +17,7 @@ function fxHit(f,e,dmg,kb,inst){if(!e||e.ko||!e.on)return;const fx=inst.fx||{};
   damage(f,e,dmg,w,shot,null,kb>0?kb*PX2D*.35:0);}
 // Sim tick (main.js / training.js), each fielded fighter: advance its FX one 16 ms tick.
 function fxTick(f){const S=fxRunner(f);if(!S)return;
-  if(!f.on||f.ko){S.run.reset();return;}
+  if(!f.on||f.ko){S.run.reset();fxHeldBlades(f,null);return;}
   const foes=foesOf(f.side).filter(t=>t&&t.on&&!t.ko&&t.gone<=0&&!t.phantom);
   let tg=enemyOf(f);if(!tg||!foes.includes(tg))tg=foes[0]||null;
   const a=f.act&&f.act.def&&f.act.def.fx2d?f.act:null;
@@ -27,7 +27,10 @@ function fxTick(f){const S=fxRunner(f);if(!S)return;
     action:a?{key:a,name:a.def.n2d,frames:a.def.frames,frameMs:a.def.frameMs}:null,
     moving:!!(f.snap||f.lean>.2),gone:f.gone>0,frame:a?Math.floor(a.t*TICK/a.def.frameMs):0,groundY:0});
   // the planet: moving FX hit scenery, low beams / flyers dig the ground, big impacts crater (planet.js planetFx)
-  if(PLANET&&typeof planetFx==='function')planetFx(S.run.worldFx());}
+  if(PLANET&&typeof planetFx==='function')planetFx(S.run.worldFx());
+  fxHeldBlades(f,S);}
+// one of each blade: the 3D weapon hides while its own weapon FX is out (weapons3d.js pbwFxHeld)
+function fxHeldBlades(f,S){if(f.glb&&typeof pbwFxHeld==='function')pbwFxHeld(f.glb.model,S&&f.on&&!f.ko?S.run.lanes:null,f);}
 // Render frame (main.js): paint and place every fighter's live FX cards.
 function fxDraw(){const H=renderer.domElement.height;
   for(const s of sides)for(const f of s.team){const S=f.fx3;if(!S)continue;
