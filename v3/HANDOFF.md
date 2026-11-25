@@ -107,7 +107,13 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
   match audited the wrong bones (feet "70 cm through the floor" even in idle). Correctly ordered files audit the same
   as before. Open: the `attack_normal` in `hooded_blades.glb` is no longer the anim3d-authored one (Daniel's local
   Rig Forge 3D version, 14 keys) while `pb_body.anim3d` still lists it, so `anim3d.py` / `retarget2d.py` on Hooded
-  Blades would bake the old authored clip over it. Don't run them on Hooded Blades until Daniel says which to keep.
+  Blades would bake the old authored clip over it. Don't run them on Hooded Blades until Daniel says which to keep;
+  `anim3d.py hooded_blades --clips <clip>` bakes only the named clips (written onto the file's bones by name).
+- 2026-11-25: Hooded Blades attack_normal_2 round 1 (draft) authored in `v3/tools/hooded/gen_hooded.py` from the 2D
+  frames (Daniel "go ahead" on the reading; the old 2D-guessed clip had knees backward on 34/43 frames, arms never
+  extended). Now: no hard faults, off balance 0, every step averages <= 7.5 m/s, hips <= ~6.6 m/s, 26 stored keys.
+  Waiting for Daniel's review. Also fixed in anim3d.py: `full_keys` dropped each key's `bease`, so a "snap" key's
+  hips always took "out" (affects library moves only if they are rebaked).
 - First hit 1 was REJECTED by Daniel (hands stuck at the face, arms never extend, blades unreadable, no weight shift).
   Lesson: key poses as large stills beside the 2D frames first, shown to Daniel before animating (skill section
   "Key poses as stills FIRST"). Hit 1 rebuilt from six poses matched to 2D frames 7, 10, 11, 14, 17, 18 and retimed
