@@ -610,7 +610,14 @@ with no damage; three stages.
   glow, push reach, pillar height / width, dome + rings, streaks, camera shake), Ground (on / off, cracks, rocks, dust,
   overall amount). All are `params` keys (`DEFAULTS.tfx_golden_ascension`; a missing key = its default). **Preview plays: the
   aura only** skips the charge and burst in the preview so the aura burns the whole action while you tune it (not saved).
-- **Outer flames** (Daniel 2026-11-26 sketch: flames spreading out of the aura's sides; panel group "Outer flames"):
+- **Flame layers** (Daniel 2026-11-26 sketch, panel group "Flame layers", ON by default): `layer_count` invisible rings
+  spread between `layer_from_pct` and `layer_to_pct` of the aura's height, each sitting on the sheath's outline at its
+  height (`layer_spread_pct`), each a band of the same shader flame (`fx3d.js` uniform `uRing`) whose top edge is torn
+  into rising spiky flames (`layer_tongues` round it, `layer_tongue_pct` length, `layer_spike_pct` 0 rounded .. 100 sharp
+  spikes), flaring outward as they rise (`layer_flare_pct`, lower rings more), each layer flickering on its own clock
+  (`layer_speed_pct`, `layer_chaos_pct`); `layer_height_pct` = band depth (more = layers overlap), `layer_color`,
+  `layer_opacity_pct` (per layer, they add up). The ring line itself is faded out: only the flames show.
+- **Outer flames** (now OFF by default: Daniel didn't want random strands; the setting stays) (Daniel 2026-11-26 sketch: flames spreading out of the aura's sides; panel group "Outer flames"):
   strands born on the sheath's side at a new random spot each cycle, shooting out sideways, curling up, burning off from
   the root (`hyperfx.js outerFlames`): a gold glow tube + a white-hot core, thin at the root, pointed at the tip, trailing
   with the lean. Settings `outer_flames`, `outer_count`, `outer_shape` curved / jagged / mixed, `outer_spread_pct`,

@@ -241,7 +241,7 @@ const AURA_NOISE = [
   'vec3 fp( float a, float y, float k, float tsp ) { return vec3( cos( a ) * k, sin( a ) * k, y * 2.2 - tsp ); }'].join('\n');
 const AURA_VS = [
   'uniform float uR; uniform float uH; uniform float uBaseW; uniform float uTop; uniform float uFlames; uniform float uTongue;',
-  'uniform float uT; uniform float uSpeed; uniform float uChaos; uniform float uSeed; uniform vec3 uLean; uniform vec4 uBend;',
+  'uniform float uT; uniform float uSpeed; uniform float uChaos; uniform float uSeed; uniform vec3 uLean; uniform vec4 uBend; uniform float uRing; uniform float uFlare; uniform float uSpike;',
   'varying float vY; varying float vAng; varying vec3 vN; varying vec3 vV; varying float vD; varying float vTip;',
   AURA_NOISE,
   'vec3 bendP( vec3 p ) {',
@@ -259,9 +259,10 @@ const AURA_VS = [
   '  float tsp = uT * 0.045 * uSpeed;',
   '  float k = uFlames / 6.2832 * 1.6;',
   '  float n = fbm( fp( a, y, k, tsp ) + uSeed, uChaos );',
-  '  float tongue = pow( max( 0.0, n - 0.3 ) / 0.7, 1.3 ) * uTongue * 1.7 * smoothstep( 0.3, 1.0, y );',   // tongues shoot up near the top
+  '  float tongue = pow( max( 0.0, n - 0.3 ) / 0.7, mix( 1.3, 3.2, uSpike ) ) * uTongue * 1.7 * smoothstep( 0.3, 1.0, y );',   // tongues shoot up near the top (sharper = higher power)
   '  float wob = 1.0 + uChaos * 0.16 * ( fbm( fp( a, y * 1.3, k * 0.7, tsp * 1.3 ) + uSeed + 9.1, uChaos ) - 0.5 );',
-  '  float r = prof( y ) * wob * ( 1.0 - 0.55 * clamp( tongue, 0.0, 1.0 ) );',   // a tongue narrows as it rises
+  '  float pr = uRing > 0.5 ? max( 0.05, 1.0 + uFlare * ( y + tongue * 0.6 ) ) : prof( y );',   // a flame layer: a ring flaring out as it rises
+  '  float r = pr * wob * ( 1.0 - ( uRing > 0.5 ? 0.15 : 0.55 ) * clamp( tongue, 0.0, 1.0 ) );',   // a tongue narrows as it rises
   '  float yy = y + tongue * 0.6;',
   '  vec3 p = vec3( cos( a ) * r * uR, yy * uH, sin( a ) * r * uR ) + uLean * yy * yy;',
   '  vec4 wp = modelMatrix * vec4( p, 1.0 );',
@@ -274,7 +275,7 @@ const AURA_VS = [
   '}'].join('\n');
 const AURA_FS = [
   'uniform vec3 uCol; uniform vec3 uHot; uniform vec3 uEdge; uniform float uAlpha; uniform float uRim; uniform float uInner; uniform float uBands;',
-  'uniform float uGaps; uniform float uSharp; uniform float uFlames; uniform float uT; uniform float uSpeed; uniform float uChaos; uniform float uSeed;',
+  'uniform float uGaps; uniform float uSharp; uniform float uFlames; uniform float uT; uniform float uSpeed; uniform float uChaos; uniform float uSeed; uniform float uRing;',
   'varying float vY; varying float vAng; varying vec3 vN; varying vec3 vV; varying float vD; varying float vTip;',
   AURA_NOISE,
   'void main() {',
@@ -286,6 +287,7 @@ const AURA_FS = [
   '  float soft = mix( 0.22, 0.015, uSharp );',
   '  float m = smoothstep( 0.5 - soft, 0.5 + soft, dens );',
   '  m *= 1.0 - smoothstep( 1.05, 1.5, vY );',   // the very tips burn off
+  '  if ( uRing > 0.5 ) m *= smoothstep( 0.0, 0.45, vY );',   // a layer's ring line is never drawn: only its flames
   '  if ( m <= 0.01 ) discard;',
   '  float f = 1.0 - abs( dot( normalize( vN ), normalize( vV ) ) );',   // 0 facing the camera .. 1 at the silhouette
   '  float i = clamp( mix( uInner, 1.0, pow( f, 1.6 ) ) * uRim + ( dens - 0.5 ) * 0.6 + smoothstep( 0.6, 1.3, vY ) * 0.45, 0.0, 1.0 );',   // tips burn hot
@@ -300,7 +302,7 @@ function makeAura(scene) {
   const U0 = () => ({uR: {value: 1}, uH: {value: 1}, uBaseW: {value: 0.6}, uTop: {value: 0.75}, uFlames: {value: 7}, uTongue: {value: 1},
     uT: {value: 0}, uSpeed: {value: 1}, uChaos: {value: 1}, uSeed: {value: 0}, uLean: {value: new THREE.Vector3()}, uBend: {value: bendRef()},
     uCol: {value: new THREE.Color()}, uHot: {value: new THREE.Color()}, uEdge: {value: new THREE.Color()}, uAlpha: {value: 1}, uRim: {value: 1},
-    uInner: {value: 0.2}, uBands: {value: 3}, uGaps: {value: 0.4}, uSharp: {value: 0.8}});
+    uInner: {value: 0.2}, uBands: {value: 3}, uGaps: {value: 0.4}, uSharp: {value: 0.8}, uRing: {value: 0}, uFlare: {value: 0}, uSpike: {value: 0}});
   const mat = new THREE.ShaderMaterial({uniforms: U0(), vertexShader: AURA_VS, fragmentShader: AURA_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide});
   const m = new THREE.Mesh(AURA_GEO, mat); m.frustumCulled = false; m.renderOrder = 3; scene.add(m);
   return {m, used: false};
@@ -1039,6 +1041,7 @@ Runner.prototype.aura3 = function (c, P0, e, Us, age, w) {
     u.uChaos.value = num(L.chaos, 1); u.uSeed.value = num(L.seed, 0) + sd; u.uLean.value.copy(lean).multiplyScalar(k < 1 ? 0.8 : 1); u.uBend.value = bendRef();
     rgb01(cm, u.uCol.value); rgb01(ch, u.uHot.value); rgb01(ce, u.uEdge.value);
     u.uAlpha.value = Math.max(0, Math.min(1, e.a * num(L.opacity, 0.75) * ak * c.toon_alpha_pct / 100)); u.uRim.value = num(L.rim, 1);
+    u.uRing.value = L.ring ? 1 : 0; u.uFlare.value = num(L.flare, 0); u.uSpike.value = Math.min(1, num(L.spike, 0));
     u.uInner.value = Math.min(1, num(L.inner, 0.18)); u.uBands.value = Math.max(1, num(L.bands, 3)); u.uGaps.value = Math.min(1, num(L.gaps, 0.4)); u.uSharp.value = Math.min(1, num(L.sharp, 0.8));
   }
 };

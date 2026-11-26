@@ -410,6 +410,10 @@ v3-animation skill ("Review questions").
 - Round 3 (same day): Daniel sketched flames spreading out of the aura's sides. His pick: outer licks with the shape as a
   setting. Done: panel group "Outer flames" (13 settings, README). Checked headless: default / curved / jagged / low-wide
   variants render, no errors.
+- Round 4 (same day): the outer strands were NOT what he meant ("random pieces of energy flaring out"). His sketch: layers
+  (his red lines = guides only, never drawn) spread from bottom to top, each with rising flames. Done: "Flame layers"
+  (14 settings, on by default), outer flames off by default. Checked headless: default / 10 sharp layers / wide flare /
+  stage 3 render, no errors.
 - **Next:** Daniel's verdict in FX Studio 3D + game.
 
 ## Next steps (agreed direction, not started)
