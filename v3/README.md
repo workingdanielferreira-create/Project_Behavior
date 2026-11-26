@@ -508,6 +508,19 @@ the contact glow, chips and sparks thrown back, the slam's light pillar, level r
 tapered spear, speed lines all round, pressure rings, sparks, the pierced line. Arc kind: a band round its centre with a
 white core. Hits stay FX Studio's own. `blade_extension` (no character uses it) stays a card.
 
+**3D gunfire + ki barrage (Daniel 2026-11-26, batch 3).** The ten `GUNFX` styles and the ki barrage draw in 3D
+(`fx3d.js drawGun` / `drawKi`, rounds from `GUNFX.geo.rounds` / `STRIKEFX.ki.shots`, so every round flies and hits where
+FX Studio puts it). Tracers / pellets / slugs = tapered streaks with a hot head (slugs wrapped in rifling rings), the orb =
+a sphere with ghosts and turning rings, the rocket = a steel missile with four fins, an exhaust flame and a smoke trail,
+the drill = a cone with spiral grooves and a wind helix, the thunder bullet = a jagged 3D lightning trail with arcs.
+Muzzles: flash, star, prongs fanned round the barrel, the shotgun's flash cone + pressure ring, the gun kata's swing.
+Brass / shotgun shells tumble out sideways and bounce on the floor, smoke balls rise, the gatling's six barrels turn round
+the aim, the charged blast gathers streaks from all round, the sniper's laser + a camera-facing reticle, its rail with a
+true 3D double helix. Impacts: sparks in a cone, the heavy hit (3D spike star, shock rings across the line), fireballs
+with billows and rings, lightning dropping from the sky with crackles, drill shards. Ki: comet shots, hand glows, flashes,
+detonations, smoke piling up. Keys used: `strike_glow_pct`, `strike_ground` (+ toon_*). `void_sniper` is a weapon style
+(weaponfx), not part of this batch.
+
 Strike keys (FX Studio 3D "3D shape & cel look", section Strike): `strike_limb` auto / haR / haL / ftR / ftL / none (FX
 Studio's line only), `strike_glow_pct` (50: spheres for FX Studio's soft glows, % of the glow radius), `strike_spin_deg`
 (90), `strike_ground` (true). The usual toon_* keys apply.
