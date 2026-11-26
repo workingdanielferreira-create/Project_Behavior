@@ -9,5 +9,5 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 // (training map, start spots). Planet off = the flat walled arena exactly as before (MX0 = MY0 = 0).
 const WORLD_CFG=World3D.merge(window.PB3_WORLD),PLANET=!!WORLD_CFG.planet.enabled;
 const MAPW=4200,MAPH=2600;
-const W=PLANET?400000:MAPW,H=PLANET?400000:MAPH,BODY=88,K=1.8/BODY,ZMAX=1500; // a bigger ground plane + 1,500 px (about 17 bodies) of air
+const W=PLANET?400000:MAPW,H=PLANET?400000:MAPH,BODY=88,K=1.8/BODY,ZMAX=4500; // a bigger ground plane + 4,500 px (about 51 bodies) of air (tripled from 1,500, Daniel 2026-11-26)
 const MX0=(W-MAPW)/2,MY0=(H-MAPH)/2;
