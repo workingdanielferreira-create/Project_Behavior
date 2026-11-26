@@ -10,7 +10,7 @@ kind: Attack, Ability, Jog, Emote ...; Daniel checked the licence 2026-11-26). *
 
     python -I blender/paragon_moves.py <...>/KallariManny kallari_bake.glb       (bpy: bake every clip onto the body)
     python paragon_library.py kallari_bake.glb Kallari                          (key poses -> paragon/Kallari.glb)
-    python paragon_library.py --recat ../../characters/ual_swordsman/paragon/*.glb   (categories changed: rewrite them)
+    python paragon_library.py --recat ../../characters/ual_swordsman/paragon/*.glb   (categories / DROP changed: rewrite them)
 """
 import os
 import re
@@ -51,6 +51,10 @@ NAME_KEYS = [
 ]
 
 
+# categories left out of the packs (Daniel 2026-11-26: too many near-identical clips / not fight moves)
+DROP = {"Jog", "Aim offset (idle)", "Intro & menu"}
+
+
 def name_cat(name):
     words = [w.lower() for w in re.split(r"[_\s\-]+", name) if w]
     for rx, cat in NAME_KEYS:
@@ -70,14 +74,36 @@ def label(clip):
 
 
 def recat(path):
-    """Rewrite the categories of a built pack in place (no key-pose rebuild)."""
+    """Re-label a built pack's moves and leave out the DROP categories (key poses read back exactly, not reduced)."""
     import retarget2d as r
+    bj, bb = r.read_glb(r.BODY)
+    rig = r.Rig(bj, bb)
     j, b = r.read_glb(path)
-    ex = j["scenes"][j.get("scene", 0)].setdefault("extras", {})
-    for clip, m in (ex.get("pb_moves") or {}).items():
-        m["cat"], m["name"] = label(clip)
-    r.save_glb(path, j, b)
-    print("recategorised", os.path.basename(path), len(ex.get("pb_moves") or {}), "moves")
+    ex = j["scenes"][j.get("scene", 0)].get("extras") or {}
+    pk, old = ex.get("pb_keys") or {}, ex.get("pb_moves") or {}
+    hi = rig.i("Hips")
+    clips, meta = {}, {}
+    for an in j["animations"]:
+        nm = an["name"]
+        cat, name = label(nm)
+        if cat in DROP:
+            continue
+        tr = {}
+        for ch in an["channels"]:
+            sm = an["samplers"][ch["sampler"]]
+            tr[(ch["target"]["node"], ch["target"]["path"])] = (r.acc_array(j, b, sm["input"])[:, 0],
+                                                                 r.acc_array(j, b, sm["output"]).astype(float))
+        times = list(next(iter(tr.values()))[0].astype(float))
+        poses = [({nd: r.q2m(v[k]) for (nd, path), (_, v) in tr.items() if path == "rotation"},
+                  next(v[k] for (nd, path), (_, v) in tr.items() if path == "translation" and nd == hi))
+                 for k in range(len(times))]
+        clips[nm] = (times, poses, (pk.get(nm) or {}).get("e"))
+        meta[nm] = dict(old.get(nm) or {}, cat=cat, name=name)
+    o, ob = r.pack(bj, bb, meshes=False, keep_anims=False, new_clips=clips, rig=rig,
+                   extras={"pb_moves": meta, "pb_pack": ex.get("pb_pack") or {},
+                           "pb_body": {"body": "ual_swordsman", "library": True}})
+    total = r.save_glb(path, o, ob)
+    print("recat %s: %d of %d moves kept (%d KB)" % (os.path.basename(path), len(clips), len(j["animations"]), total // 1024))
 
 
 def build(src_glb, hero, out=None):
@@ -97,6 +123,8 @@ def build(src_glb, hero, out=None):
     clips, meta = {}, {}
     for an in j["animations"]:
         nm = an["name"]
+        if label(nm)[0] in DROP:
+            continue
         times, poses = kr.clip_from_glb(rig, jj, b, an)
         if len(times) == 1:                                # a single pose (aim offsets): hold it 0.5 s
             times, poses = [0.0, 0.5], [poses[0], poses[0]]

@@ -19,7 +19,10 @@ import sys
 import time
 
 import bpy
-from mathutils import Matrix, Quaternion
+from mathutils import Matrix, Quaternion  # noqa: F401
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import paragon_library as pl  # noqa: E402  (categories; paragon_library.DROP ones are not baked)
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
 LIMIT = None
@@ -112,7 +115,9 @@ files = []
 for root, _, names in os.walk(HERO_DIR):
     for f in names:
         if f.lower().endswith(".fbx") and not re.search(r"_msa\.fbx$", f, re.I):
-            files.append(os.path.relpath(os.path.join(root, f), HERO_DIR))
+            rel = os.path.relpath(os.path.join(root, f), HERO_DIR)
+            if pl.label(clip_id(rel))[0] not in pl.DROP:
+                files.append(rel)
 files.sort(key=str.lower)
 if LIMIT:
     files = files[:LIMIT]
