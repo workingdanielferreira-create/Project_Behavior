@@ -229,8 +229,10 @@ handle = grip, guard = trigger guard, curve = grip rake; barrel along the edge s
 **Hero move packs + library preview (Daniel 2026-11-26).** Daniel's export of Epic's Paragon animations retargeted to
 UE5 Manny (FBX, ~5,400 clips over 32 heroes; licence checked by Daniel) = one pack per hero,
 `characters/ual_swordsman/paragon/<Hero>.glb` (same format as `ual_moves.glb`, plus scene extras `pb_pack` {hero, set};
-every clip except the `*_MSA` duplicates; category = the export's sub folder: Attack, Ability, Jog, Sprint, Emote, Aim
-offset ...). Built by `v3/tools/blender/paragon_moves.py <hero folder> bake.glb [--check]` (bpy; Manny has another
+every clip except the `*_MSA` duplicates and the categories in `paragon_library.DROP` = Jog, Aim offset (idle), Intro &
+menu (Daniel 2026-11-26); category = the export's sub folder (Attack, Ability, Sprint, Emote, Aim offset ...), or for a clip
+at the top of the hero folder the first keyword in its name (`NAME_KEYS`: Jump, Knockback, Stun, Death ...; `--recat`
+re-labels built packs and drops DROP clips without rebuilding the key poses)). Built by `v3/tools/blender/paragon_moves.py <hero folder> bake.glb [--check]` (bpy; Manny has another
 rest (A-pose, 5 spine bones, cm) so each body bone takes the source bone's WORLD rotation after a rest alignment of its
 direction (head -> mapped child); Hips follows the pelvis path scaled by hip height, so root motion is kept; `--check`
 = worst bone-direction gap vs the source: 0 deg on limbs / neck, ~12 deg on the lower Spine chord (5 -> 3 spine
