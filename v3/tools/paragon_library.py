@@ -10,6 +10,7 @@ kind: Attack, Ability, Jog, Emote ...; Daniel checked the licence 2026-11-26). *
 
     python -I blender/paragon_moves.py <...>/KallariManny kallari_bake.glb       (bpy: bake every clip onto the body)
     python paragon_library.py kallari_bake.glb Kallari                          (key poses -> paragon/Kallari.glb)
+    python paragon_library.py --recat ../../characters/ual_swordsman/paragon/*.glb   (categories changed: rewrite them)
 """
 import os
 import re
@@ -26,7 +27,36 @@ CATS = {"attack": "Attack", "attacks": "Attack", "ability": "Ability", "abilitie
         "travelmode": "Travel mode", "evade": "Evade", "evades": "Evade", "death": "Death", "deaths": "Death",
         "ao": "Aim offset", "aimingao": "Aim offset", "idleao": "Aim offset (idle)", "idle_ao": "Aim offset (idle)",
         "aoidle": "Aim offset (idle)", "ao_idles": "Aim offset (idle)", "idleaimoffset": "Aim offset (idle)",
-        "stun": "Stun", "recall": "Recall", "idle": "Idle", "idles": "Idle", "knockback": "Knockback"}
+        "stun": "Stun", "recall": "Intro & menu", "idle": "Idle", "idles": "Idle", "knockback": "Knockback",
+        "ult": "Ability", "fire": "Attack"}
+# clips at the top of a hero's folder (no sub folder): category from the name's words, first match wins
+NAME_KEYS = [
+    (r"aimoffset|^ao$|aim$|^(l|r|c|lb|rb)[cud]$", "Aim offset"),
+    (r"^(death|dead|die|dying)", "Death"),
+    (r"^(stun|stunned)", "Stun"),
+    (r"^(knockback|knock|knockdown|knockup|launch|airborne|getup|bound)", "Knockback"),
+    (r"^(hitreact|hit|flinch)", "Hit react"),
+    (r"^(evade|dodge|roll|dash)", "Evade"),
+    (r"^(emote|taunt|dance|laugh|cheer|wave)", "Emote"),
+    (r"^(recall|respawn|levelstart|selectscreen|frontendpose|frontend|spawn|intro|victory|defeat|lobby)", "Intro & menu"),
+    (r"^(ultimate|ult|ability|cast|q|e|r|rmb|lmb|special|spell|channel)$", "Ability"),
+    (r"^(attack|primary|melee|combo|slash|swing|punch|kick|fire|shoot|shot|throw)", "Attack"),
+    (r"^(jump|land|fall|apex|doublejump|airdash)", "Jump"),
+    (r"^(turn|turninplace|rotate)", "Turn in place"),
+    (r"^(travelmode|travel)", "Travel mode"),
+    (r"^sprint", "Sprint"),
+    (r"^jog", "Jog"),
+    (r"^(run|walk|locomotion|strafe|start|stop|pivot|slope)", "Locomotion"),
+    (r"^(idle|stand|rest|breathe)", "Idle"),
+]
+
+
+def name_cat(name):
+    words = [w.lower() for w in re.split(r"[_\s\-]+", name) if w]
+    for rx, cat in NAME_KEYS:
+        if any(re.search(rx, w) for w in words):
+            return cat
+    return "Other"
 
 
 def label(clip):
@@ -34,9 +64,20 @@ def label(clip):
     parts = clip.split("__")
     name = parts[-1].replace("_", " ").strip()
     if len(parts) == 1:
-        return "Other", name
+        return name_cat(parts[-1]), name
     sub = parts[-2]
     return CATS.get(sub.lower(), sub.replace("_", " ").strip().capitalize()), name
+
+
+def recat(path):
+    """Rewrite the categories of a built pack in place (no key-pose rebuild)."""
+    import retarget2d as r
+    j, b = r.read_glb(path)
+    ex = j["scenes"][j.get("scene", 0)].setdefault("extras", {})
+    for clip, m in (ex.get("pb_moves") or {}).items():
+        m["cat"], m["name"] = label(clip)
+    r.save_glb(path, j, b)
+    print("recategorised", os.path.basename(path), len(ex.get("pb_moves") or {}), "moves")
 
 
 def build(src_glb, hero, out=None):
@@ -73,7 +114,10 @@ def build(src_glb, hero, out=None):
 
 if __name__ == "__main__":
     a = [x for x in sys.argv[1:] if not x.startswith("--")]
-    if len(a) < 2:
+    if "--recat" in sys.argv:
+        for x in a:
+            recat(x)
+    elif len(a) < 2:
         print(__doc__)
     else:
         build(a[0], a[1], a[2] if len(a) > 2 else None)
