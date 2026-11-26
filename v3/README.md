@@ -80,7 +80,8 @@ Settings and teams are saved between sessions.
 | `fighter.js` | fighter creation, per-tick update, altitude, wall / ground splats |
 | `training.js` | training mode: dummies (stand / guard / fight back), target pick, HP refill, combo readout |
 | `input.js` | keyboard commands |
-| `camera.js` | camera modes (over the shoulder / dynamic / wide), cuts, shake, punch |
+| `camera.js` | camera modes (over the shoulder / dynamic / wide / cinematic), cuts, shake, punch, knockback tracking shot |
+| `cinecam.js` | **cinematic camera** (director, event + destruction shots, spring rig, composed framing) + **clear sight lines** (move round obstacles, dither fade, X-ray) |
 | `anim.js` | **animations**: pose, swing, lean, legs, recoil, flashes, shadows |
 | `hud.js` | HUD, callouts, command bar, damage numbers, feel panel |
 | `menus.js` | title, training (dummy map), teams, settings, controls, pause, results |
@@ -772,6 +773,10 @@ the game builds.
     while it lasts (`_hideCover` / `_showCover`).
   - *Breakable scenery*: trees (pine / round / dead), crystal clusters, old columns; same break rules with their own numbers;
     `solid` off = fighters pass through (they still break when hit).
+    **Forest groves** (Daniel 2026-11-26, on by default): trees also grow in `groves` dense groves (`grove_radius_m`, thick in
+    the middle and thinning to the edge, `grove_density` trees per 100 m², at least `grove_gap_m` apart, at most 700 grove
+    trees per world), with open clearings between them; the fight starts in a clearing (`start_clear_m`). `trees` = the
+    scattered ones (max 40 per 1,000 m² now). `world3d.js _buildGroves`.
   - What hits them: landed hits reach whatever stands round the target (`planetHit`), shots (`planetShot`), thrown fighters
     (`planetTick`), ground splats / K.O.s (`planetBlast`), and moving FX Studio FX (`planetFx`, below).
 - **FX and the world** (Daniel 2026-11-25, section `fxworld`): FX Studio FX follow the globe. The 3D cel-shaded shapes
@@ -848,4 +853,51 @@ camera holds the over-the-shoulder shot on it (no Dynamic cuts / Wide; the knock
 **Tracking shot while locked**), J (and K / L / I for melee kits) out of reach snaps in to it first from up to
 **Homing range** px, then the key fires (buffered). A gold ring marks the target. Settings screen groups "Knockback
 combos" and "Lock-on".
+
+## Cinematic camera + clear sight lines (Daniel 2026-11-26)
+
+`js/cinecam.js`. Daniel: "fighting in very condensed areas like forests ... rework how the camera captures the battle to
+make it more cinematic, and avoid all instances of potentially blocking the view of the battle by environmental objects".
+
+**Sight lines (every camera mode, planet on; Settings group "Sight lines")**
+- Sight rays go from the camera to each on-field fighter's feet / chest / head, plus two to the space between them. They
+  are tested in drawn (bent) space against the standing pillars, boulders, trees, crystals, columns and landmarks near the
+  fight, and against the globe. Each item has upright cylinders measured from its mesh (`world3d.js _sightShapes`); a tree
+  is a trunk plus its crown, so a low camera can see under the leaves. The game side is `planet.js planetSight`.
+- **Move round obstacles** (`sightAdjust`): every 0.1 s the shot's camera spot is also tried swung round the look point
+  (up to **Max swing**), raised (up to **Max rise**) and pulled in toward the fighters. The clearest spot wins. Leaving
+  the shot as framed costs a little, and so does changing the pick, so it doesn't flicker. The offset eases in, so the
+  camera glides round trees.
+- **See-through** (`sightFade`): anything that still cuts a sight ray dithers out to **See-through amount**, and so does
+  anything within 3 m of the camera (foreground clutter). It comes back once clear. `world3d.js setFade` swaps the item to
+  its own material copies that drop pixels in a 4x4 ordered (Bayer) pattern. This is a screen-door dither: the cel look
+  stays crisp and it draws after the solid scene.
+- **X-ray silhouettes** (`xrayRender`, after the frame): a fighter still hidden by something not faded, or by the planet's
+  horizon, is drawn again where it is behind, as a flat silhouette (P1 cyan, P2 red, **X-ray strength**). It uses depth
+  test "greater", camera layers 1 / 2 and an override material.
+
+**Cinematic mode** (Settings "Camera" = Cinematic, or C in game; Settings group "Cinematic camera"; lock-on still takes
+over with its own shot)
+- **Director**: base shots are two-shot 3/4, over the shoulder (either fighter), low hero angle, high crane, slow orbit,
+  long-lens telephoto (squeezes the forest together) and wide. The pick depends on distance and the fight director's phase
+  (more low shots / orbits in a burst), never repeats the last shot, and each shot is held a random time between
+  **Shortest shot** and **Longest shot** (x0.55 in a burst, x0.8 in build). 180-degree rule: the camera stays on one side
+  of the line between the fighters and crosses only on a cut (15 % of cuts). Each shot drifts (dolly / truck). A shot
+  change is a hard cut **Cut chance** of the time, otherwise a glide on the rig.
+- **Event shots** (on / off): ultimate = low hero shot on the caster pushing in with a dutch tilt (1.9 s). Launch / spike =
+  a crane on the thrown fighter (1.4 s, glides in). K.O. = slow low orbit on the fallen (2.6 s). Heavy hits = **Crash
+  zoom** (fov punch that springs back, plus a small roll kick). Priority: K.O. > ultimate > destruction > launch. The
+  knockback tracking shot also runs in this mode and glides back to the cinematic shot's fov (`camBaseFov`).
+- **Destruction shots**: a tree / pillar / scenery piece at least **Least height** tall that breaks within 12 m of a
+  fighter cuts to a shot of the break with that fighter in frame (**Break shot length**), plus **Break slow-mo** of the
+  sim. More breaks during it stretch it a little, so a chain through a grove reads as one shot. **Break shot cooldown**
+  sets the least time between two. Hook: `world3d.js breakItem -> world.onBreak -> camBreak`.
+- **Spring dolly rig**: the camera spot, look point and fov ride damped springs (**Camera weight** = stiffness,
+  **Overshoot damping** below 100 % = a small settle). The look point leads the fighters by **Look ahead** of their
+  movement. Shots on one fighter keep up with it (stiffer springs).
+- **Composed framing**: the fighters sit off centre with lead room the way they move (up to 30 % of the half frame at
+  **Composed framing** 100 %, less when they are far apart), a touch above centre, plus a **Dutch tilt** on intense moments.
+- View only, except the destruction shot's slow-mo (the same `slowmo` the K.O. uses).
+- Not covered: the flat arena (planet off) has no sight-line handling; ground damage (crater lips) is not in the sight
+  model, so low shots stay at least 0.75 m up.
 

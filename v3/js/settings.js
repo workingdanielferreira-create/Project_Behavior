@@ -7,7 +7,31 @@ const SETTINGS_KEY='pb3.settings.v1';
 const DEFAULT_SETTINGS={
   level:'commander',          // watch | commander | handson
   pace:100,                   // game speed %, 25..100
-  cam:'shoulder',             // shoulder | dynamic | wide
+  cam:'shoulder',             // shoulder | dynamic | wide | cinematic
+  // sight lines (cinecam.js, every camera mode, planet): move round obstacles, then fade, X-ray what is still hidden
+  sightMove:true,             // swing / rise / pull in to a clear line
+  sightMaxDeg:50,             // largest swing off the shot (deg)
+  sightRaise:4,               // largest rise (m)
+  sightFade:true,             // what still blocks dithers out
+  sightFadePct:20,            // % of a blocking object left drawn
+  xrayOn:true,                // hidden fighters as team-coloured silhouettes
+  xrayPct:55,                 // silhouette strength %
+  // cinematic camera (cinecam.js)
+  cineShotMin:2.4,            // s, shortest base shot
+  cineShotMax:5.2,            // s, longest base shot
+  cineCutPct:55,              // % of shot changes that are hard cuts (else a glide)
+  cineWeight:45,              // spring stiffness 0..100 (heavy .. snappy)
+  cineDamp:80,                // damping ratio % (below 100 = a little overshoot)
+  cineLeadMs:250,             // look ahead along the fighters' movement
+  cineFrame:100,              // composed framing (lead room) strength %
+  cineDutch:9,                // max dutch tilt (deg)
+  cineEvents:true,            // event shots (ultimate / launch / K.O.)
+  cineCrash:25,               // crash zoom on heavy hits, % narrower
+  cineBreakOn:true,           // destruction shots
+  cineBreakMinM:3,            // least height of a broken piece (m)
+  cineBreakS:1.2,             // break shot length (s)
+  cineBreakSlowMs:450,        // slow-mo during it (ms of sim slowmo)
+  cineBreakCdS:4,             // cooldown between two break shots (s)
   labels:true,                // rhythm intent above each fighter
   feel:true,                  // live numbers vs the 2D duel
   quality:'high',             // low | medium | high (render resolution)

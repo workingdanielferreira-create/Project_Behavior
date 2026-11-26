@@ -460,6 +460,20 @@ v3-animation skill ("Review questions").
   (e.g. a magnum round passing during a 220 ms dodge), now shown. Shots in shot lanes fly straight (<= 9 cm off a line).
 - **Next:** Daniel's verdict in game.
 
+## Cinematic camera + clear sight lines + forest groves (2026-11-26)
+
+- Daniel: "fighting in very condensed areas like forests ... rework how the camera captures the battle to make it more
+  cinematic, and avoid all instances of potentially blocking the view of the battle by environmental objects".
+- His picks: move the camera first, then dither-fade what still blocks, plus an X-ray silhouette; a NEW "Cinematic" mode
+  (C cycles to it); all four behaviours (event shots, destruction shots, composed framing, spring dolly rig); a forest
+  layout in World Studio 3D (groves + clearings).
+- Done: `js/cinecam.js` (sight lines in every mode + the Cinematic director / rig), camera.js hooks, `world3d.js`
+  `_sightShapes` / `setFade` / `_buildGroves` / `onBreak`, `planet.js planetSight`, Settings groups "Sight lines" and
+  "Cinematic camera". Forest groves are ON by default. README "Cinematic camera + clear sight lines".
+- Checked headless (Playwright + SwiftShader, Watch battles on forest worlds): no errors, every shot kind and event shot
+  shows up, the destruction shot cuts + slows on a forced break, foreground / blocking items dither out.
+- **Next:** Daniel's verdict in game (shot lengths, cut chance, camera weight, fade amount).
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,

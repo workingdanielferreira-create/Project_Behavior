@@ -40,9 +40,33 @@ const Menu=(function(){
     return '<div class="scr wide"><h1>Settings</h1><div class="sets">'+
       row('Control level',seg('level',[['watch','Watch'],['commander','Commander'],['handson','Hands-on']]),'Watch: AI vs AI. Commander: the AI fights, your inputs take over. Hands-on: your fighter only acts when you press. (Tab in game)')+
       row('Game speed','<div class="rng" data-nav data-cyc="pace" tabindex="0"><input type="range" min="25" max="100" step="5" value="'+settings.pace+'" tabindex="-1"><output>'+settings.pace+'%</output></div>')+
-      row('Camera',seg('cam',[['shoulder','Over the shoulder'],['dynamic','Dynamic'],['wide','Wide']]),'Dynamic cuts between angles and on launches and ultimates. (C in game)')+
+      row('Camera',seg('cam',[['shoulder','Over the shoulder'],['dynamic','Dynamic'],['wide','Wide'],['cinematic','Cinematic']]),'Dynamic cuts between angles and on launches and ultimates. Cinematic: a director picks composed shots (two-shot, low hero angle, crane, orbit, long lens), event shots on ultimates / heavy hits / launches / K.O.s and on scenery breaking, on a weighted camera rig. (C in game)')+
+      '<h3 class="sgroup">Sight lines (every camera)</h3>'+
+      row('Move round obstacles',tog('sightMove'),'Planet: when a tree, pillar or landmark would block the fighters, the camera swings, rises or pulls in to a clear line first.')+
+      num('sightMaxDeg','Max swing',0,80,5,'°','How far round the fighters the camera may swing off the shot to see past something.')+
+      num('sightRaise','Max rise',0,10,.5,' m','How far it may rise to look over something.')+
+      row('See-through',tog('sightFade'),'Anything still between the camera and the fighters dithers out (and comes back once clear).')+
+      num('sightFadePct','See-through amount',0,80,5,'%','How much of a blocking object is left drawn. 0 = gone.')+
+      row('X-ray silhouettes',tog('xrayOn'),'A fighter still hidden (by something not faded, or the planet horizon) shows as a flat team-coloured silhouette.')+
+      num('xrayPct','X-ray strength',5,100,5,'%','')+
+      '<h3 class="sgroup">Cinematic camera</h3>'+
+      num('cineShotMin','Shortest shot',.5,10,.1,' s','Each shot is held a random time between these (shorter in a burst).')+
+      num('cineShotMax','Longest shot',.5,15,.1,' s','')+
+      num('cineCutPct','Cut chance',0,100,5,'%','A shot change is a hard cut this often, else the camera glides to the next shot.')+
+      num('cineWeight','Camera weight',0,100,5,'%','Low = a heavy camera that lags and swings in; high = snappy.')+
+      num('cineDamp','Overshoot damping',30,120,5,'%','Below 100 the camera overshoots a little and settles, like a real operator. 100 = no overshoot.')+
+      num('cineLeadMs','Look ahead',0,800,25,' ms','The view leads the fighters by this much of their movement.')+
+      num('cineFrame','Composed framing',0,150,5,'%','Lead room: the fighters sit off centre with space the way they move (rule of thirds). 0 = always centred.')+
+      num('cineDutch','Dutch tilt',0,25,1,'°','The most the camera tilts on intense moments (bursts, low shots, ultimates).')+
+      row('Event shots',tog('cineEvents'),'Ultimate = low hero shot pushing in; launch / spike = a crane on the thrown fighter; K.O. = slow orbit on the fallen.')+
+      num('cineCrash','Crash zoom',0,50,1,'%','Heavy hits punch the view in by this much, then it springs back.')+
+      row('Destruction shots',tog('cineBreakOn'),'A tree, pillar or scenery piece breaking near the fight cuts to a short shot of the break with a touch of slow-mo.')+
+      num('cineBreakMinM','Least height',0,20,.5,' m','Only pieces at least this tall get a shot.')+
+      num('cineBreakS','Break shot length',.3,4,.1,' s','More breaks during it stretch it a little (a chain through a grove reads as one shot).')+
+      num('cineBreakSlowMs','Break slow-mo',0,1500,50,' ms','')+
+      num('cineBreakCdS','Break shot cooldown',0,30,.5,' s','')+
       '<h3 class="sgroup">Knockback tracking shot</h3>'+
-      row('Tracking shot',tog('trackOn'),'Over the shoulder and Dynamic: when one hit throws a fighter far, the camera swoops in behind it in one move, rides along with it facing the way it flies, then glides back just before the knockback ends.')+
+      row('Tracking shot',tog('trackOn'),'Over the shoulder, Dynamic and Cinematic: when one hit throws a fighter far, the camera swoops in behind it in one move, rides along with it facing the way it flies, then glides back just before the knockback ends.')+
       num('trackMinPx','Starts at knockback',200,3000,50,' px','A single hit must carry the fighter at least this far.')+
       num('trackDist','Distance behind',1.5,14,.5,' m','')+
       num('trackHeight','Height above',0,6,.25,' m','')+
@@ -76,7 +100,7 @@ const Menu=(function(){
       '</div><nav class="row">'+btn('back','Back','primary')+'</nav></div>';}
 
   function controls(){
-    const K=[['WASD','Steer, relative to the camera (the AI takes back over 0.6 s after you let go)'],['Shift (hold)','Sprint: Lv2 speed while held. Double-tap and hold = Lv3 (characters with Lv3 speed on in FX Studio 3D)'],['Space','Snap: blink-dash your WASD way, or through and behind the target. Just before an enemy hit = perfect snap'],['Ctrl+Space','Parry. Right on the hit = perfect: no damage, attacker staggered, counter window (your hits x1.5). A shot is sent back at the shooter, or away the way you hold WASD. A bit late = normal parry: less damage and knockback'],['J','Chain: start the next attack now, skipping the rhythm gap'],['K / L','Special / second special'],['I','Ultimate'],['1 2 3 4','Call an intent: pressure · punish (target open) · reset · feint'],['Q / E','Tag a partner in (enters with an attack)'],['R','Jump. Press again in the air = double jump, then gravity brings you down'],['F','Fast fall (in the air)'],['R / F (flyers)','Characters that can fly: hold to climb / descend, let go to stay at that height. With Space: snap straight up / down'],['T / Middle mouse','Lock on to the enemy (Training: the nearest dummy). WASD: in / out / circle it, the camera holds the shot on it, attacks snap in to it. Again to release'],['C','Camera: over the shoulder / dynamic / wide'],['Tab','Control level'],['Esc / P','Pause']];
+    const K=[['WASD','Steer, relative to the camera (the AI takes back over 0.6 s after you let go)'],['Shift (hold)','Sprint: Lv2 speed while held. Double-tap and hold = Lv3 (characters with Lv3 speed on in FX Studio 3D)'],['Space','Snap: blink-dash your WASD way, or through and behind the target. Just before an enemy hit = perfect snap'],['Ctrl+Space','Parry. Right on the hit = perfect: no damage, attacker staggered, counter window (your hits x1.5). A shot is sent back at the shooter, or away the way you hold WASD. A bit late = normal parry: less damage and knockback'],['J','Chain: start the next attack now, skipping the rhythm gap'],['K / L','Special / second special'],['I','Ultimate'],['1 2 3 4','Call an intent: pressure · punish (target open) · reset · feint'],['Q / E','Tag a partner in (enters with an attack)'],['R','Jump. Press again in the air = double jump, then gravity brings you down'],['F','Fast fall (in the air)'],['R / F (flyers)','Characters that can fly: hold to climb / descend, let go to stay at that height. With Space: snap straight up / down'],['T / Middle mouse','Lock on to the enemy (Training: the nearest dummy). WASD: in / out / circle it, the camera holds the shot on it, attacks snap in to it. Again to release'],['C','Camera: over the shoulder / dynamic / wide / cinematic'],['Tab','Control level'],['Esc / P','Pause']];
     return '<div class="scr wide"><h1>Controls</h1><dl class="keys">'+K.map(k=>'<dt>'+k[0]+'</dt><dd>'+esc(k[1])+'</dd>').join('')+'</dl>'+
       '<nav class="row">'+btn('back','Back','primary')+'</nav></div>';}
 

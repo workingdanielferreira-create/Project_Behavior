@@ -5,7 +5,7 @@ const camPos=new THREE.Vector3(0,20,26),camLook=new THREE.Vector3();
 cam.fov=56;cam.updateProjectionMatrix();
 const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 let camMode='shoulder';const cut={t:0,kind:'shoulder',snap:false,hold:0};
-function camEvent(kind){if(camMode!=='dynamic')return;const now=performance.now()/1000;if(now<cut.hold)return;
+function camEvent(kind,f,by){if(camMode==='cinematic'){cineEvent(kind,f,by);return;}if(camMode!=='dynamic'||kind==='heavy')return;const now=performance.now()/1000;if(now<cut.hold)return;
   cut.kind=kind==='ult'?(Math.random()<.5?'low':'side'):kind==='launch'?'side':kind==='ko'?'side':cut.kind;cut.t=now+rnd(1.6,2.6);cut.hold=now+.9;cut.snap=true;}
 function camShot(mode,pa,pb,sep){const dir=new THREE.Vector3().subVectors(pb,pa);dir.y*=.35;if(dir.lengthSq()<1e-4)dir.set(0,0,-1);dir.normalize();const right=new THREE.Vector3(-dir.z,0,dir.x).normalize();
   if(mode==='shoulder'||mode==='reverse'){const A=mode==='shoulder'?pa:pb,B=mode==='shoulder'?pb:pa,dd=mode==='shoulder'?dir:dir.clone().negate();const r2=mode==='shoulder'?right:right.clone().negate();
@@ -21,7 +21,7 @@ function camShot(mode,pa,pb,sep){const dir=new THREE.Vector3().subVectors(pb,pa)
 const track={f:null,ph:0,side:1,frozen:false,t:0,p0:new THREE.Vector3(),l0:new THREE.Vector3(),f0:56,dir:new THREE.Vector3(0,0,-1),p:new THREE.Vector3(),l:new THREE.Vector3(),fov:56,next:0};
 const BASE_FOV=56;
 // combat.js damage(): the knockback this hit added (px/s). Predicts the carry (speed / slide friction) and starts the shot.
-function camKnock(f,dvx,dvy){if(!settings.trackOn||lockBlocksTrack()||!running||ended||(camMode!=='shoulder'&&camMode!=='dynamic'))return;
+function camKnock(f,dvx,dvy){if(!settings.trackOn||lockBlocksTrack()||!running||ended||(camMode!=='shoulder'&&camMode!=='dynamic'&&camMode!=='cinematic'))return;
   const [a,b]=onField();if((f!==a&&f!==b)||f.phantom||!f.on)return;
   const s=Math.hypot(dvx,dvy),air=f.vz>0||f.z>25,carry=s/(air?GRAV.airFric:GRAV.groundFric);if(carry<settings.trackMinPx)return;
   const now=performance.now()/1000;
@@ -56,7 +56,7 @@ function trackLeft(f){const g=JUMP.gravity;let t=0,s=Math.hypot(f.vx,f.vy);
 const ease=u=>u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;
 // returns true while the shot owns the camera (camStep then skips its own placement)
 function trackStep(rdt){if(!track.ph)return false;const f=track.f;track.t+=rdt*1000;
-  const gone=!f||!f.on||(camMode!=='shoulder'&&camMode!=='dynamic')||!settings.trackOn||lockBlocksTrack();
+  const gone=!f||!f.on||(camMode!=='shoulder'&&camMode!=='dynamic'&&camMode!=='cinematic')||!settings.trackOn||lockBlocksTrack();
   if(gone&&track.ph<3){track.ph=3;track.t=0;track.frozen=true;track.f0=cam.fov;}
   if(!track.frozen&&f&&f.on)trackPose(rdt);   // live chase pose in every phase (the glide back leaves from it, no freeze)
   if(track.ph===1){const u=ease(Math.min(1,track.t/Math.max(1,settings.trackInMs)));
@@ -66,21 +66,32 @@ function trackStep(rdt){if(!track.ph)return false;const f=track.f;track.t+=rdt*1
     // ease out JUST BEFORE the knockback ends (trackLeadMs ahead of the predicted stop), or at the longest track
     if(trackLeft(f)*1000<=settings.trackLeadMs||track.t>settings.trackMaxS*1000){track.ph=3;track.t=0;track.f0=cam.fov;}}
   if(track.ph===3){const u=ease(Math.min(1,track.t/Math.max(1,settings.trackOutMs)));
-    cam.position.lerpVectors(track.p,camPos,u);camLookT.lerpVectors(track.l,camLook,u);cam.fov=track.f0+(BASE_FOV-track.f0)*u;
-    if(u>=1){track.ph=0;track.f=null;track.frozen=false;cam.fov=BASE_FOV;track.next=performance.now()/1000+settings.trackCdS;}}
+    cam.position.lerpVectors(track.p,camPos,u);camLookT.lerpVectors(track.l,camLook,u);cam.fov=track.f0+(camBaseFov-track.f0)*u;
+    if(u>=1){track.ph=0;track.f=null;track.frozen=false;cam.fov=camBaseFov;track.next=performance.now()/1000+settings.trackCdS;}}
   cam.updateProjectionMatrix();return true;}
 const camLookT=new THREE.Vector3();
+let camBaseFov=BASE_FOV;   // the fov the shot underneath wants (cinecam.js sets it in the Cinematic mode); the tracking shot glides back to it
 function trackReset(){track.ph=0;track.f=null;track.frozen=false;track.next=0;cam.fov=BASE_FOV;cam.updateProjectionMatrix();}
-function camStep(rdt,idle){if(idle){if(PLANET&&world){planetIdleCam();return;}const t=performance.now()/1000*.1;cam.position.set(Math.sin(t)*40,24,Math.cos(t)*40);cam.lookAt(0,6,0);return;}
+function camStep(rdt,idle){sightFrame++;
+  if(idle){sightClear();cineReset();camBaseFov=BASE_FOV;if(cam.fov!==BASE_FOV){cam.fov=BASE_FOV;cam.updateProjectionMatrix();}cam.up.set(0,1,0);
+    if(PLANET&&world){planetIdleCam();return;}const t=performance.now()/1000*.1;cam.position.set(Math.sin(t)*40,24,Math.cos(t)*40);cam.lookAt(0,6,0);return;}
   const [a,b]=onField();const pa=VA(a.x,a.y,a.z,1.2),pb=VA(b.x,b.y,b.z,1.2);const sep=pa.distanceTo(pb);
+  // Cinematic (cinecam.js, Daniel 2026-11-26): its own director + spring rig write camPos / camLook; lock-on still wins
+  const cineOn=camMode==='cinematic'&&!lockTarget();
+  if(cineOn){cineStep(rdt,a,b,pa,pb,sep);}else{cineReset();camBaseFov=BASE_FOV;
   let mode=camMode;const now=performance.now()/1000;
   if(camMode==='dynamic'&&!lockTarget()){if(now>cut.t){const r=Math.random();cut.kind=sep>28?(r<.6?'side':'wide'):(r<.45?'shoulder':r<.7?'side':r<.85?'reverse':'low');cut.t=now+rnd(2.4,4.8);cut.snap=true;}mode=cut.kind;}
   mode=lockCamMode(mode);   // combo.js: locked on = the over-the-shoulder shot on the target
-  const [tgt,look]=camShot(mode,pa,pb,sep);if(tgt.y<.4)tgt.y=.4;
+  let [tgt,look]=camShot(mode,pa,pb,sep);if(tgt.y<.4)tgt.y=.4;
+  const snap=(PLANET&&planetWrapped)||(cut.snap&&!track.ph);
+  tgt=sightAdjust(tgt,look,rdt,snap);   // cinecam.js: swing / rise / pull in to a clear line past trees, pillars, landmarks
   if(PLANET&&planetWrapped){planetWrapped=false;camPos.copy(tgt);camLook.copy(look);}   // a fighter came round the globe: re-frame at once
   if(cut.snap&&!track.ph){camPos.copy(tgt);camLook.copy(look);cut.snap=false;}
-  else{camPos.lerp(tgt,1-Math.exp(-(mode==='wide'?3:5.5)*rdt));camLook.lerp(look,1-Math.exp(-9*rdt));}
+  else{camPos.lerp(tgt,1-Math.exp(-(mode==='wide'?3:5.5)*rdt));camLook.lerp(look,1-Math.exp(-9*rdt));}}
   // the knockback tracking shot owns the camera while it runs (the normal shot keeps updating underneath, for the glide back)
   if(trackStep(rdt)){}else{cam.position.copy(camPos);camLookT.copy(camLook);}if(!reduce&&shake>0){const j=(Math.random()-.5);cam.position.x+=shakeDir[0]*j*shake*.9+(Math.random()-.5)*shake*.3;cam.position.z+=shakeDir[1]*j*shake*.9;cam.position.y+=(Math.random()-.5)*shake*.35;}
   if(camPunch>0){cam.position.lerp(camLookT,camPunch);camPunch=Math.max(0,camPunch-rdt*.6);}
-  cam.lookAt(camLookT);if(PLANET)planetCam(camLookT);shake=Math.max(0,shake-rdt*3.2);}
+  cam.up.set(0,1,0);cam.lookAt(camLookT);if(PLANET)planetCam(camLookT);
+  if(!track.ph){if(cineOn)cineFinish(rdt,sep);else if(cam.fov!==BASE_FOV){cam.fov=BASE_FOV;cam.updateProjectionMatrix();}}
+  sightFade(rdt);   // cinecam.js: anything still between the camera and the fighters dithers out; X-ray gate
+  shake=Math.max(0,shake-rdt*3.2);}
