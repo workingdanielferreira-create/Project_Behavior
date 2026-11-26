@@ -75,6 +75,7 @@ Settings and teams are saved between sessions.
 | `fx3d.js` | **FX 3D runtime** (shared with FX Studio 3D): the basic FX kinds as 3D cel-shaded shapes, the rest as FX Studio's 2D drawings on cards placed in 3D, 3D anchors from the bones, every-enemy hits (3D shapes hit with their 3D shape), `move3d` planner |
 | `fxlive.js` | real kits' FX in the fight (one `FX3D.Runner` per fighter) + per-action 3D body movement (`move3d`) |
 | `parry.js` | parry / deflect: Ctrl+Space timing windows, perfect-parry stagger + counter, shot reflect / deflect, AI rolls |
+| `combo.js` | knockback combos (juggle, redirect, decay + cap, break free, auto chase) + lock-on (T / middle mouse) |
 | `fxlib.js` | **FX animation**: every action effect (`runFx`) |
 | `fighter.js` | fighter creation, per-tick update, altitude, wall / ground splats |
 | `training.js` | training mode: dummies (stand / guard / fight back), target pick, HP refill, combo readout |
@@ -806,4 +807,27 @@ Golden-ratio framing (Daniel 2026-11-24, setting **Golden-ratio framing**, on by
 aims so the flying fighter sits on the top-right crossing of the golden-ratio grid (61.8 % across, 38.2 % down;
 `goldenLook`, worked out in drawn space on the planet via `planet.js unbendP`). Off = centred as before. The swoop in /
 glide back blend into and out of it.
+
+## Knockback combos + lock-on (Daniel 2026-11-26)
+
+`js/combo.js`, Battle + Training, you and the AI. A fighter still in the stun a landed hit left is **juggled**
+(`f.cmbN` = hits in the combo; reset once the stun is over). In `combat.js damage()` (`comboBefore` / `comboAfter`):
+- **Redirect:** a hit on a juggled fighter drops its old flight; the new hit's push (direction + strength) replaces
+  it. A light hit holds it near you, a heavy / blowback one throws it the new way (launch / spike rules unchanged).
+- Every combo hit re-stuns it (light hits too); an airborne target gets an **Air juggle lift** (px/s up).
+- **Decay per hit** (12 %): each hit already in the combo cuts damage and stun by that much.
+- **Combo cap** (6): that hit still lands, then the target **breaks free**: invulnerable until its stun ends +
+  **Break-free guard** (400 ms).
+- **Extra reach** (60 %): melee hit reach (`hitResolve`) and the attack reach check (`tryAttack`) on a juggled target.
+- **Auto chase** (default OFF): after a hit that knocks the target back, a melee attacker snaps (after **Chase delay**)
+  to the spot in front of where it will be, then goes to punish. Off: Space with no WASD catches a flying target in
+  front of it (instead of through / behind), and the AI chases only through its usual punish snaps.
+
+**Lock-on** (T or middle mouse, your fighter; not in Watch): Battle = the on-field enemy (follows tag-ins), Training =
+the dummy nearest when pressed (kept as your target, `trainPickTarget` -> `lockPinTraining`) until released / gone.
+While locked: WASD is relative to the line to the target (W in, S out, A / D circle it, `input.js readDir`), the
+camera holds the over-the-shoulder shot on it (no Dynamic cuts / Wide; the knockback tracking shot only with
+**Tracking shot while locked**), J (and K / L / I for melee kits) out of reach snaps in to it first from up to
+**Homing range** px, then the key fires (buffered). A gold ring marks the target. Settings screen groups "Knockback
+combos" and "Lock-on".
 

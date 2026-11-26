@@ -55,6 +55,18 @@ const Menu=(function(){
       num('trackLeadMs','Ease out early',0,1000,25,' ms','Start the glide back this long before the knockback ends.')+
       num('trackMaxS','Longest track',.5,6,.25,' s','Ends sooner when the fighter lands and stops.')+
       num('trackCdS','Cooldown',0,30,.5,' s','Least time between two tracking shots.')+
+      '<h3 class="sgroup">Knockback combos</h3>'+
+      row('Combos',tog('comboOn'),'A fighter still stunned by a hit can be hit again. Each hit redirects its flight: a light hit holds it near you, a heavy one throws it the new way. You and the AI.')+
+      row('Auto chase',tog('comboChase'),'A melee attacker snaps after the fighter it knocked back. Off: catch it yourself with Space (no WASD) or the lock-on.')+
+      num('comboChaseMs','Chase delay',0,600,10,' ms','Auto chase: how long after the hit it sets off.')+
+      num('comboCap','Combo cap',2,20,1,' hits','The hit that reaches this count still lands, then the target breaks free.')+
+      num('comboDecayPct','Decay per hit',0,40,1,'%','Each hit already in the combo: this much less damage and stun.')+
+      num('comboBreakMs','Break-free guard',0,2000,50,' ms','After breaking free the target cannot be hit until its stun ends plus this.')+
+      num('comboReachPct','Extra reach',0,200,5,'%','Melee reach against a stunned, flying target.')+
+      num('comboLift','Air juggle lift',0,1500,25,' px/s','Each combo hit on an airborne target lifts it this much (less each hit).')+
+      '<h3 class="sgroup">Lock-on (T or middle mouse)</h3>'+
+      num('lockHomePx','Homing range',0,3000,50,' px','Attack keys snap in to the locked target from up to this far.')+
+      row('Tracking shot while locked',tog('lockTrack'),'Off: the camera stays on the over-the-shoulder shot of your target while locked on.')+
       '<h3 class="sgroup">Display</h3>'+
       row('Show intents',tog('labels'),'Each fighter\'s rhythm intent above its head.')+
       row('Feel panel',tog('feel'),'Live numbers against the 2D duel ranges.')+
@@ -64,7 +76,7 @@ const Menu=(function(){
       '</div><nav class="row">'+btn('back','Back','primary')+'</nav></div>';}
 
   function controls(){
-    const K=[['WASD','Steer, relative to the camera (the AI takes back over 0.6 s after you let go)'],['Shift (hold)','Sprint: Lv2 speed while held. Double-tap and hold = Lv3 (characters with Lv3 speed on in FX Studio 3D)'],['Space','Snap: blink-dash your WASD way, or through and behind the target. Just before an enemy hit = perfect snap'],['Ctrl+Space','Parry. Right on the hit = perfect: no damage, attacker staggered, counter window (your hits x1.5). A shot is sent back at the shooter, or away the way you hold WASD. A bit late = normal parry: less damage and knockback'],['J','Chain: start the next attack now, skipping the rhythm gap'],['K / L','Special / second special'],['I','Ultimate'],['1 2 3 4','Call an intent: pressure · punish (target open) · reset · feint'],['Q / E','Tag a partner in (enters with an attack)'],['R','Jump. Press again in the air = double jump, then gravity brings you down'],['F','Fast fall (in the air)'],['R / F (flyers)','Characters that can fly: hold to climb / descend, let go to stay at that height. With Space: snap straight up / down'],['C','Camera: over the shoulder / dynamic / wide'],['Tab','Control level'],['Esc / P','Pause']];
+    const K=[['WASD','Steer, relative to the camera (the AI takes back over 0.6 s after you let go)'],['Shift (hold)','Sprint: Lv2 speed while held. Double-tap and hold = Lv3 (characters with Lv3 speed on in FX Studio 3D)'],['Space','Snap: blink-dash your WASD way, or through and behind the target. Just before an enemy hit = perfect snap'],['Ctrl+Space','Parry. Right on the hit = perfect: no damage, attacker staggered, counter window (your hits x1.5). A shot is sent back at the shooter, or away the way you hold WASD. A bit late = normal parry: less damage and knockback'],['J','Chain: start the next attack now, skipping the rhythm gap'],['K / L','Special / second special'],['I','Ultimate'],['1 2 3 4','Call an intent: pressure · punish (target open) · reset · feint'],['Q / E','Tag a partner in (enters with an attack)'],['R','Jump. Press again in the air = double jump, then gravity brings you down'],['F','Fast fall (in the air)'],['R / F (flyers)','Characters that can fly: hold to climb / descend, let go to stay at that height. With Space: snap straight up / down'],['T / Middle mouse','Lock on to the enemy (Training: the nearest dummy). WASD: in / out / circle it, the camera holds the shot on it, attacks snap in to it. Again to release'],['C','Camera: over the shoulder / dynamic / wide'],['Tab','Control level'],['Esc / P','Pause']];
     return '<div class="scr wide"><h1>Controls</h1><dl class="keys">'+K.map(k=>'<dt>'+k[0]+'</dt><dd>'+esc(k[1])+'</dd>').join('')+'</dl>'+
       '<nav class="row">'+btn('back','Back','primary')+'</nav></div>';}
 

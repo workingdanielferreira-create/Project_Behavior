@@ -486,5 +486,13 @@ v3-animation skill ("Review questions").
    placement from `pb_rig3d`).
 4. **Done (2026-11-24), the 2.5D route Daniel picked instead of 3D FX styles:** FX Studio 3D (see above).
 
+## Knockback combos + lock-on (2026-11-26)
+
+- Daniel: hit a knocked-back fighter while it flies, for combos. His picks: auto chase as a toggle, OFF by default
+  (Space catches it instead); follow-up hits REDIRECT the flight; decay + cap with a break free; everyone (you + AI,
+  Battle + Training); plus a lock-on key (T / middle mouse: face + circle + camera + homing attacks); settings in the
+  game's Settings screen. `v3/js/combo.js`, README "Knockback combos + lock-on". **Next:** his verdict in game
+  (tune cap / decay / lift / reach).
+
 Follow `CLAUDE.md` session rules: ask before implementing (pop-up questions); push, open the PR and
 merge it.

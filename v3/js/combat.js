@@ -56,8 +56,8 @@ function tryAttack(f,e,forced){
   if(f.k.rhythm===false&&!forced)f.gapUntil=tick+ms2t(rnd(150,450));
   const nd=f.k.normals[f.ni%f.k.normals.length];
   if(forced!==true&&nd&&nd.tdist){if(!inTrigDist(f,e,nd))return false;}   // its own trigger distance replaces the reach check (forced true = your key press; 'ai' = the AI's parry counter)
-  else{if(d>f.k.reach*(forced?1.9:(f.k.melee?1.7:1)))return false;
-  if(f.k.melee&&Math.abs(f.z-e.z)>f.k.reach*(forced?1.9:1.3)+60)return false;}
+  else{const cr=comboReach(e);if(d>f.k.reach*(forced?1.9:(f.k.melee?1.7:1))*cr)return false;
+  if(f.k.melee&&Math.abs(f.z-e.z)>f.k.reach*(forced?1.9:1.3)*cr+60)return false;}
   if(tick-f.lastNormal>ms2t(900))f.ni=0;
   const def=f.k.normals[f.ni%f.k.normals.length];f.ni++;f.lastNormal=tick;startAct(f,def,'normal','N'+f.ni);stats.used[f.side].normal++;return true;}
 function useSkill(f,which){if(!f||f.ko||f.stun>0||f.gone>0||!f.k[which]||f.k[which].none)return false;const e=enemyOf(f);
@@ -67,7 +67,7 @@ function useSkill(f,which){if(!f||f.ko||f.stun>0||f.gone>0||!f.k[which]||f.k[whi
   if(which==='ult')callout(def.name,f.k.name,cssc(f.k.fx),.9);return true;}
 function hitResolve(a,t,h){ // h=[at,dmg,w,reach]
   if(t.ko||!t.on||t.gone>0)return false;
-  const d=Math.hypot(a.x-t.x,a.y-t.y);if(h[3]>0&&d>h[3])return false;if(h[3]>0&&Math.abs(a.z-t.z)>h[3]*.9+50)return false;
+  const d=Math.hypot(a.x-t.x,a.y-t.y),cr=comboReach(t);if(h[3]>0&&d>h[3]*cr)return false;if(h[3]>0&&Math.abs(a.z-t.z)>h[3]*.9*cr+50)return false;   // combo.js: more reach on a juggled target
   // Most 2D attacks whiff (about 1 in 5 actions lands): a free target slips normals with a sidestep.
   if(a.act&&a.act.kind!=='ult'&&t.stun<=0&&t.parry<=0&&t.block<=0&&!(t.dummy&&t.dummy.beh!=='fight')){const nm=a.act.kind==='normal';const pLand=t.snap?0:t.act?(nm?.36:.6):(nm?.2:.45);if(Math.random()>pLand){
     const ang=Math.atan2(t.y-a.y,t.x-a.x)+(Math.random()<.5?1.6:-1.6);const sx=t.x,sy=t.y;t.x=clamp(t.x+Math.cos(ang)*34,20,W-20);t.y=clamp(t.y+Math.sin(ang)*34,20,H-20);fx_ghost(t,sx,sy);return false;}}
@@ -82,7 +82,8 @@ function damage(a,t,dmg,w,isShot,shot,kbpx,unblock){
   // Parry / deflect (parry.js): a perfect parry takes the hit, a normal one cuts damage and knockback.
   let pk=1,pkb=1;if(!unblock){const pr=parryOnHit(a,t,isShot,shot);if(!pr)return false;pk=pr.k;pkb=pr.kb;}
   let k=pk;if(t.block>0&&!unblock){k=Math.min(k,.3);fx_ring(t.x,t.y,t.k.fx,1.8,.25,1);director.cnt++;}
-  dmg*=(a.dmgMul||1)*(t.takenMul||1)*parryCounterMult(a,t)*(a.dummy?TRAIN.fightDmg:1);const dm=dmg*k;t.dmgLog.push([tick,dm]);if(t.dmgLog.length>40)t.dmgLog.shift();t.hp=Math.max(0,t.hp-dm);t.hurts.push(tick);t.lastHurt=tick;if(t.hurts.length>8)t.hurts.shift();t.tp.mom=Math.max(-1,t.tp.mom-.2);
+  const jug=comboBefore(t);   // combo.js: juggled = still stunned by an earlier hit; its old flight is dropped (redirect)
+  dmg*=(a.dmgMul||1)*(t.takenMul||1)*parryCounterMult(a,t)*(a.dummy?TRAIN.fightDmg:1)*(jug?comboKeep(t):1);const dm=dmg*k;t.dmgLog.push([tick,dm]);if(t.dmgLog.length>40)t.dmgLog.shift();t.hp=Math.max(0,t.hp-dm);t.hurts.push(tick);t.lastHurt=tick;if(t.hurts.length>8)t.hurts.shift();t.tp.mom=Math.max(-1,t.tp.mom-.2);
   trainNoteHit(a,t,dm);a.landedThisAct=true;a.lastLanded=tick;a.tp.mom=Math.min(1,a.tp.mom+.15);
   director.hits++;director.dmg+=dm;director.taken+=dm;director.lastHitTick=tick;metr.hits.push(tick);stats.dealt[a.side]+=dm;
   const wv={L:1,M:2,H:3,B:4}[w]||1;
@@ -93,7 +94,7 @@ function damage(a,t,dmg,w,isShot,shot,kbpx,unblock){
   {const ddx=t.x-a.x,ddy=t.y-a.y,l=Math.hypot(ddx,ddy)||1;shakeDir=[ddx/l,ddy/l];}shake=Math.max(shake,.16*wv+.08);camPunch=Math.max(camPunch,.035*wv);
   dmgNum(t,Math.round(dm),a.k.fx,wv);a.vx+=Math.cos(a.face)*40;a.vy+=Math.sin(a.face)*40;
   // 2D-style trading: light hits never interrupt, medium only an idle target, heavy / blowback always (unless armoured)
-  const dx=t.x-a.x,dy=t.y-a.y,dd=Math.hypot(dx,dy)||1;const kvx=t.vx,kvy=t.vy;
+  const dx=t.x-a.x,dy=t.y-a.y,dd=Math.hypot(dx,dy)||1;const kvx=t.vx,kvy=t.vy;const st0=t.stun,vz0=t.vz;
   if(k===1&&wv>t.armor&&(wv>=3||(wv===2&&!t.act))){if(t.act)endAct(t);const kb=[0,160,420,800,1600][wv];t.vx+=dx/dd*kb;t.vy+=dy/dd*kb;
     stun(t,[0,150,260,600,850][wv],wv>=3?'down':'stag');if(wv>=3&&t.z<10)fx_dust(t.x,t.y,6);
     if(wv>=3&&a.z>t.z+60&&t.z>90){t.vz=-2900;t.stunKind='air';callout('SPIKE','','#ffc857',.5,true);camEvent('launch');}
@@ -102,6 +103,7 @@ function damage(a,t,dmg,w,isShot,shot,kbpx,unblock){
       if(a.k.melee&&!(a.side===0&&level==='handson'))later(200,()=>{if(a.ko||!a.on||t.ko)return;a.snapCd=0;a.gapUntil=0;snapTo(a,t.x-Math.cos(a.face)*60,t.y-Math.sin(a.face)*60,Math.random()<a.k.blink,true,t.z+40);if(!canFly(a))a.jumpAfterSnap=true;if(a.k.rhythm!==false)enter(a,'punish');});}}
   if(kbpx&&k===1){t.vx+=dx/dd*kbpx*2.2;t.vy+=dy/dd*kbpx*2.2;}
   else{t.vx+=dx/dd*(wv>=2?220:110)*pkb;t.vy+=dy/dd*(wv>=2?220:110)*pkb;}
+  comboAfter(a,t,jug,wv,st0,vz0);   // combo.js: re-stun / juggle lift / decay / cap on a combo hit, auto chase
   camKnock(t,t.vx-kvx,t.vy-kvy);   // camera.js: knockback tracking shot (view only)
   planetHit(t,wv,dm);   // planet.js: the impact reaches scenery / pillars round the target
   if(t.hp<=0)ko(t);return true;}

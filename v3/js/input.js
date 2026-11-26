@@ -1,12 +1,15 @@
 'use strict';
 /* Input: keyboard state, camera-relative WASD, commands (snap, chain, skills, intents, tag, jump / fast fall or fly, sprint, camera, control level). */
 /* ================= input ================= */
-const keys={};let inputDir=null;const GAMEK={KeyR:1,KeyF:1,KeyC:1,KeyW:1,KeyA:1,KeyS:1,KeyD:1,ArrowUp:1,ArrowDown:1,ArrowLeft:1,ArrowRight:1,Space:1,KeyJ:1,KeyK:1,KeyL:1,KeyI:1,Digit1:1,Digit2:1,Digit3:1,Digit4:1,KeyQ:1,KeyE:1,Tab:1,Escape:1,KeyP:1};
+const keys={};let inputDir=null;const GAMEK={KeyR:1,KeyF:1,KeyC:1,KeyW:1,KeyA:1,KeyS:1,KeyD:1,ArrowUp:1,ArrowDown:1,ArrowLeft:1,ArrowRight:1,Space:1,KeyJ:1,KeyK:1,KeyL:1,KeyI:1,Digit1:1,Digit2:1,Digit3:1,Digit4:1,KeyQ:1,KeyE:1,KeyT:1,Tab:1,Escape:1,KeyP:1};
 function readDir(){let x=0,y=0;if(keys.KeyW||keys.ArrowUp)y-=1;if(keys.KeyS||keys.ArrowDown)y+=1;if(keys.KeyA||keys.ArrowLeft)x-=1;if(keys.KeyD||keys.ArrowRight)x+=1;const l=Math.hypot(x,y);if(!l)return null;x/=l;y/=l;
+  // locked on (combo.js): W = toward the target, S = away, A / D = circle it
+  const LA=lockAxes();if(LA)return [LA[0][0]*(-y)+LA[1][0]*x,LA[0][1]*(-y)+LA[1][1]*x];
   // camera-relative: W = away from the camera along the ground
   const fx=camLook.x-cam.position.x,fz=camLook.z-cam.position.z,fl=Math.hypot(fx,fz)||1;const F=[fx/fl,fz/fl],Rt=[-F[1],F[0]];return [F[0]*(-y)+Rt[0]*x,F[1]*(-y)+Rt[1]*x];}
 window.addEventListener('keydown',ev=>{if(ev.code==='ShiftLeft'||ev.code==='ShiftRight'){if(!ev.repeat&&!Menu.isOpen()&&running&&!ended&&!paused)sprintKeyDown();return;}   // sprint (sprint.js)
   if(Menu.isOpen()||!running||ended||!GAMEK[ev.code])return;ev.preventDefault();if(ev.code==='Escape'||ev.code==='KeyP'){setPaused(!paused);return;}if(paused)return;if(ev.code==='Space'&&ev.ctrlKey){if(!ev.repeat)command('Parry');return;}keys[ev.code]=true;if(ev.repeat)return;command(ev.code);});
+window.addEventListener('mousedown',ev=>{if(ev.button!==1||Menu.isOpen()||!running||ended||paused)return;ev.preventDefault();command('KeyT');});   // middle mouse = lock-on
 window.addEventListener('keyup',ev=>{keys[ev.code]=false;if(ev.code==='ShiftLeft'||ev.code==='ShiftRight')sprintKeyUp();});
 window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false;sprintKeyUp();if(running&&!ended)setPaused(true);});
 function command(code,retry){const f=sides[0].team[sides[0].on];if(!f||f.ko)return;const e=enemyOf(f);
@@ -14,6 +17,7 @@ function command(code,retry){const f=sides[0].team[sides[0].on];if(!f||f.ko)retu
   const fail=c=>{if(!retry&&busy()){f.buf={code:c,until:tick+ms2t(400)};return;}if(!retry||tick>=(f.buf&&f.buf.until||0))deny(c);};
   if(code==='KeyC'){const M=['shoulder','dynamic','wide'];setCam(M[(M.indexOf(camMode)+1)%3]);return;}
   if(code==='Tab'){const L=['watch','commander','handson'];setLevel(L[(L.indexOf(level)+1)%3]);return;}
+  if(code==='KeyT'&&level!=='watch'){lockToggle();return;}   // lock-on (combo.js); middle mouse too
   if(level==='watch'){callout('Watch mode','Press Tab to take command','#9aa1bd',.6,true);return;}
   if(!retry)stats.inputs++;
   // Ctrl+Space: parry / deflect (parry.js). Works while staggered too (parry the counter back).
@@ -22,9 +26,12 @@ function command(code,retry){const f=sides[0].team[sides[0].on];if(!f||f.ko)retu
   if(code==='KeyR'){if(canFly(f))return;if(f.act&&f.act.kind!=='normal'){fail('KeyR');return;}if(f.stun>0||f.gone>0||f.snap||f.leap>0){fail('KeyR');return;}
     if(!canJump(f))return;if(f.act)endAct(f);if(jumpPress(f))f.buf=null;return;}
   if(code==='KeyF'){if(!canFly(f)&&f.z>.5&&f.stun<=0)f.ffall=true;return;}
-  if(code==='Space'){const dir=readDir();const fly=canFly(f);let tx,ty,tz=fly&&keys.KeyR?f.z+380:fly&&keys.KeyF?f.z-380:(dir?f.z:e.z);if(dir){tx=f.x+dir[0]*300;ty=f.y+dir[1]*300;}else if(fly&&(keys.KeyR||keys.KeyF)){tx=f.x;ty=f.y;}else{const a=Math.atan2(e.y-f.y,e.x-f.x);tx=e.x+Math.cos(a)*90;ty=e.y+Math.sin(a)*90;}
+  if(code==='Space'){const dir=readDir();const fly=canFly(f);let tx,ty,tz=fly&&keys.KeyR?f.z+380:fly&&keys.KeyF?f.z-380:(dir?f.z:e.z);if(dir){tx=f.x+dir[0]*300;ty=f.y+dir[1]*300;}else if(fly&&(keys.KeyR||keys.KeyF)){tx=f.x;ty=f.y;}else if(comboJuggled(e)){const p=comboFront(f,e,.12);tx=p[0];ty=p[1];}   // combo.js: catch a flying target in front of it
+    else{const a=Math.atan2(e.y-f.y,e.x-f.x);tx=e.x+Math.cos(a)*90;ty=e.y+Math.sin(a)*90;}
     if(f.stun>0||f.gone>0){fail('Space');return;}if(f.act&&f.act.kind!=='normal'&&f.act.kind!=='react'){fail('Space');return;}
     if(f.act)endAct(f);f.snapCd=0;if(snapTo(f,tx,ty,Math.random()<Math.max(.3,f.k.blink),true,tz)){f.iframe=ms2t(160);f.perfectReady=incoming(f,e)!=null;stats.pSnaps++;f.buf=null;}else fail('Space');return;}
+  // locked on (combo.js): an attack key out of reach snaps in to the target first, the key waits for the snap
+  if(!retry&&(code==='KeyJ'||((code==='KeyK'||code==='KeyL'||code==='KeyI')&&f.k.melee))&&lockHome(f,e,code==='KeyJ'||f.k.melee)){f.buf={code,until:tick+ms2t(500)};return;}
   if(code==='KeyJ'){if(f.act&&f.act.kind==='normal'){const a=f.act;const lastHit=a.def.hits.length?a.def.hits[a.def.hits.length-1][0]:a.def.fx.length?a.def.fx[a.def.fx.length-1][0]:0;if(a.t*TICK>lastHit+20)endAct(f);else{f.bufChain=true;return;}}
     if(!tryAttack(f,e,true))fail('KeyJ');else{stats.pChains++;f.buf=null;}return;}
   if(code==='KeyK'||code==='KeyL'||code==='KeyI'){const w=code==='KeyK'?'special':code==='KeyL'?'special2':'ult';if(!useSkill(f,w)){if(f.cds[w]>tick&&!busy())deny(code);else fail(code);}else{stats.pSkills++;f.buf=null;}return;}

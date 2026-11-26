@@ -2,7 +2,7 @@
 /* Fighters: creation (mkFighter), per-tick update (updFighter), altitude (jumps / flight, gravity.js), wall / ground splats. */
 function mkFighter(key,side){const k=KITS[key];const m=buildBody(k,key);
   return Object.assign(m,{key,k,side,x:0,y:0,vx:0,vy:0,face:0,face3:0,hp:k.hp,max:k.hp,ko:false,on:false,
-    act:null,stun:0,stunKind:'',armor:0,gone:0,snap:null,snapCd:0,iframe:0,parry:0,block:0,reactCd:0,
+    act:null,stun:0,stunKind:'',cmbN:0,armor:0,gone:0,snap:null,snapCd:0,iframe:0,parry:0,block:0,reactCd:0,
     ni:0,lastNormal:-999,gapUntil:0,cds:{special:0,special2:0,ult:600},
     lastEnd:-999,lastWhiff:false,landedThisAct:false,lastLanded:-999,lastHurt:-999,hurts:[],
     tp:{intent:'neutral',since:0,until:0,n:0,done:0,mom:0,orbit:Math.random()<.5?1:-1,swayPh:rnd(0,TAU),swayMs:rnd(900,2200),feintKind:'dash_in',feintBit:false,openSeen:false,resetAng:0,punishReady:0,lastStart:0},

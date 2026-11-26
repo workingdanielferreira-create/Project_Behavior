@@ -21,7 +21,7 @@ function camShot(mode,pa,pb,sep){const dir=new THREE.Vector3().subVectors(pb,pa)
 const track={f:null,ph:0,side:1,frozen:false,t:0,p0:new THREE.Vector3(),l0:new THREE.Vector3(),f0:56,dir:new THREE.Vector3(0,0,-1),p:new THREE.Vector3(),l:new THREE.Vector3(),fov:56,next:0};
 const BASE_FOV=56;
 // combat.js damage(): the knockback this hit added (px/s). Predicts the carry (speed / slide friction) and starts the shot.
-function camKnock(f,dvx,dvy){if(!settings.trackOn||!running||ended||(camMode!=='shoulder'&&camMode!=='dynamic'))return;
+function camKnock(f,dvx,dvy){if(!settings.trackOn||lockBlocksTrack()||!running||ended||(camMode!=='shoulder'&&camMode!=='dynamic'))return;
   const [a,b]=onField();if((f!==a&&f!==b)||f.phantom||!f.on)return;
   const s=Math.hypot(dvx,dvy),air=f.vz>0||f.z>25,carry=s/(air?GRAV.airFric:GRAV.groundFric);if(carry<settings.trackMinPx)return;
   const now=performance.now()/1000;
@@ -56,7 +56,7 @@ function trackLeft(f){const g=JUMP.gravity;let t=0,s=Math.hypot(f.vx,f.vy);
 const ease=u=>u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;
 // returns true while the shot owns the camera (camStep then skips its own placement)
 function trackStep(rdt){if(!track.ph)return false;const f=track.f;track.t+=rdt*1000;
-  const gone=!f||!f.on||(camMode!=='shoulder'&&camMode!=='dynamic')||!settings.trackOn;
+  const gone=!f||!f.on||(camMode!=='shoulder'&&camMode!=='dynamic')||!settings.trackOn||lockBlocksTrack();
   if(gone&&track.ph<3){track.ph=3;track.t=0;track.frozen=true;track.f0=cam.fov;}
   if(!track.frozen&&f&&f.on)trackPose(rdt);   // live chase pose in every phase (the glide back leaves from it, no freeze)
   if(track.ph===1){const u=ease(Math.min(1,track.t/Math.max(1,settings.trackInMs)));
@@ -74,7 +74,8 @@ function trackReset(){track.ph=0;track.f=null;track.frozen=false;track.next=0;ca
 function camStep(rdt,idle){if(idle){if(PLANET&&world){planetIdleCam();return;}const t=performance.now()/1000*.1;cam.position.set(Math.sin(t)*40,24,Math.cos(t)*40);cam.lookAt(0,6,0);return;}
   const [a,b]=onField();const pa=VA(a.x,a.y,a.z,1.2),pb=VA(b.x,b.y,b.z,1.2);const sep=pa.distanceTo(pb);
   let mode=camMode;const now=performance.now()/1000;
-  if(camMode==='dynamic'){if(now>cut.t){const r=Math.random();cut.kind=sep>28?(r<.6?'side':'wide'):(r<.45?'shoulder':r<.7?'side':r<.85?'reverse':'low');cut.t=now+rnd(2.4,4.8);cut.snap=true;}mode=cut.kind;}
+  if(camMode==='dynamic'&&!lockTarget()){if(now>cut.t){const r=Math.random();cut.kind=sep>28?(r<.6?'side':'wide'):(r<.45?'shoulder':r<.7?'side':r<.85?'reverse':'low');cut.t=now+rnd(2.4,4.8);cut.snap=true;}mode=cut.kind;}
+  mode=lockCamMode(mode);   // combo.js: locked on = the over-the-shoulder shot on the target
   const [tgt,look]=camShot(mode,pa,pb,sep);if(tgt.y<.4)tgt.y=.4;
   if(PLANET&&planetWrapped){planetWrapped=false;camPos.copy(tgt);camLook.copy(look);}   // a fighter came round the globe: re-frame at once
   if(cut.snap&&!track.ph){camPos.copy(tgt);camLook.copy(look);cut.snap=false;}
