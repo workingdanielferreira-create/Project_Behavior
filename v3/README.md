@@ -508,6 +508,13 @@ the contact glow, chips and sparks thrown back, the slam's light pillar, level r
 tapered spear, speed lines all round, pressure rings, sparks, the pierced line. Arc kind: a band round its centre with a
 white core. Hits stay FX Studio's own. `blade_extension` (no character uses it) stays a card.
 
+**Reads as 3D (Daniel 2026-11-26: "only 1 is 3D").** The cel bands follow the scene's sun (`LIGHT_DIR`, the same
+(-10, 20, 10) as renderer.js), not the view: a lit side, a hard shadow side, a rim light and a white-hot highlight, so a
+sphere or tube shows its form from any angle (it was a flat badge before). Glows (no-core, no-ink spheres) are a solid lit
+core + a banded rim shell (`uShell`) instead of a see-through disc. Smoke = light lit balls. Blades (`blade3`) are wedges
+(sharp edge, thick spine at `spine` 0.62) twisting along their line (`blade_twist_deg` 50) with `blade_layers` (2) echo
+copies in depth either side; `blade_thick_pct` default 35 -> 70. Before / after stills: `v3/shots/fx3d_before_after.png`.
+
 **3D gunfire + ki barrage (Daniel 2026-11-26, batch 3).** The ten `GUNFX` styles and the ki barrage draw in 3D
 (`fx3d.js drawGun` / `drawKi`, rounds from `GUNFX.geo.rounds` / `STRIKEFX.ki.shots`, so every round flies and hits where
 FX Studio puts it). Tracers / pellets / slugs = tapered streaks with a hot head (slugs wrapped in rifling rings), the orb =
