@@ -631,6 +631,8 @@ const TOON = [
   {l: 'Glow size (%)', p: 'fx3d.strike_glow_pct', t: 'rng', min: 10, max: 200, show: v => is3dV(v) && !!FX3D.gunKind(v), h: 'Spheres for FX Studio\'s soft glows (muzzle flash, round heads, blasts), % of the glow radius'},
   {l: 'Casings / sparks on the floor', p: 'fx3d.strike_ground', t: 'chk', show: v => is3dV(v) && !!FX3D.gunKind(v), h: 'Casings bounce and sparks skid on the floor; lightning rings lie on it'},
   {l: 'Blade', t: 'h', show: v => is3dV(v) && !!FX3D.bladeKind(v)},
+  {l: 'Blade twist (°)', p: 'fx3d.blade_twist_deg', t: 'rng', min: -180, max: 180, show: v => is3dV(v) && !!FX3D.bladeKind(v), h: 'The blade\'s section turns this much along its length'},
+  {l: 'Depth layers', p: 'fx3d.blade_layers', t: 'rng', min: 0, max: 4, show: v => is3dV(v) && !!FX3D.bladeKind(v), h: 'Echo copies of the blade in front of / behind it (0 = none)'},
   {l: 'Blade thickness (%)', p: 'fx3d.blade_thick_pct', t: 'rng', min: 0, max: 150, show: v => is3dV(v) && !!FX3D.bladeKind(v), h: 'How thick the 3D blade is, % of its width (a lens section with a ridge; 0 = flat)'},
   {l: 'Glow size (%)', p: 'fx3d.strike_glow_pct', t: 'rng', min: 10, max: 200, show: v => is3dV(v) && !!FX3D.bladeKind(v), h: 'Spheres for FX Studio\'s soft glows (head glint, bursts, flashes), % of the glow radius'},
   {l: 'Ground crescents on the floor', p: 'fx3d.strike_ground', t: 'chk', show: v => is3dV(v) && FX3D.bladeKind(v) === 'crescent', h: 'Ground drag / moonfall stand on the floor, sparks skid on it'},

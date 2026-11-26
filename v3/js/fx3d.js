@@ -45,7 +45,7 @@ const DEF3D = {lay: 'auto', tilt_deg: 0, yaw_deg: 0, pitch_deg: 0, pivot: 'spawn
   render: 'auto', toon_bands: 3, toon_core_pct: 30, toon_shade_pct: 55, toon_core: '#ffffff', toon_ink_m: 0.02, toon_alpha_pct: 100, toon_sides: 12,
   laser_streak: 5, laser_max_m: 6, laser_width_pct: 85, beam_bulb_pct: 130, beam_flare_pct: 150, beam_wobble_pct: 8, beam_width_pct: 100,
   impact_shell: true, impact_shell_pct: 35, impact_ring: true, impact_spikes: 8, impact_spike_pct: 90, chunk_shape: 'shard', chunk_spread_pct: 60, chunk_size_pct: 120,
-  strike_limb: 'auto', strike_glow_pct: 50, strike_spin_deg: 90, strike_ground: true, blade_thick_pct: 35};
+  strike_limb: 'auto', strike_glow_pct: 50, strike_spin_deg: 90, strike_ground: true, blade_thick_pct: 70, blade_twist_deg: 50, blade_layers: 2};
 const RENDERS = ['auto', '3d', 'card'];
 const CHUNKS = ['shard', 'ball', 'cube'];
 const TOON_PRIMS = ['ribbon', 'beam', 'particles', 'glow', 'pulse'];
@@ -61,7 +61,7 @@ function strikeKind(fx) {
 }
 const TOON_NUMS = ['toon_bands', 'toon_core_pct', 'toon_shade_pct', 'toon_ink_m', 'toon_alpha_pct', 'toon_sides', 'laser_streak', 'laser_max_m',
   'laser_width_pct', 'beam_bulb_pct', 'beam_flare_pct', 'beam_wobble_pct', 'beam_width_pct', 'impact_shell_pct', 'impact_spikes', 'impact_spike_pct',
-  'chunk_spread_pct', 'chunk_size_pct', 'strike_glow_pct', 'strike_spin_deg', 'blade_thick_pct'];
+  'chunk_spread_pct', 'chunk_size_pct', 'strike_glow_pct', 'strike_spin_deg', 'blade_thick_pct', 'blade_twist_deg', 'blade_layers'];
 const MOVE_PATHS = ['none', 'line', 'leap', 'arc', 'zigzag', 'flank', 'hit_retreat'];
 const START_MODES = ['stay', 'blink', 'dash'];
 const MOVE_EASES = ['inout', 'linear', 'in', 'out'];
@@ -83,7 +83,7 @@ function cfg3d(fx) {
   if (RENDERS.indexOf(c.render) < 0) c.render = 'auto';
   if (CHUNKS.indexOf(c.chunk_shape) < 0) c.chunk_shape = 'shard';
   if (STRIKE_LIMBS.indexOf(c.strike_limb) < 0) c.strike_limb = 'auto';
-  c.strike_ground = c.strike_ground !== false;
+  c.strike_ground = c.strike_ground !== false; c.blade_layers = Math.max(0, Math.min(4, Math.round(c.blade_layers)));
   TOON_NUMS.forEach(k => { c[k] = num(c[k], DEF3D[k]); });
   c.toon_bands = Math.max(1, Math.min(6, Math.round(c.toon_bands))); c.toon_sides = Math.max(3, Math.min(48, Math.round(c.toon_sides)));
   c.impact_spikes = Math.max(0, Math.min(48, Math.round(c.impact_spikes)));
@@ -154,9 +154,9 @@ function sizeCard(c, w, h) {
 // taper / ink inflate, so a beam laid level on the flat sim plane is drawn following the ground at the same height.
 // The normal is bent with it (for the bands). Tubes and cards are split along their length so they can curve.
 const TOON_VS = [
-  'uniform float uR0; uniform float uR1; uniform float uTaper; uniform float uInflate; uniform vec4 uBend; uniform float uVA;',
+  'uniform float uR0; uniform float uR1; uniform float uTaper; uniform float uInflate; uniform vec4 uBend; uniform float uVA; uniform vec3 uLight;',
   'attribute float aA;',
-  'varying vec3 vN; varying vec3 vV; varying float vD; varying float vA;',
+  'varying vec3 vN; varying vec3 vV; varying float vD; varying float vA; varying vec3 vL;',
   'vec3 bendP( vec3 p ) {',
   '  if ( uBend.w <= 0.0 ) return p;',
   '  vec2 d = p.xz - uBend.xz; float r = length( d ); if ( r < 1e-5 ) return p;',
@@ -175,24 +175,38 @@ const TOON_VS = [
   '  vec3 bn = normalize( bendP( wp.xyz + nw * 0.05 ) - bp );',
   '  vec4 mv = viewMatrix * vec4( bp, 1.0 );',
   '  vN = normalize( ( viewMatrix * vec4( bn, 0.0 ) ).xyz ); vV = normalize( -mv.xyz ); vD = -mv.z;',
+  '  vL = normalize( ( viewMatrix * vec4( uLight, 0.0 ) ).xyz );',
   '  gl_Position = projectionMatrix * mv;',
   '}'].join('\n');
 const FLAT_BEND = {x: 0, y: 0, z: 0, w: 0};
+const LIGHT_DIR = new THREE.Vector3(-10, 20, 10).normalize();   // the scene's sun (renderer.js / fxstudio3d.html)
 const bendRef = () => (G.World3D && G.World3D.BEND) || FLAT_BEND;
 const TUBE_SEGS = 28, CARD_SEGS = 16;   // along a tube / across a card: enough to follow the globe's curve
+/* Lit cel shading (Daniel 2026-11-26: "only 1 is 3D"): the bands follow the scene's sun (renderer.js sun at
+   (-10, 20, 10)), not the view, so every shape has a lit side, a hard shadow side and a rim light and shows its form
+   from any angle; the white-hot core is the lit highlight. uShell = a glow shell: see-through in the middle, a solid
+   banded rim (a glow you can read as a volume, not a flat disc). */
 const TOON_FS = [
   'uniform vec3 uCol; uniform vec3 uShade; uniform vec3 uCore; uniform float uBands; uniform float uCoreT; uniform float uAlpha; uniform float uInk;',
-  'varying vec3 vN; varying vec3 vV; varying float vD; varying float vA;',
+  'uniform float uShell;',
+  'varying vec3 vN; varying vec3 vV; varying float vD; varying float vA; varying vec3 vL;',
   'void main() {',
   // near the camera a shape fades out (a big shock ring / flash passing the lens never blanks the screen)
   '  float nf = smoothstep( 0.35, 1.8, vD ) * vA;',
   '  if ( nf <= 0.0 ) discard;',
   '  if ( uInk > 0.5 ) { gl_FragColor = vec4( 0.02, 0.027, 0.05, uAlpha * nf ); return; }',
-  '  float f = abs( dot( normalize( vN ), normalize( vV ) ) );',
-  '  vec3 c;',
-  '  if ( uCoreT > 0.0 && f >= 1.0 - uCoreT ) c = uCore;',
-  '  else { float k = f / max( 0.001, 1.0 - uCoreT ); float i = min( uBands - 1.0, floor( k * uBands ) );',
-  '    c = mix( uShade, uCol, uBands > 1.0 ? i / ( uBands - 1.0 ) : 1.0 ); }',
+  '  vec3 N = normalize( vN ), V = normalize( vV );',
+  '  float f = abs( dot( N, V ) );',
+  '  if ( uShell > 0.5 ) {',
+  '    float e = 1.0 - f, sa = e > 0.62 ? 1.0 : ( e > 0.38 ? 0.55 : 0.0 );',
+  '    if ( sa <= 0.0 ) discard;',
+  '    gl_FragColor = vec4( e > 0.8 ? mix( uCol, uCore, 0.5 ) : uCol, uAlpha * nf * sa ); return; }',
+  '  if ( dot( N, V ) < 0.0 ) N = -N;',
+  '  float l = clamp( dot( N, normalize( vL ) ) * 0.5 + 0.5, 0.0, 1.0 );',
+  '  float i = min( uBands - 1.0, floor( l * uBands ) );',
+  '  vec3 c = mix( uShade, uCol, uBands > 1.0 ? i / ( uBands - 1.0 ) : 1.0 );',
+  '  if ( uCoreT > 0.0 && l > 1.0 - uCoreT && f > 0.3 ) c = uCore;',
+  '  if ( 1.0 - f > 0.72 && l > 0.42 ) c = mix( c, uCore, 0.6 );',
   '  gl_FragColor = vec4( c, uAlpha * nf );',
   '}'].join('\n');
 const GEO = {};
@@ -210,7 +224,7 @@ function toonGeo(kind, sides) {
 }
 function toonUniforms(ink) {
   return {uCol: {value: new THREE.Color()}, uShade: {value: new THREE.Color()}, uCore: {value: new THREE.Color()}, uBands: {value: 3}, uCoreT: {value: 0.3},
-    uAlpha: {value: 1}, uInk: {value: ink ? 1 : 0}, uR0: {value: 1}, uR1: {value: 1}, uTaper: {value: 0}, uInflate: {value: 0}, uVA: {value: 0}, uBend: {value: bendRef()}};
+    uAlpha: {value: 1}, uInk: {value: ink ? 1 : 0}, uR0: {value: 1}, uR1: {value: 1}, uTaper: {value: 0}, uInflate: {value: 0}, uVA: {value: 0}, uBend: {value: bendRef()}, uShell: {value: 0}, uLight: {value: LIGHT_DIR}};
 }
 function makeToon(scene, kind, sides) {
   const geo = kind === 'band' ? bandGeo() : toonGeo(kind, sides);   // a band (sword FX) has its own changing geometry
@@ -473,7 +487,7 @@ Runner.prototype.paint = function (t, c, rgb, alpha, ink) {
   const a = Math.max(0, Math.min(1, alpha * c.toon_alpha_pct / 100));
   [t.m, t.h].forEach(x => { const u = x.material.uniforms;
     rgb01(rgb, u.uCol.value); u.uShade.value.copy(u.uCol.value).multiplyScalar(Math.max(0, c.toon_shade_pct) / 100);
-    u.uCore.value.set(c.toon_core); u.uBands.value = c.toon_bands; u.uCoreT.value = Math.max(0, Math.min(0.95, c.toon_core_pct / 100)); u.uAlpha.value = a;
+    u.uCore.value.set(c.toon_core); u.uBands.value = c.toon_bands; u.uCoreT.value = Math.max(0, Math.min(0.95, c.toon_core_pct / 100)); u.uAlpha.value = a; u.uShell.value = 0;
   });
   const ik = ink == null ? c.toon_ink_m : ink;
   // the colour pass draws first and keeps its depth when there is an ink outline, so the ink shell (drawn after) only
@@ -483,6 +497,17 @@ Runner.prototype.paint = function (t, c, rgb, alpha, ink) {
   return t;
 };
 Runner.prototype.sphere = function (c, P, r, rgb, alpha, ink, scl) {
+  // a glow (the no-core look, no ink): a solid lit core + a banded rim shell, never a flat see-through disc
+  if (c._glow && !scl && !(ink > 0)) {
+    const a = Math.max(0, Math.min(1, alpha));
+    if (a <= 0.004 || r <= 0) return null;
+    const k = this.paint(this.toon('sph', c.toon_sides), c._lit || (c._lit = Object.assign({}, c, {toon_core_pct: 35})), rgb, Math.min(1, a * 2.2), 0);
+    [k.m, k.h].forEach(x => { x.position.copy(P); x.quaternion.identity(); x.scale.setScalar(r * 0.42); x.material.uniforms.uTaper.value = 0; });
+    const sh = this.paint(this.toon('sph', c.toon_sides), c, rgb, a, 0);
+    sh.m.material.uniforms.uShell.value = 1; sh.m.material.depthWrite = false;
+    sh.m.position.copy(P); sh.m.quaternion.identity(); sh.m.scale.setScalar(r); sh.m.material.uniforms.uTaper.value = 0;
+    return sh;
+  }
   const t = this.paint(this.toon('sph', c.toon_sides), c, rgb, alpha, ink);
   [t.m, t.h].forEach(x => { x.position.copy(P); x.quaternion.identity(); x.scale.set(r, r, r); x.material.uniforms.uTaper.value = 0; });
   if (scl) [t.m, t.h].forEach(x => { x.quaternion.copy(scl.q); x.scale.set(r * scl.x, r * scl.y, r * scl.z); });
@@ -592,7 +617,9 @@ Runner.prototype.draw3d = function (l, inst, xf) {
    a sphere is solid). */
 const _s1 = new THREE.Vector3(), _s2 = new THREE.Vector3(), _s3 = new THREE.Vector3(), _sq = new THREE.Quaternion(), ZV = new THREE.Vector3(0, 0, 1), XV = new THREE.Vector3(1, 0, 0);
 const SLib = () => G.SWORDFX.lib;
-function noCore(c) { return c._nc || (c._nc = Object.assign({}, c, {toon_core_pct: 0})); }
+function noCore(c) { return c._nc || (c._nc = Object.assign({}, c, {toon_core_pct: 0, _glow: true})); }
+// solid no-core balls (smoke, dust): lit, never a glow shell
+function solidNC(c) { return c._sn || (c._sn = Object.assign({}, c, {toon_core_pct: 0})); }
 function easeO(u) { u = Math.max(0, Math.min(1, u)); return 1 - Math.pow(1 - u, 3); }
 function easeI(u) { u = Math.max(0, Math.min(1, u)); return u * u * u; }
 // a unit vector deg away from u, turned az round it
@@ -962,12 +989,19 @@ function bladeKind(fx) {
 }
 const _bm = new THREE.Vector3(), _bo = new THREE.Vector3(), _bs = new THREE.Vector3(), _bc = new THREE.Vector3();
 /* rows [{O, I, th (m), a}] -> a closed lens-section band (outer, +nz face, inner, -nz face) */
-Runner.prototype.band = function (c, rows, nz, rgb, alpha, ink) {
+// opt.twist (rad over the length): the section turns round the blade's line; opt.spine (0..1, 0.5): where across the
+// width the thick spine sits (toward the inner edge = a wedge with a sharp outer edge)
+const _tw = new THREE.Vector3(), _tn = new THREE.Vector3();
+Runner.prototype.band = function (c, rows, nz, rgb, alpha, ink, opt) {
   const n = Math.min(BAND_MAX, rows.length); if (n < 2 || alpha <= 0.004) return null;
+  const tw = (opt && opt.twist) || 0, sp = opt && opt.spine != null ? opt.spine : 0.5, nz0 = nz;
   const t = this.paint(this.toon('band', 0), c, rgb, alpha, ink), g = t.m.geometry, P = g.attributes.position.array, A = g.attributes.aA.array;
   for (let i = 0; i < BAND_MAX; i++) {
     const r = rows[Math.min(i, n - 1)], th = Math.max(0, r.th || 0), a = r.a == null ? 1 : Math.max(0, Math.min(1, r.a)), k = i * 18;
-    _bm.copy(r.O).add(r.I).multiplyScalar(0.5);
+    _bm.copy(r.O).lerp(r.I, sp);
+    nz = nz0;
+    if (tw) { const ia = Math.max(0, Math.min(n - 1, i - 1)), ib = Math.min(n - 1, i + 1), ra = rows[ia], rb = rows[ib];
+      _tw.copy(rb.O).add(rb.I).sub(ra.O).sub(ra.I); if (_tw.lengthSq() > 1e-12) { _tw.normalize(); nz = _tn.copy(nz0).applyAxisAngle(_tw, (Math.min(i, n - 1) / (n - 1) - 0.5) * tw); } }
     const V = [r.O, null, r.I, r.I, null, r.O];
     for (let j = 0; j < 6; j++) {
       const q = k + j * 3;
@@ -979,12 +1013,22 @@ Runner.prototype.band = function (c, rows, nz, rgb, alpha, ink) {
   // winding so the faces point out (the ink hull inflates along the normals)
   const r0 = rows[0], r1 = rows[n - 1];
   _bs.copy(r1.O).add(r1.I).sub(r0.O).sub(r0.I); _bo.copy(rows[n >> 1].O).sub(rows[n >> 1].I);
-  const flip = _bc.crossVectors(_bs, _bo).dot(nz) > 0 ? 1 : 0;
+  const flip = _bc.crossVectors(_bs, _bo).dot(nz0) > 0 ? 1 : 0;
   if (g.index !== bandIndex(flip)) g.setIndex(bandIndex(flip));
   g.attributes.position.needsUpdate = true; g.attributes.aA.needsUpdate = true;
   g.computeVertexNormals(); g.setDrawRange(0, (n - 1) * 24);
   [t.m, t.h].forEach(x => { x.position.set(0, 0, 0); x.quaternion.identity(); x.scale.set(1, 1, 1); x.material.uniforms.uTaper.value = 0; });
   return t;
+};
+// A solid blade (Daniel 2026-11-26 "volumetric blades"): a wedge section (sharp outer edge, thick spine) twisting along
+// its line by blade_twist_deg, plus blade_layers echo copies offset in depth (in front / behind its plane, fading out).
+Runner.prototype.blade3 = function (c, rows, nz, rgb, alpha, ink, depth) {
+  const k = c.blade_twist_deg * D, L = Math.round(c.blade_layers), nc = noCore(c);
+  for (let j = 1; j <= L; j++) [1, -1].forEach(sd => {
+    const d = sd * depth * j * 0.9, sh = rows.map(r => ({O: r.O.clone().addScaledVector(nz, d), I: r.I.clone().addScaledVector(nz, d), th: (r.th || 0) * 0.5, a: r.a}));
+    this.band(c._ech || (c._ech = Object.assign({}, c, {toon_core_pct: 0})), sh, nz, rgb, alpha * 0.42 / j, 0, {twist: -k * 0.6 * sd, spine: 0.62});
+  });
+  return this.band(c, rows, nz, rgb, alpha, ink, {twist: k, spine: 0.62});
 };
 // a thin lens-section line through world points pts, half width r (m)
 Runner.prototype.line3 = function (c, pts, r, nz, rgb, alpha, ink, aFn) {
@@ -1059,7 +1103,7 @@ Runner.prototype.cut3 = function (A, g, fr, t, ci) {
     if (t <= Ts + 6) { const bf = ga * (t <= Ts ? 1 : 1 - (t - Ts) / 6); this.sphere(nc, W(tail + (head - tail) * 0.7, R), Math.min(0.9 * R, 36) * Us * gk * 0.8, col, 80 / 255 * bf, 0); }
     const hz = 5;
     this.band(nc, sl.map(q => ({O: W(q[0], R + 0.3 * q[2] + hz), I: W(q[0], R - 0.7 * q[2] - hz), th: q[2] * kth * Us * 0.3, a: ga * Math.pow(q[1], 0.9)})), nz, col, 70 / 255, 0);
-    this.band(c, sl.map(q => ({O: W(q[0], R + 0.3 * q[2]), I: W(q[0], R - 0.7 * q[2]), th: q[2] * kth * Us * 0.5, a: ga * Math.pow(q[1], 0.9)})), nz, Lb.mix(col, bright, 0.55), 235 / 255, ink);
+    this.blade3(c, sl.map(q => ({O: W(q[0], R + 0.3 * q[2]), I: W(q[0], R - 0.7 * q[2]), th: q[2] * kth * Us * 0.5, a: ga * Math.pow(q[1], 0.9)})), nz, Lb.mix(col, bright, 0.55), 235 / 255, ink, g.W * 0.55 * Us);
     this.band(nc, sl.map(q => { const e = Math.max(1.2, 0.3 * q[2]); return {O: W(q[0], R + 0.3 * q[2] + 0.3), I: W(q[0], R + 0.3 * q[2] - e), th: q[2] * kth * Us * 0.55, a: Math.pow(ga * Math.pow(q[1], 0.9), 1.2)}; }), nz, HOTc, 1, 0);
   }
   if (t <= Ts + 4 && head - tail > 0.05) {   // air lines riding the cut
@@ -1115,7 +1159,7 @@ Runner.prototype.sline3 = function (A) {
     if (t <= Ts + 6) this.sphere(nc, AT((lo + hi) / 2), Math.min(0.45 * g.L, 40 * S) * Us * gk * 0.8, col, 80 / 255 * (t <= Ts ? 1 : 1 - (t - Ts) / 6) * ga, 0);
     const hz = 5 * S;
     this.band(nc, sl.map(q => ({O: E(q[0], 0.5 * q[1] + hz), I: E(q[0], -0.5 * q[1] - hz), th: q[1] * kth * Us * 0.3, a: ga * (0.35 + 0.65 * uA(q[0]))})), nz, col, 70 / 255, 0);
-    this.band(c, sl.map(q => ({O: E(q[0], 0.5 * q[1]), I: E(q[0], -0.5 * q[1]), th: q[1] * kth * Us * 0.5, a: ga * (0.35 + 0.65 * uA(q[0]))})), nz, Lb.mix(col, bright, 0.55), 235 / 255, ink);
+    this.blade3(c, sl.map(q => ({O: E(q[0], 0.5 * q[1]), I: E(q[0], -0.5 * q[1]), th: q[1] * kth * Us * 0.5, a: ga * (0.35 + 0.65 * uA(q[0]))})), nz, Lb.mix(col, bright, 0.55), 235 / 255, ink, g.W * 0.55 * Us);
     this.band(nc, sl.map(q => { const e = Math.max(0.8 * S, 0.22 * q[1]); return {O: E(q[0], e * 0.5), I: E(q[0], -e * 0.5), th: q[1] * kth * Us * 0.56, a: Math.pow(ga * (0.35 + 0.65 * uA(q[0])), 1.2)}; }), nz, HOTc, 1, 0);
     if (t <= Ts + 4) { const sf = t <= Ts ? 1 : 1 - (t - Ts) / 4;
       for (let k = 0; k < 2; k++) [1, -1].forEach(sd => { const off = sd * (g.W * 0.5 + (5 + 5 * k) * S), a0 = lo + (hi - lo) * (0.1 + 0.1 * k), a1 = hi - (hi - lo) * 0.05; if (a1 - a0 < 0.02) return;
@@ -1155,7 +1199,7 @@ Runner.prototype.moon3 = function (A, fr, R, W, k, tl, mi, fade, half) {
   const ph = (inst.seed % 1000) * 0.01 + mi * 1.7, pts = CR.pts(R, W, k, 20, half), P3 = (x, y) => { const p = fr.w(x, y); return WP(p[0], p[1]); };
   const rowsAt = (o0, o1, thk) => pts.map(q => ({O: P3(q[1][0] - q[2][0] * q[3] * o0, q[1][1] - q[2][1] * q[3] * o0), I: P3(q[1][0] - q[2][0] * q[3] * o1, q[1][1] - q[2][1] * q[3] * o1), th: q[3] * kth * Us * thk}));
   this.band(nc, pts.map(q => ({O: P3(q[1][0] + q[2][0] * 6 * k, q[1][1] + q[2][1] * 6 * k), I: P3(q[1][0] - q[2][0] * (q[3] + 4 * k), q[1][1] - q[2][1] * (q[3] + 4 * k)), th: q[3] * kth * Us * 0.3})), nz, col, 80 / 255 * fade, 0);
-  this.band(c, rowsAt(0, 1, 0.5), nz, Lb.mix(col, HOTc, 0.25), 235 / 255 * fade, ink);
+  this.blade3(c, rowsAt(0, 1, 0.5), nz, Lb.mix(col, HOTc, 0.25), 235 / 255 * fade, ink, W * k * 0.5 * Us);
   const e = half ? pts.length : pts.length - 2;   // the dark core, standing just proud of both faces
   this.band(nc, pts.slice(2, e).map(q => { const mm = q[3] * (0.88 + 0.2 * Lb.flame(q[0], tl, ph)); return {O: P3(q[1][0] - q[2][0] * q[3] * 0.3, q[1][1] - q[2][1] * q[3] * 0.3), I: P3(q[1][0] - q[2][0] * mm, q[1][1] - q[2][1] * mm), th: q[3] * kth * Us * 0.56}; }), nz, Lb.mix(deep, col, 0.3), 240 / 255 * fade, 0);
   const front = []; pts.forEach(q => { if (Math.abs(q[0]) < 0.85) front.push(P3(q[1][0], q[1][1])); });
@@ -1428,7 +1472,8 @@ Runner.prototype.puffs3 = function (inst, key, C, a, life, n, size, rgb, rise, U
     const r = Lb.rngFor(inst.seed, key, 300 + j), an = r.uniform(0, Math.PI * 2), dr = r.uniform(0.2, 1.0) * size * easeO(a / 14);
     const el = r.uniform(-0.6, 0.6), X = C.clone().add(new THREE.Vector3(Math.cos(an) * Math.cos(el), Math.sin(el), Math.sin(an) * Math.cos(el)).multiplyScalar(dr * Us));
     X.y += r.uniform(0.3, 1.0) * rise * a * Us;
-    this.sphere(nc, X, size * r.uniform(0.5, 0.9) * (0.5 + 0.8 * easeO(a / 18)) * Us * 0.6, rgb, 0.55 * Math.pow(1 - q, 1.5) * Math.min(1, a / 3), 0);
+    const sc = inst._c._smk || (inst._c._smk = Object.assign({}, inst._c, {toon_core_pct: 0, toon_shade_pct: 72, toon_bands: 2}));
+    this.sphere(sc, X, size * r.uniform(0.5, 0.9) * (0.5 + 0.8 * easeO(a / 18)) * Us * 0.42, SLib().mix(rgb, [236, 238, 246], 0.55), 0.7 * Math.pow(1 - q, 1.5) * Math.min(1, a / 3), 0);
   }
 };
 // sparks (gunfx sparks) in a 3D cone round dir
