@@ -402,7 +402,7 @@ moves through the action. Daniel's choices: a new page that reads / writes the c
   Stage toggles: **Planes** (an outline of the plane each live effect lies in: yellow side, green flat, blue ground,
   violet billboard), **Anchors** (the body's FX anchor points), **Path** (the body's movement), Camera presets.
 - **Actions**: every action in the FX file's `timing`, its length (frames × ms) and cooldown.
-- **FX of this action**: on / off, **+ Add from preset** (FX Studio's 184 presets), **+ Blank** (any kind),
+- **FX of this action**: on / off, **+ Add from preset** (FX Studio's 184 presets; the **3D · ...** groups at the top (Daniel 2026-11-26) copy every preset that draws as a 3D shape, by family, "· part 3D" = some of it stays on a card), **+ Blank** (any kind),
   **Copy from** another action, Duplicate, Delete, Go to start.
 - **Start spot & 3D placement** (per effect, `effects[i].fx3d`, see below), **Look & timing**, **FX movement**,
   **Damage** (incl. hit depth), **All look settings** (every `params` value, filterable) and **Effect JSON**
