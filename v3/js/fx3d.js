@@ -59,6 +59,11 @@ function strikeKind(fx) {
   const s = fx.params && fx.params.style;
   return s === 'impact_punch' ? 'punch' : STRIKE_KICKS.indexOf(s) >= 0 ? 'kick' : s === 'serious_punch' ? 'serious' : '';
 }
+// Hyper FX (Daniel 2026-11-26, tools/fx/studio/hyperfx.js): punching FX riding the 3D fist + standalone impact FX
+function hyperKind(fx) {
+  if (!fx || fx.prim !== 'technique' || !G.HYPERFX) return '';
+  return G.HYPERFX.isHyper(fx.params && fx.params.style) ? 'hyper' : '';
+}
 const TOON_NUMS = ['toon_bands', 'toon_core_pct', 'toon_shade_pct', 'toon_ink_m', 'toon_alpha_pct', 'toon_sides', 'laser_streak', 'laser_max_m',
   'laser_width_pct', 'beam_bulb_pct', 'beam_flare_pct', 'beam_wobble_pct', 'beam_width_pct', 'impact_shell_pct', 'impact_spikes', 'impact_spike_pct',
   'chunk_spread_pct', 'chunk_size_pct', 'strike_glow_pct', 'strike_spin_deg', 'blade_thick_pct'];
@@ -95,7 +100,7 @@ function cfg3d(fx) {
 function is3d(fx, c) {
   c = c || cfg3d(fx); if (!fx || c.render === 'card') return false;
   if (fx.prim === 'sprite') return !(fx.params && fx.params.shape === 'blade');
-  if (strikeKind(fx) || bladeKind(fx) || gunKind(fx)) return true;
+  if (strikeKind(fx) || bladeKind(fx) || gunKind(fx) || hyperKind(fx)) return true;
   return TOON_PRIMS.indexOf(fx.prim) >= 0;
 }
 // auto: soft / round FX (glows, particles, rings, afterimages) face the camera, everything else lies in the aim plane
@@ -310,9 +315,11 @@ Runner.prototype.anchorWorld = function (id, out) {
 };
 Runner.prototype.anchor2d = function (n) {
   const l = this.cur, ctx = this.ctx; if (!l || !ctx) return [0, 0];
-  if (n === 'figure') return l.fig.slice();
-  if (n === 'target') return l.target.slice();
+  // FX Studio 3D's "Start at" rides as "3d:<id>" (byAction), so strip that BEFORE the figure / target check: a
+  // "3d:target" used to miss it, find no bone and fall back to the body centre (Daniel 2026-11-26)
   const id = typeof n === 'string' && n.indexOf('3d:') === 0 ? n.slice(3) : n;
+  if (id === 'figure') return l.fig.slice();
+  if (id === 'target') return l.target.slice();
   const W = this.anchorWorld(id, new THREE.Vector3());
   if (W) return this.toFrame(l, W);
   // a 2D-only anchor (coat tails, extra lines): the 2D drawing's own point, round the body centre
@@ -341,6 +348,7 @@ Runner.prototype.laneLive = function (l, ctx) {
   }
   l.fig = this.toFrame(l, ctx.centre); l.figLat = _v.copy(ctx.centre).sub(l.O).dot(l.L);
   l.target = ctx.target ? this.toFrame(l, ctx.target.centre) : [40, 0];
+  l.tgtLat = ctx.target ? _v.copy(ctx.target.centre).sub(l.O).dot(l.L) : l.figLat;   // the target off the lane's plane
   l.facing = l.target[0] - l.fig[0] < 0 ? -1 : 1;
 };
 /* One 16 ms tick. ctx = {centre, feet: Vector3 (world), facing: level unit Vector3, bone(name) -> Object3D | null,
@@ -366,16 +374,17 @@ Runner.prototype.initInst = function (l, inst) {
   if (inst._c) return;
   const src = inst.src || inst.fx; inst._c = src._c3 || cfg3d(src); inst._r3 = is3d(inst.fx, inst._c); inst._lay = layOf(inst.fx, inst._c);
   // a 3D strike: drawn as 3D shapes (+ a card for its ink / gritty parts), hit by FX Studio's own punch / kick line
-  inst._s3 = inst._r3 ? strikeKind(inst.fx) || bladeKind(inst.fx) || gunKind(inst.fx) : ''; if (inst._s3) { inst._r3 = false; inst._lay = inst._c.lay === 'auto' ? 'side' : inst._lay; }
+  inst._s3 = inst._r3 ? strikeKind(inst.fx) || bladeKind(inst.fx) || gunKind(inst.fx) || hyperKind(inst.fx) : ''; if (inst._s3) { inst._r3 = false; inst._lay = inst._c.lay === 'auto' ? 'side' : inst._lay; }
   inst._pv = inst._c.pivot === 'figure' ? l.fig.slice() : [inst.x, inst.y];
   const an = typeof inst.fx.anchor === 'string' ? inst.fx.anchor.replace(/^3d:/, '') : '';
   const W = an && an !== 'figure' && an !== 'target' && this.ctx ? this.anchorWorld(an, new THREE.Vector3()) : null;
-  inst._lat = W ? _v.copy(W).sub(l.O).dot(l.L) : l.figLat; inst._latF = l.figLat;
+  inst._tgt = an === 'target';   // started ON the target: it lies where the target is, not in the fighter's plane
+  inst._lat = W ? _v.copy(W).sub(l.O).dot(l.L) : inst._tgt ? num(l.tgtLat, l.figLat) : l.figLat; inst._latF = l.figLat;
 };
 // where an instance's card lies: pivot (world), turn, metres per 2D px
 Runner.prototype.xform = function (l, inst, out) {
   const c = inst._c, lay = inst._lay, Us = U * c.size_pct / 100;
-  const lat = inst._lat + (FXK.bodyBound(inst) ? l.figLat - inst._latF : 0);
+  const lat = inst._tgt && FXK.bodyBound(inst) ? num(l.tgtLat, inst._lat) : inst._lat + (FXK.bodyBound(inst) ? l.figLat - inst._latF : 0);
   const P = out.P.copy(l.O).addScaledVector(l.X, inst._pv[0] * U).addScaledVector(l.Y, -inst._pv[1] * U).addScaledVector(l.L, lat);
   if (lay === 'ground') P.y = l.groundY + 0.03;
   P.addScaledVector(l.X, c.offset[0]).addScaledVector(l.Y, c.offset[1]).addScaledVector(l.L, c.offset[2]);
@@ -676,6 +685,7 @@ Runner.prototype.drawStrike = function (l, inst, xf) {
   const Lb = SLib(), P = inst.fx.params || {}, c = inst._c, Us = xf.Us, kind = inst._s3, H = G.HITFX, ink = c.toon_ink_m;
   const col = Lb.colours(inst, this.host)[0], HOTc = [255, 255, 255], gk = c.strike_glow_pct / 100;
   if (kind === 'serious') return this.drawSerious(l, inst, xf, col, gk);
+  if (kind === 'hyper') return this.drawHyper(l, inst, xf);
   if (kind === 'gun') return this.drawGun(l, inst, xf);
   if (kind === 'ki') return this.drawKi(l, inst, xf);
   if (kind !== 'punch' && kind !== 'kick') return this.drawBlade(l, inst, xf);
@@ -849,6 +859,57 @@ Runner.prototype.strikeEnv = function (l, inst, xf, ev, col, gk) {
     this.tube(nc, A, B, 0.65 * Us, 0, Lb.mix(col, HOTc, 0.5), 220 / 255 * (1 - q), 0); }
 };
 // The serious punch (powerfx drawSerious) in 3D: a round shock cone with vapour rings, clouds blown out all round.
+/* ---- Hyper FX (Daniel 2026-11-26: "10 punching FX and 10 impact FX, anime hyper action, stylised") ----
+   hyperfx.js gives each style as a list of shapes in a local blow frame [f, v, s] (px); here they become cel-shaded 3D
+   shapes. A punching FX stands on its anchor's REAL 3D point (default the right hand) and reads that point's path tick by
+   tick, so afterimages, trails and jets follow whatever punch clip plays; forward = toward the target (else the way the
+   fist moves, else the aim). An impact stands where it was spawned (normally ON the target), forward = caster -> it. */
+const _hF = new THREE.Vector3(), _hV = new THREE.Vector3(), _hS = new THREE.Vector3(), _hO = new THREE.Vector3(), _hA = new THREE.Vector3(), _hB = new THREE.Vector3();
+Runner.prototype.drawHyper = function (l, inst, xf) {
+  const H = G.HYPERFX, ctx = this.ctx; if (!H || !ctx) return;
+  const P = inst.fx.params || {}, c = inst._c, Us = xf.Us, punch = H.isPunch(P.style);
+  const an = typeof inst.fx.anchor === 'string' ? inst.fx.anchor.replace(/^3d:/, '') : '';
+  const O = _hO;
+  let id = null;
+  if (punch) {   // the fist: its anchor's real 3D point, kept per tick
+    id = an && an !== 'figure' && an !== 'target' && this.anchorWorld(an, _hA) ? an : 'haR';
+    this.boneRec(inst, [id]);
+    if (!this.boneAt(inst, id, inst.age, O)) this.w3(inst, xf, inst.x, inst.y, 0, O);
+  } else this.w3(inst, xf, inst.x, inst.y, 0, O);
+  // forward
+  const F = _hF.set(0, 0, 0);
+  if (punch) {
+    if (ctx.target) { F.copy(ctx.target.centre).sub(O); if (F.dot(l.X) < 0.05 * F.length()) F.set(0, 0, 0); }
+    if (F.lengthSq() < 1e-6 && this.boneAt(inst, id, inst.age - 2, _hA)) F.copy(O).sub(_hA);
+  } else { F.copy(O).sub(ctx.centre); F.y *= 0.35; }
+  if (F.lengthSq() < 1e-6) F.copy(xf.ax);
+  F.normalize();
+  const V = _hV.copy(UPV).addScaledVector(F, -F.y); if (V.lengthSq() < 1e-6) V.copy(l.L).cross(F); V.normalize();
+  const S = _hS.crossVectors(F, V).normalize();
+  const loc = (W, out) => { _hA.copy(W).sub(O); out.push([_hA.dot(F) / Us, _hA.dot(V) / Us, _hA.dot(S) / Us]); };
+  const path = []; let sp = 0;
+  if (punch) {
+    for (let k = 12; k >= 0; k--) if (this.boneAt(inst, id, inst.age - k, _hB)) loc(_hB, path);
+    const n = path.length; if (n > 1) sp = Math.hypot(path[n - 1][0] - path[n - 2][0], path[n - 1][1] - path[n - 2][1], path[n - 1][2] - path[n - 2][2]);
+  }
+  const gy = (num(l.groundY, 0) + 0.03 - O.y) / Us / Math.max(0.3, V.y);
+  const shapes = H.parts(inst, this.host, {t: inst.age, ps: 1, path, sp, gy, solo: !ctx.target});
+  const w = (p, out) => out.copy(O).addScaledVector(F, p[0] * Us).addScaledVector(V, p[1] * Us).addScaledVector(S, p[2] * Us);
+  const dirW = (d, out) => out.set(0, 0, 0).addScaledVector(F, d[0]).addScaledVector(V, d[1]).addScaledVector(S, d[2]).normalize();
+  for (const e of shapes) {
+    const cc = e.core === false ? noCore(c) : c, ink = (e.ink == null ? 1 : e.ink) * c.toon_ink_m, P0 = w(e.p, new THREE.Vector3());
+    if (e.k === 'sph') {
+      let st = null;
+      if (e.st > 1.01 && e.d) { const q = new THREE.Quaternion().setFromUnitVectors(XV, dirW(e.d, _hA)); st = {q, x: e.st, y: 1, z: 1}; }
+      this.sphere(cc, P0, e.r * Us, e.c, e.a, ink, st);
+    } else if (e.k === 'tube') this.tube(cc, P0, w(e.q, new THREE.Vector3()), e.r * Us, e.r1 * Us, e.c, e.a, ink);
+    else if (e.k === 'ring') this.torus(cc, 'ring', P0, dirW(e.n, new THREE.Vector3()), e.r * Us, 1, 0, e.c, e.a, ink);
+    else {   // a chunk (shard / cube / ball)
+      const t = this.paint(this.toon(e.k, 0), cc, e.c, e.a, ink), rt = e.rot || [0, 0, 0];
+      [t.m, t.h].forEach(x => { x.position.copy(P0); x.rotation.set(rt[0], rt[1], rt[2]); x.scale.setScalar(e.r * Us); x.material.uniforms.uTaper.value = 0; });
+    }
+  }
+};
 Runner.prototype.drawSerious = function (l, inst, xf, c0, gk) {
   const Lb = SLib(), SP = G.POWERFX.sp, P = inst.fx.params || {}, c = inst._c, nc = noCore(c), Us = xf.Us, t = inst.age, ink = c.toon_ink_m;
   const cs = Lb.colours(inst, this.host), col = cs[0], bright = cs[1], HOTc = [255, 255, 255];
@@ -1915,6 +1976,6 @@ function movePlan(cfg, S, T, frames, frameMs, rnd) {
   return {at, total, face: c.face, P0, E: endP, S, T, startEnd, t0, t1, samples, cfg: c, blink: c.start_mode === 'blink'};
 }
 
-G.FX3D = {U, HURT, ANCHORS, LAYS, PIVOTS, DEF3D, MOVE_DEFAULTS, MOVE_PATHS, START_MODES, MOVE_EASES, RENDERS, CHUNKS, TOON_PRIMS, STRIKE_LIMBS,
+G.FX3D = {hyperKind, U, HURT, ANCHORS, LAYS, PIVOTS, DEF3D, MOVE_DEFAULTS, MOVE_PATHS, START_MODES, MOVE_EASES, RENDERS, CHUNKS, TOON_PRIMS, STRIKE_LIMBS,
   strikeKind, bladeKind, gunKind, cfg3d, is3d, autoLay, layOf, moveCfg, byAction, Runner, movePlan, spotAround, easeU};
 })(window);
