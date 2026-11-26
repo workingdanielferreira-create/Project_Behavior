@@ -460,5 +460,7 @@ function draw(pen, inst, host, ps) {
 
 G.STRIKEFX = {STYLES: STYLES, HIT_OPTION_STYLES: HIT_OPTION_STYLES, FLIP_STYLES: FLIP_STYLES, flips: flips, hitDir: hitDir, hitFreeze: hitFreeze, hitstopStep: hitstopStep, freeze: freeze,
                 impactFrame: impactFrame, parts: parts, IMPACT_FRAME_TICKS: IMPACT_FRAME_TICKS, FULL_FRAME: FULL_FRAME, PUNCH_IMPACT_LIFE: PUNCH_IMPACT_LIFE, INK: INK, draw: draw, hit: hit, body: body, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks, livePoints: livePoints, trackStep: trackStep,
-                shotIds: shotIds, shotAt: shotAt, trackShots: trackShots};
+                shotIds: shotIds, shotAt: shotAt, trackShots: trackShots,
+                // the ki barrage's shots, for FX Studio 3D (v3/js/fx3d.js)
+                ki: {shots: shots, Fr: Fr, blastAt: blastAt, goneSilent: goneSilent, SIDE: KI_SIDE, FLASH: KI_FLASH, BLAST_LIFE: KI_BLAST_LIFE, SMOKE_LIFE: KI_SMOKE_LIFE, SMOKE: SMOKE}};
 })(window);

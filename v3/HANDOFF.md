@@ -371,6 +371,10 @@ v3-animation skill ("Review questions").
 - **Batch 2 done: sword slashes + crescents** (`fx3d.js drawBlade` + band mesh, `blade_thick_pct`, README "3D sword FX").
   Checked headless: every style from FX Studio's presets renders, a Ronin (ronin_copy) battle runs with no errors.
   **Next batch: gunfire + ki barrage.**
+- 2026-11-26: Daniel asked for a "3D" category -> FX Studio 3D's preset list starts with "3D · <family>" groups (copies).
+- **Batch 3 done: gunfire + ki barrage** (`fx3d.js drawGun` / `drawKi`, README "3D gunfire + ki barrage"). Checked
+  headless: every gun style + ki from the presets renders; a Pewpew / Rapid / Sniper vs Sueko battle runs with no errors.
+  **Next batch: ethereal blades** (Hooded Blades' blade sprites), then auras + power techniques.
 
 ## Next steps (agreed direction, not started)
 

@@ -95,7 +95,7 @@ function cfg3d(fx) {
 function is3d(fx, c) {
   c = c || cfg3d(fx); if (!fx || c.render === 'card') return false;
   if (fx.prim === 'sprite') return !(fx.params && fx.params.shape === 'blade');
-  if (strikeKind(fx) || bladeKind(fx)) return true;
+  if (strikeKind(fx) || bladeKind(fx) || gunKind(fx)) return true;
   return TOON_PRIMS.indexOf(fx.prim) >= 0;
 }
 // auto: soft / round FX (glows, particles, rings, afterimages) face the camera, everything else lies in the aim plane
@@ -366,7 +366,7 @@ Runner.prototype.initInst = function (l, inst) {
   if (inst._c) return;
   const src = inst.src || inst.fx; inst._c = src._c3 || cfg3d(src); inst._r3 = is3d(inst.fx, inst._c); inst._lay = layOf(inst.fx, inst._c);
   // a 3D strike: drawn as 3D shapes (+ a card for its ink / gritty parts), hit by FX Studio's own punch / kick line
-  inst._s3 = inst._r3 ? strikeKind(inst.fx) || bladeKind(inst.fx) : ''; if (inst._s3) { inst._r3 = false; inst._lay = inst._c.lay === 'auto' ? 'side' : inst._lay; }
+  inst._s3 = inst._r3 ? strikeKind(inst.fx) || bladeKind(inst.fx) || gunKind(inst.fx) : ''; if (inst._s3) { inst._r3 = false; inst._lay = inst._c.lay === 'auto' ? 'side' : inst._lay; }
   inst._pv = inst._c.pivot === 'figure' ? l.fig.slice() : [inst.x, inst.y];
   const an = typeof inst.fx.anchor === 'string' ? inst.fx.anchor.replace(/^3d:/, '') : '';
   const W = an && an !== 'figure' && an !== 'target' && this.ctx ? this.anchorWorld(an, new THREE.Vector3()) : null;
@@ -676,6 +676,8 @@ Runner.prototype.drawStrike = function (l, inst, xf) {
   const Lb = SLib(), P = inst.fx.params || {}, c = inst._c, Us = xf.Us, kind = inst._s3, H = G.HITFX, ink = c.toon_ink_m;
   const col = Lb.colours(inst, this.host)[0], HOTc = [255, 255, 255], gk = c.strike_glow_pct / 100;
   if (kind === 'serious') return this.drawSerious(l, inst, xf, col, gk);
+  if (kind === 'gun') return this.drawGun(l, inst, xf);
+  if (kind === 'ki') return this.drawKi(l, inst, xf);
   if (kind !== 'punch' && kind !== 'kick') return this.drawBlade(l, inst, xf);
   const pt = (kind === 'punch' ? G.STRIKEFX : G.KICKFX).parts(inst, 1);
   const S = {kind, M: pt.motion, reach: pt.reach, ext: kind === 'punch' || !!pt.thrust, lim: null};
@@ -1391,6 +1393,375 @@ Runner.prototype.arc3 = function (A) {
   this.band(c, rows, xf.az, col, 1, c.toon_ink_m);
   this.band(nc, core, xf.az, [255, 255, 255], 1, 0);
 };
+/* ---- 3D gunfire + ki barrage (Daniel 2026-11-26, batch 3 of "more 3D FX") ----
+   The ten GUNFX styles (machine gun, shotgun, magnum, charged blast, dual pistols, sniper rail, gatling, rocket barrage,
+   drill bullet, thunder bullet) and STRIKEFX's ki barrage. Rounds fly exactly where FX Studio puts them (GUNFX.geo.rounds,
+   STRIKEFX.ki.shots), so hits are unchanged; each is rebuilt in 3D: tracers / pellets / slugs = tapered streaks with a
+   hot head (slugs wrapped in rifling rings), the orb = a sphere with ghosts and spinning rings, the rocket = a steel
+   missile with fins, an exhaust flame and a smoke trail, the drill = a cone with spiral wind, the thunder bullet = a
+   jagged 3D lightning trail. Muzzles: flash, star, prongs fanned in 3D, the shotgun's flash cone, pressure rings, the gun
+   kata's swing. Around them: brass / shells tumbling out and bouncing on the floor, smoke, the gatling's spinning barrels,
+   the charged blast's gathering orb, the sniper's laser + reticle (facing the camera) and its rail with a true 3D helix.
+   Impacts: sparks thrown back in a cone, the heavy hit (3D spike star, shock rings across the line), fireballs, lightning
+   dropping from the sky, drill shards. Ki: comet shots, hand glows, flashes, detonations with smoke piling up. */
+function gunKind(fx) {
+  if (!fx || fx.prim !== 'technique') return '';
+  const s = fx.params && fx.params.style;
+  if (G.GUNFX && G.GUNFX.STYLES.indexOf(s) >= 0) return 'gun';
+  return s === 'ki_barrage' ? 'ki' : '';
+}
+// jagged lightning in 3D from A to B (offsets in both directions across the line)
+function jag3(inst, key, A, B, n, amp) {
+  const r = SLib().rngFor(inst.seed, key, 700), d = B.clone().sub(A), u = d.clone().normalize();
+  const p1 = Math.abs(u.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0); p1.cross(u).normalize(); const p2 = u.clone().cross(p1);
+  const pts = [A.clone()];
+  for (let m = 1; m < n; m++) pts.push(A.clone().addScaledVector(d, m / n).addScaledVector(p1, r.uniform(-1, 1) * amp).addScaledVector(p2, r.uniform(-1, 1) * amp));
+  pts.push(B.clone()); return pts;
+}
+// a polyline of tubes (lightning, arcs)
+Runner.prototype.poly3 = function (c, pts, r, rgb, a) { for (let i = 1; i < pts.length; i++) this.tube(c, pts[i - 1], pts[i], r, r, rgb, a, 0); };
+// smoke / dust puffs (gunfx puffs): grey balls drifting out and rising, fading in then out
+Runner.prototype.puffs3 = function (inst, key, C, a, life, n, size, rgb, rise, Us) {
+  if (a < 0 || a >= life || n <= 0) return;
+  const Lb = SLib(), nc = noCore(inst._c), q = a / life;
+  for (let j = 0; j < n; j++) {
+    const r = Lb.rngFor(inst.seed, key, 300 + j), an = r.uniform(0, Math.PI * 2), dr = r.uniform(0.2, 1.0) * size * easeO(a / 14);
+    const el = r.uniform(-0.6, 0.6), X = C.clone().add(new THREE.Vector3(Math.cos(an) * Math.cos(el), Math.sin(el), Math.sin(an) * Math.cos(el)).multiplyScalar(dr * Us));
+    X.y += r.uniform(0.3, 1.0) * rise * a * Us;
+    this.sphere(nc, X, size * r.uniform(0.5, 0.9) * (0.5 + 0.8 * easeO(a / 18)) * Us * 0.6, rgb, 0.55 * Math.pow(1 - q, 1.5) * Math.min(1, a / 3), 0);
+  }
+};
+// sparks (gunfx sparks) in a 3D cone round dir
+Runner.prototype.sparks3 = function (inst, key, C, dir, cone, a, n, col, spLo, spHi, life0, Us, gy) {
+  const Lb = SLib(), nc = noCore(inst._c), HOTc = [255, 255, 255], d3 = new THREE.Vector3();
+  for (let j = 0; j < n; j++) {
+    const r = Lb.rngFor(inst.seed, key, 500 + j), life = life0 * (0.6 + 0.6 * r()); if (a >= life) continue;
+    const dg = Math.abs(r.uniform(-cone, cone)), sp = r.uniform(spLo, spHi), fd = Lb.dragDist(0.86, a), dk = Math.pow(0.86, a), qq = a / life;
+    coneDir(dir, dg, r() * Math.PI * 2, d3);
+    const B = C.clone().addScaledVector(d3, sp * fd * Us); B.y -= 0.1 * a * a * Us;
+    const A = B.clone().addScaledVector(d3, -sp * dk * 1.6 * Us);
+    if (gy != null && B.y < gy + 0.03) { B.y = gy + 0.03; A.y = Math.max(A.y, gy + 0.03); }
+    this.tube(nc, A, B, 0, 0.65 * Us, Lb.mix(HOTc, col, qq), 1 - qq, 0);
+  }
+};
+// a 3D spike star (gunfx spikes): n spikes round dir's plane + a few out of it
+Runner.prototype.star3 = function (inst, key, C, dir, n, rOut, rIn, rgb, a, rot) {
+  const Lb = SLib(), nc = noCore(inst._c), d3 = new THREE.Vector3(), r = Lb.rngFor(inst.seed, key, 760);
+  for (let j = 0; j < n + 3; j++) {
+    if (j < n) coneDir(dir, 90, (rot || 0) + j * Math.PI * 2 / n, d3); else coneDir(dir, r.uniform(10, 60) * (j % 2 ? 1 : -1) + (j % 2 ? 0 : 180), r() * 6.28, d3);
+    this.tube(nc, C.clone().addScaledVector(d3, rIn * 0.4), C.clone().addScaledVector(d3, rOut), rIn * 0.45, 0, rgb, a, 0);
+  }
+};
+Runner.prototype.drawGun = function (l, inst, xf) {
+  const Lb = SLib(), GF = G.GUNFX, Gm = GF.geo, P = inst.fx.params, st = P.style, g = GF.GUNS[st], t = inst.age, c = inst._c, nc = noCore(c), Us = xf.Us, ink = c.toon_ink_m;
+  const cs = Lb.colours(inst, this.host), col = cs[0], deep = cs[2] || cs[0], HOTc = [255, 255, 255], gk = c.strike_glow_pct / 100, gy = c.strike_ground ? l.groundY : null;
+  const dens = +P.density || 1, all = Gm.rounds(inst, 1), smoke = Lb.mix(Gm.SMOKE, deep, 0.25), lb = GF.launches(P);
+  const WP = (x, y, o) => this.w3(inst, xf, x, y, 0, o || new THREE.Vector3()), D3 = u => this.dir3(xf, u);
+  const nDust = Math.max(0, Math.round(g.dust * dens)), nSmoke = Math.max(0, Math.round(g.smoke * dens));
+  const hside = new THREE.Vector3().crossVectors(UPV, D3([inst.tq_f[0], 0])).normalize();
+  // 1: smoke, casings, rockets
+  for (const s of all) {
+    const k = t - s.b;
+    if (s.j === 0) {
+      const h = s.head(0), O = WP(s.ox, s.oy);
+      if (nSmoke) this.puffs3(inst, s.i * 4 + 2, O.clone().addScaledVector(D3(h), 8 * Us), k, Gm.SMOKE_LIFE, nSmoke, g.flash_px * 0.7, smoke, 0.45, Us);
+      if (g.shells && dens > 0) this.casing3(inst, s.i * 4 + 3, O, D3(h), hside, k, g.shells, Us, gy);
+    }
+    if (s.look === 'rail') { inst.tq_imp.forEach((im, n) => this.puffs3(inst, 9100 + n, WP(im[1], im[2]), t - im[0] - Gm.RAIL_DELAY, Gm.SMOKE_LIFE, nDust, +P.thickness * 0.6, smoke, 0.35, Us)); continue; }
+    const en = s.end(inst);
+    if (s.look === 'rocket') {
+      for (let kp = 0; kp < Math.min(k, en[0] - s.b); kp += Gm.ROCKET_PUFF) { const pp = s.pos(kp); this.puffs3(inst, 20000 + s.i * 64 + Math.floor(kp / Gm.ROCKET_PUFF), WP(pp[0], pp[1]), k - kp, 30, 1, +P.radius * 1.6, smoke, 0.15, Us); }
+      if (t < en[0]) this.rocket3(inst, xf, s, k, t, col, Us);
+    }
+    const bl = Gm.blastAt(inst, s); if (bl && nDust) this.puffs3(inst, s.i * 4 + 1, WP(bl[1], bl[2]), t - bl[0], Gm.SMOKE_LIFE, nDust, +P.thickness * 0.6 * s.size, smoke, 0.35, Us);
+  }
+  if (st === 'gatling' && t > lb[lb.length - 1]) { const mp = Gm.at(inst.tq_path, t);
+    for (let m = 0; m < 4; m++) this.puffs3(inst, 9200 + m, WP(mp[0], mp[1] - 4), t - lb[lb.length - 1] - m * 3, Gm.SMOKE_LIFE, Math.max(0, Math.round(2 * dens)), 6, smoke, 0.6, Us); }
+  // 2: the gun before / while it fires
+  if (st === 'gatling') this.gatling3(inst, xf, P, col, t, lb.filter(b => b <= t).length, lb.length, Us, gk);
+  else if (st === 'charged_blast') this.charge3(inst, xf, P, col, Lb.mix(col, HOTc, 0.4), t, lb[0], dens, Us, gk);
+  else if (st === 'sniper_rail') this.aim3(inst, xf, P, col, t, lb[0], Us, gk);
+  // 3: muzzles, rounds, impacts
+  for (const s of all) {
+    const k = t - s.b;
+    if (s.j === 0) this.muzzle3(inst, xf, g, s, k, col, P, Us, gk);
+    if (s.look === 'rail') { this.rail3(inst, xf, s, P, col, t, dens, Us, gk, gy); continue; }
+    const en = s.end(inst);
+    if (t < en[0]) { this.round3(inst, xf, s, k, t, col, Lb.mix(col, HOTc, 0.25 + s.tint), P, en[1], Us, gk); continue; }
+    const bl = Gm.blastAt(inst, s); if (bl) this.gunImpact3(inst, xf, s, t - bl[0], WP(bl[1], bl[2]), bl[3], col, P, dens, Us, gk, gy);
+  }
+  if (g.look === 'drill') inst.tq_imp.forEach((im, n) => this.heavy3(inst, 9300 + n, WP(im[1], im[2]), D3(inst.tq_f), t - im[0], Gm.IMPACT_LIFE.drill, +P.thickness * Us, dens, col, Us, gk, gy));
+};
+// a brass casing / shotgun shell kicked out sideways, tumbling, bouncing on the floor
+Runner.prototype.casing3 = function (inst, key, O, aim, side, a, kind, Us, gy) {
+  const Gm = G.GUNFX.geo, Lb = SLib(), c = inst._c; if (a < 0 || a >= Gm.CASING_LIFE) return;
+  const r = Lb.rngFor(inst.seed, key, 200), vb = r.uniform(1.0, 2.2), vu = r.uniform(2.4, 3.8), vs = r.uniform(1.2, 2.6) * (r() < 0.5 ? -1 : 1);
+  const X = O.clone().addScaledVector(aim, -vb * a * 0.5 * Us).addScaledVector(side, vs * a * Us); X.y += (vu * a - 0.5 * Gm.CASING_G * a * a) * Us;
+  if (gy != null && X.y < gy + 0.02) X.y = gy + 0.02;
+  const fade = a < Gm.CASING_LIFE - 8 ? 1 : (Gm.CASING_LIFE - a) / 8, hl = (kind === 2 ? 5.5 : 3.6) / 2 * Us, hw = (kind === 2 ? 2.4 : 1.5) / 2 * Us;
+  const rt = r.uniform(0, 6.28) + a * r.uniform(0.35, 0.6), u = new THREE.Vector3(Math.cos(rt), Math.sin(rt * 0.7) * 0.6, Math.sin(rt)).normalize();
+  if (kind === 2) { this.tube(c, X.clone().addScaledVector(u, -hl), X.clone().addScaledVector(u, hl * 0.35), hw, hw, Gm.HULL, fade, c.toon_ink_m * 0.4);
+    this.tube(c, X.clone().addScaledVector(u, hl * 0.35), X.clone().addScaledVector(u, hl), hw, hw, Gm.BRASS, fade, c.toon_ink_m * 0.4); }
+  else this.tube(c, X.clone().addScaledVector(u, -hl), X.clone().addScaledVector(u, hl), hw, hw, Gm.BRASS, fade, c.toon_ink_m * 0.4);
+};
+Runner.prototype.muzzle3 = function (inst, xf, g, s, k, col, P, Us, gk) {
+  if (k >= g.flash || k < 0) return;
+  const Lb = SLib(), c = inst._c, nc = noCore(c), HOTc = [255, 255, 255], q = k / g.flash, X = this.w3(inst, xf, s.ox, s.oy, 0, new THREE.Vector3()), u = this.dir3(xf, s.head(0));
+  const fs = g.flash_px * s.size * (1 - 0.35 * q) * Us, e = easeO(q), d3 = new THREE.Vector3();
+  this.sphere(nc, X, fs * 1.3 * gk, col, 210 / 255 * (1 - q), 0); this.sphere(nc, X, fs * 0.5 * gk * 1.4, HOTc, 1 - q, 0);
+  const v = coneDir(u, 90, k * 0.7, new THREE.Vector3());
+  this.diamond3(nc, X.clone().addScaledVector(u, -fs * 1.4), X.clone().addScaledVector(u, fs * 1.4), 0.8 * Us, HOTc, 235 / 255 * (1 - q), 0);
+  this.diamond3(nc, X.clone().addScaledVector(v, -fs * 0.6), X.clone().addScaledVector(v, fs * 0.6), 0.8 * Us, HOTc, 235 / 255 * (1 - q), 0);
+  [-28, 0, 28, 28, 28].forEach((dg, jj) => {   // prongs fanned round the barrel
+    const r = Lb.rngFor(inst.seed, s.i, 120 + jj), ln = fs * (dg === 0 ? 1.2 : 0.75) * r.uniform(0.8, 1.2) * (1 - 0.5 * q);
+    coneDir(u, Math.abs(dg), jj * 2.1 + (dg < 0 ? Math.PI : 0), d3);
+    this.tube(nc, X, X.clone().addScaledVector(d3, ln), fs * 0.11, 0, Lb.mix(col, HOTc, 0.5), 230 / 255 * (1 - q), 0);
+  });
+  if (s.look === 'pellet') {   // the shotgun's flash cone + pressure ring
+    const half = ((+P.span || 0) * 0.6 + 6) * D, lnc = fs * 2.4 * (0.6 + 0.4 * e);
+    this.tube(nc, X, X.clone().addScaledVector(u, lnc), fs * 0.15, Math.tan(half) * lnc, col, 120 / 255 * (1 - q), 0);
+    this.torus(nc, 'ring', X.clone().addScaledVector(u, fs * 1.4 * e), u, fs * (0.6 + 1.3 * e), 0.5, 0, HOTc, 200 / 255 * (1 - q), 0);
+  } else if (['slug', 'orb', 'rail', 'drill'].indexOf(s.look) >= 0) {
+    if (s.look === 'slug') [1, -1].forEach(sd => { const w = coneDir(u, 90, sd > 0 ? 0 : Math.PI, new THREE.Vector3()), J = X.clone().addScaledVector(u, fs * 0.25);
+      this.tube(nc, J, J.clone().addScaledVector(w, fs * 0.8), fs * 0.08, 0, HOTc, 220 / 255 * (1 - q), 0); });
+    [[0, 1.0], [2, 1.5]].forEach(dk => { const aa = k - dk[0], kk = dk[1]; if (aa < 0) return; const qq = g.flash > dk[0] ? aa / (g.flash - dk[0]) : 1, ee = easeO(qq);
+      this.torus(nc, 'ring', X.clone().addScaledVector(u, fs * 0.6 * ee * kk), u, fs * (0.5 + 1.1 * ee) * kk, 0.4, 0, HOTc, 200 / 255 * (1 - qq), 0); });
+  } else if (s.look === 'rocket') this.tube(nc, X.clone().addScaledVector(u, -fs * 1.6), X, 0, fs * 0.35, Lb.mix(col, HOTc, 0.3), 200 / 255 * (1 - q), 0);
+  if (P.style === 'dual_pistols') {   // gun-kata: the swing arc of the hand that fired
+    const sd2 = s.v % 2 === 0 ? 1 : -1, pts = [];
+    for (let m = 0; m < 9; m++) pts.push(X.clone().addScaledVector(coneDir(u, (-0.9 + 1.4 * m / 8) * sd2 / D, sd2 > 0 ? Math.PI / 2 : -Math.PI / 2, d3), 14 * Us));
+    this.line3(nc, pts, (1 * (1 - q) + 0.15) * Us, xf.az, Lb.mix(col, HOTc, 0.4), 200 / 255 * (1 - q), 0, uu => Math.sin(Math.PI * uu));
+  }
+};
+Runner.prototype.round3 = function (inst, xf, s, k, t, col, tint, P, stopped, Us, gk) {
+  const Lb = SLib(), Gm = G.GUNFX.geo, c = inst._c, nc = noCore(c), ink = c.toon_ink_m, HOTc = [255, 255, 255], r = +P.radius * s.size * Us;
+  const WPp = p => this.w3(inst, xf, p[0], p[1], 0, new THREE.Vector3()), X = WPp(s.pos(k)), u = this.dir3(xf, s.head(k)), look = s.look;
+  const fa = ['tracer', 'pellet', 'slug'].indexOf(look) >= 0 ? (stopped ? 1 : Math.max(0, Math.min(1, (s.flight - k) / Math.max(1, s.flight * Gm.FADE_TAIL)))) : 1;
+  if (look === 'tracer' || look === 'pellet') {
+    const T = WPp(s.pos(Math.max(0, k - (look === 'tracer' ? Gm.TRACER_TAIL : 1.6))));
+    this.tube(nc, T, X, 0, r * (look === 'tracer' ? 0.75 : 0.6), tint, 230 / 255 * fa, 0);
+    this.sphere(c, X, r * 1.2 * gk * 1.4, col, fa, ink * 0.4);
+  } else if (look === 'slug') {
+    for (let j = 0; j < 4; j++) { const kj = k - (j + 1) * 0.8; if (kj < 0) break;
+      this.torus(nc, 'ring', WPp(s.pos(kj)), u, r * (1.6 + 0.5 * j), 0.5, 0, Lb.mix(col, HOTc, 0.3), 170 / 255 * (1 - j / 4) * fa, 0); }
+    const T = WPp(s.pos(Math.max(0, k - 2.6)));
+    this.tube(nc, T, X, 0, r * 0.9, col, 150 / 255 * fa, 0); this.tube(nc, T, X, 0, r * 0.35, HOTc, 230 / 255 * fa, 0);
+    _sq.setFromUnitVectors(XV, u); this.sphere(c, X, r * 1.5 * gk * 1.3, col, fa, ink, {q: _sq.clone(), x: 1.6, y: 1, z: 1});
+  } else if (look === 'orb') {
+    const fl = 0.88 + 0.12 * Math.sin(t * 1.7);
+    [[4, 40], [2, 70]].forEach(ja => this.sphere(nc, WPp(s.pos(Math.max(0, k - ja[0]))), r * 1.8 * gk, col, ja[1] / 255, 0));
+    const T = WPp(s.pos(Math.max(0, k - 5))); this.tube(nc, T, X, 0, r * 0.7, col, 120 / 255, 0);
+    this.sphere(c, X, r * 1.6 * fl * gk * 1.3, tint, 1, ink);
+    for (let j = 0; j < 2; j++) this.torus(nc, 'ring', X, coneDir(u, 55, t * 0.35 + j * Math.PI, new THREE.Vector3()), r * 1.4, 0.6, t * 0.2, HOTc, 170 / 255, 0);
+  } else if (look === 'drill') {
+    const R = r, base = X.clone().addScaledVector(u, -R * 0.6), tip = X.clone().addScaledVector(u, R * 2.4);
+    this.sphere(nc, X, R * 2.8 * gk * 0.7, col, 0.35, 0);
+    this.tube(c, base, tip, R * 1.05, 0, col, 1, ink); this.tube(nc, base, tip, R * 0.6, 0, Lb.mix(col, HOTc, 0.6), 0.9, 0);
+    for (let j = 0; j < 4; j++) {   // spiral grooves turning round the cone
+      const pts = []; for (let m = 0; m <= 6; m++) { const pp = m / 6, an = j * Math.PI / 2 + t * Gm.DRILL_SPIN * 6.28 + pp * 3;
+        pts.push(base.clone().lerp(tip, pp).addScaledVector(coneDir(u, 90, an, new THREE.Vector3()), R * 1.1 * (1 - pp))); }
+      this.poly3(nc, pts, 0.35 * Us, HOTc, 0.8); }
+    [1, -1].forEach(sd => { const pts = []; for (let m = 0; m < 15; m++) { const db = m * R * 0.9;   // wind helix behind it
+      pts.push(base.clone().addScaledVector(u, -db).addScaledVector(coneDir(u, 90, sd * (t * 0.9 + m * 0.7), new THREE.Vector3()), R * (1.3 - m * 0.06))); }
+      this.line3(nc, pts, 0.7 * Us, xf.az, col, 150 / 255, 0, uu => 1 - uu); });
+  } else if (look === 'bolt') {
+    const d = s.sp * k, d0 = Math.max(0, d - 160), n = Math.max(1, Math.min(24, Math.trunc((d - d0) / Gm.BOLT_SEG) + 1)), rr = Lb.rngFor(inst.seed, s.i, 400 + Math.floor(t / 2)), pts = [];
+    for (let m = 0; m < n + 1; m++) { const dm = d0 + (d - d0) * m / n, o = m === n ? 0 : rr.uniform(-7, 7), oz = m === n ? 0 : rr.uniform(-7, 7), w = s.fr.d(Math.cos(s.ang) * dm, Math.sin(s.ang) * dm), h = s.head(k);
+      pts.push(this.w3(inst, xf, s.ox + w[0] - h[1] * o, s.oy + w[1] + h[0] * o, oz, new THREE.Vector3())); }
+    const flb = 0.7 + 0.3 * Math.sin(t * 2.7 + s.i);
+    this.poly3(nc, pts, 1.3 * Us, col, 150 / 255 * flb); this.poly3(nc, pts, 0.5 * Us, HOTc, 200 / 255 * flb);
+    this.sphere(c, X, r * 1.4 * gk * 1.4, Lb.mix(col, HOTc, 0.4), 1, ink * 0.5);
+    for (let j = 0; j < 3; j++) { const ra = Lb.rngFor(inst.seed, s.i, 420 + Math.floor(t / 2) * 3 + j), apts = [X.clone()], d3 = new THREE.Vector3(ra.uniform(-1, 1), ra.uniform(-1, 1), ra.uniform(-1, 1)).normalize();
+      for (let m = 0; m < 3; m++) { d3.add(new THREE.Vector3(ra.uniform(-0.8, 0.8), ra.uniform(-0.8, 0.8), ra.uniform(-0.8, 0.8))).normalize(); apts.push(apts[m].clone().addScaledVector(d3, r * 1.6)); }
+      this.poly3(nc, apts, 0.6 * Us, Lb.mix(col, HOTc, 0.5), 200 / 255); }
+  }
+};
+Runner.prototype.rocket3 = function (inst, xf, s, k, t, col, Us) {
+  const Lb = SLib(), Gm = G.GUNFX.geo, c = inst._c, nc = noCore(c), HOTc = [255, 255, 255], r = +inst.fx.params.radius * s.size * Us;
+  const p = s.pos(k), X = this.w3(inst, xf, p[0], p[1], 0, new THREE.Vector3()), u = this.dir3(xf, s.head(k)), body = Lb.mix(Gm.STEEL, col, 0.15);
+  _sq.setFromUnitVectors(XV, u); const q = _sq.clone();
+  this.sphere(c, X, r * 0.65, body, 1, c.toon_ink_m * 0.6, {q, x: 2.9, y: 1, z: 1});   // the body
+  this.sphere(c, X.clone().addScaledVector(u, r * 1.4), r * 0.5, col, 1, c.toon_ink_m * 0.6);   // the nose band
+  for (let j = 0; j < 4; j++) {   // four fins
+    const w = coneDir(u, 90, j * Math.PI / 2 + k * 0.15, new THREE.Vector3()), F = X.clone().addScaledVector(u, -r * 1.3).addScaledVector(w, r * 0.7);
+    const tn = this.paint(this.toon('shard', 0), c, col, 1, c.toon_ink_m * 0.5);
+    [tn.m, tn.h].forEach(x => { x.position.copy(F); x.quaternion.setFromUnitVectors(XV, u); x.scale.set(r * 0.6, r * 0.55, r * 0.09); x.material.uniforms.uTaper.value = 0; });
+    x_rot(tn, w, u);
+  }
+  const r2 = Lb.rngFor(inst.seed, s.i, 140 + t % 16), ln = r * (2.6 + 1.6 * r2()), B = X.clone().addScaledVector(u, -r * 1.8);   // the exhaust
+  this.tube(nc, B.clone().addScaledVector(u, -ln), B, 0, r * 0.55, col, 220 / 255, 0); this.tube(nc, B.clone().addScaledVector(u, -ln * 0.6), B, 0, r * 0.25, HOTc, 1, 0);
+  this.sphere(nc, B, r * 2.2 * 0.5, col, 150 / 255, 0);
+};
+function x_rot(tn, w, u) {   // stand a fin's flat side along w (its spine along u)
+  const m = new THREE.Matrix4().makeBasis(u, w, new THREE.Vector3().crossVectors(u, w));
+  [tn.m, tn.h].forEach(x => x.quaternion.setFromRotationMatrix(m));
+}
+Runner.prototype.gunImpact3 = function (inst, xf, s, a, X, stopped, col, P, dens, Us, gk, gy) {
+  const Gm = G.GUNFX.geo, look = s.look, life = Gm.IMPACT_LIFE[look], B = +P.thickness * s.size * Us, nc = noCore(inst._c), HOTc = [255, 255, 255];
+  const u = this.dir3(xf, s.head(!stopped ? s.flight : Math.max(0, inst.tq_ki[s.i][0] - s.b))), key = s.i * 4 + 1;
+  if (look === 'tracer' || look === 'pellet') {
+    if (a >= life) return; const sc = look === 'pellet' ? 0.7 : 1, q = a / life;
+    if (a < 3) this.sphere(nc, X, B * (0.5 + 0.5 * easeO(a / 3)) * sc * gk * 1.4, HOTc, 1 - a / 3, 0);
+    this.sphere(nc, X, B * (0.8 + 0.8 * easeO(q)) * sc * gk, col, 180 / 255 * (1 - q) * 0.7, 0);
+    this.sparks3(inst, key, X, u.clone().negate(), 70, a, Math.max(0, Math.round(4 * dens)), col, 2, 5.5, 12, Us, gy);
+  } else if (look === 'slug') this.heavy3(inst, key, X, u, a, life, B, dens, col, Us, gk, gy);
+  else if (look === 'orb' || look === 'rocket') this.explode3(inst, key, X, a, life, B, dens, col, Us, gk, gy);
+  else if (look === 'bolt') this.strike3(inst, key, X, a, life, B, dens, col, Us, gk, gy);
+  else if (look === 'drill') this.shatter3(inst, key, X, u, a, life, B, dens, col, Us, gk);
+};
+Runner.prototype.heavy3 = function (inst, key, X, u, a, life, B, dens, col, Us, gk, gy) {
+  if (a < 0 || a >= life) return;
+  const Lb = SLib(), nc = noCore(inst._c), HOTc = [255, 255, 255], q = a / life, d3 = new THREE.Vector3();
+  if (a < 5) this.sphere(nc, X, B * (0.6 + 0.8 * easeO(a / 5)) * gk * 1.3, HOTc, 1 - a / 5, 0);
+  if (a < 9) { const e = easeO(a / 4), qs = a / 9; this.star3(inst, key, X, u, 6, B * (0.5 + 0.9 * e), B * (0.2 + 0.2 * e), col, 225 / 255 * (1 - qs), 0.2 * qs);
+    this.star3(inst, key + 1, X, u, 6, B * (0.3 + 0.5 * e), B * (0.12 + 0.1 * e), HOTc, Math.pow(1 - qs, 1.5), 0.2 * qs + 0.5); }
+  this.sphere(nc, X, B * (0.9 + 0.7 * easeO(q)) * gk, col, 140 / 255 * (1 - q) * 0.6, 0);
+  [[0, 1.0], [3, 1.4]].forEach(dk => { const aa = a - dk[0], k = dk[1]; if (aa < 0) return; const qq = aa / (life - dk[0]), ee = easeO(qq);
+    this.torus(nc, 'ring', X.clone().addScaledVector(u, B * 0.4 * ee * k), u, B * (0.3 + 1.5 * ee) * k, 0.4, 0, col, 210 / 255 * (1 - qq), 0); });
+  if (a < 11) { const ql = a / 11; for (let j = 0; j < 10; j++) { const r = Lb.rngFor(inst.seed, key, 600 + j), th = r() * 6.28, ph = Math.acos(r() * 2 - 1);
+    d3.set(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th)); const r1 = B * (0.4 + 1.5 * easeO(ql)) * r.uniform(0.8, 1.2), ln = B * r.uniform(0.4, 0.8) * (1 - ql);
+    this.tube(nc, X.clone().addScaledVector(d3, r1), X.clone().addScaledVector(d3, r1 + ln), 0.5 * Us, 0, Lb.mix(HOTc, col, ql), 230 / 255 * (1 - ql), 0); } }
+  this.sparks3(inst, key, X, u.clone().negate(), 80, a, Math.max(0, Math.round(9 * dens)), col, 3, 7.5, 18, Us, gy);
+};
+Runner.prototype.explode3 = function (inst, key, X, a, life, B, dens, col, Us, gk, gy) {
+  if (a < 0 || a >= life) return;
+  const Lb = SLib(), c = inst._c, nc = noCore(c), HOTc = [255, 255, 255], q = a / life, ee = easeO(a / 9);
+  if (a < 6) this.sphere(nc, X, B * (0.8 + 0.9 * easeO(a / 6)) * gk * 1.3, HOTc, 1 - a / 6, 0);
+  this.sphere(nc, X, B * (1.0 + 0.9 * ee) * gk, col, 215 / 255 * (1 - q) * 0.6, 0);   // the fireball swelling, its hot heart
+  this.sphere(c, X, B * (0.55 + 0.5 * ee) * gk * 1.2, Lb.mix(col, HOTc, 0.6), Math.pow(1 - q, 2), c.toon_ink_m * 0.6);
+  for (let j = 0; j < 5; j++) { const r = Lb.rngFor(inst.seed, key, 860 + j), th = r() * 6.28, ph = Math.acos(r() * 2 - 1), d3 = new THREE.Vector3(Math.sin(ph) * Math.cos(th), Math.abs(Math.cos(ph)) * 0.8, Math.sin(ph) * Math.sin(th));
+    this.sphere(c, X.clone().addScaledVector(d3, B * 0.7 * ee), B * r.uniform(0.3, 0.5) * (1 - 0.6 * q) * gk * 1.4, Lb.mix(col, HOTc, 0.25), (1 - q) * 0.85, c.toon_ink_m * 0.5); }   // billows
+  [[0, 1.0, UPV], [4, 1.5, _cf]].forEach(dk => { const aa = a - dk[0]; if (aa < 0) return; const qq = aa / (life - dk[0]);
+    this.torus(nc, 'ring', X, dk[2], B * (0.5 + 1.6 * easeO(qq)) * dk[1], 0.5, 0, col, 190 / 255 * (1 - qq), 0); });
+  this.sparks3(inst, key, X, UPV, 180, a, Math.max(0, Math.round(12 * dens)), col, 3, 8, 22, Us, gy);
+};
+Runner.prototype.strike3 = function (inst, key, X, a, life, B, dens, col, Us, gk, gy) {   // lightning drops from the sky
+  if (a < 0 || a >= life) return;
+  const Lb = SLib(), nc = noCore(inst._c), HOTc = [255, 255, 255], q = a / life;
+  if (a < 10) { const r = Lb.rngFor(inst.seed, key, 800), top = X.clone().add(new THREE.Vector3(r.uniform(-30, 30) * Us, 170 * Us, r.uniform(-30, 30) * Us)), fl = 0.75 + 0.25 * Math.sin(a * 3.1);
+    const pts = jag3(inst, key * 64 + Math.floor(a / 2), top, X, 9, 12 * Us); this.poly3(nc, pts, 2.1 * Us, col, 210 / 255 * fl * (1 - a / 10)); this.poly3(nc, pts, 0.8 * Us, HOTc, 1 - a / 10); }
+  if (a < 5) this.sphere(nc, X, B * (0.8 + 0.8 * easeO(a / 5)) * gk * 1.3, HOTc, 1 - a / 5, 0);
+  this.sphere(nc, X, B * (0.9 + 0.6 * easeO(q)) * gk, col, 160 / 255 * (1 - q) * 0.6, 0);
+  const G0 = X.clone(); if (gy != null) G0.y = gy + 0.02;
+  this.torus(nc, 'ring', G0, UPV, B * (0.4 + 1.4 * easeO(q)), 0.5, 0, col, 190 / 255 * (1 - q), 0);
+  if (a < 14) for (let j = 0; j < 6; j++) { const r2 = Lb.rngFor(inst.seed, key, 820 + j), th = r2() * 6.28, ph = Math.acos(r2() * 2 - 1), ln = B * r2.uniform(0.6, 1.1);
+    const E = X.clone().addScaledVector(new THREE.Vector3(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th)), ln);
+    this.poly3(nc, jag3(inst, key * 64 + 32 + j + Math.floor(a / 2) * 6, X, E, 4, 5 * Us), 0.6 * Us, Lb.mix(col, HOTc, 0.5), 230 / 255 * (1 - a / 14)); }
+  this.sparks3(inst, key, X, UPV, 60, a, Math.max(0, Math.round(6 * dens)), col, 2.5, 6, 16, Us, gy);
+};
+Runner.prototype.shatter3 = function (inst, key, X, u, a, life, B, dens, col, Us, gk) {   // the drill bursts into spinning shards
+  if (a < 0 || a >= life) return;
+  const Lb = SLib(), c = inst._c, nc = noCore(c), HOTc = [255, 255, 255], q = a / life, d3 = new THREE.Vector3();
+  if (a < 5) this.sphere(nc, X, B * (0.6 + 0.6 * easeO(a / 5)) * gk * 1.3, HOTc, 1 - a / 5, 0);
+  this.sphere(nc, X, B * (0.7 + 0.6 * easeO(q)) * gk, col, 150 / 255 * (1 - q) * 0.6, 0);
+  for (let j = 0; j < Math.max(0, Math.round(8 * dens)); j++) { const r = Lb.rngFor(inst.seed, key, 900 + j), sp = r.uniform(2.5, 6), fd = Lb.dragDist(0.9, a), sz = B * r.uniform(0.15, 0.3);
+    coneDir(u, Math.abs(r.uniform(-70, 70)), r() * 6.28, d3); const S = X.clone().addScaledVector(d3, sp * fd * Us), rt = r.uniform(0, 6.28) + a * r.uniform(-0.4, 0.4);
+    const tn = this.paint(this.toon('shard', 0), c, Lb.mix(col, HOTc, 0.5), 1 - q, c.toon_ink_m * 0.5);
+    [tn.m, tn.h].forEach(x => { x.position.copy(S); x.rotation.set(rt, rt * 0.6 + j, a * 0.3); x.scale.set(sz, sz * 0.5, sz * 0.35); x.material.uniforms.uTaper.value = 0; }); }
+};
+Runner.prototype.gatling3 = function (inst, xf, P, col, t, fired, total, Us, gk) {   // six barrels turning round the aim
+  const Gm = G.GUNFX.geo, Lb = SLib(), c = inst._c, nc = noCore(c), endf = Gm.cad(P) + Gm.hold(P); if (t > endf + Gm.GAT_SPIN_DOWN) return;
+  const am = Gm.aim(inst, t), f = am[2], u = this.dir3(xf, f), fade = t <= endf ? 1 : 1 - (t - endf) / Gm.GAT_SPIN_DOWN, phi = Gm.gatPhi(P, t);
+  const M = this.w3(inst, xf, am[0] + f[0] * 4, am[1] + f[1] * 4, 0, new THREE.Vector3());
+  this.torus(c, 'ring', M, u, 6 * Us, 1.2, 0, col, 170 / 255 * fade, c.toon_ink_m * 0.4);
+  for (let j = 0; j < 6; j++) { const w = coneDir(u, 90, phi + j * Math.PI / 3, new THREE.Vector3()), Bp = M.clone().addScaledVector(w, 5 * Us);
+    this.tube(c, Bp.clone().addScaledVector(u, -6 * Us), Bp.clone().addScaledVector(u, 4 * Us), 1.1 * Us, 1.1 * Us, Lb.mix(Gm.STEEL, col, 0.3), fade, c.toon_ink_m * 0.4); }
+  const heat = fired / Math.max(1, total);
+  this.sphere(nc, M, 10 * Us * gk * 0.8, Lb.mix([255, 90, 30], col, 0.3), 170 / 255 * heat * fade, 0);
+  this.sphere(nc, M, 4 * Us * gk * 1.2, Lb.mix([255, 200, 120], [255, 255, 255], 0.3), 200 / 255 * heat * fade, 0);
+};
+Runner.prototype.charge3 = function (inst, xf, P, col, tint, t, b, dens, Us, gk) {   // the charged blast gathering its orb
+  if (t > b) return;
+  const Gm = G.GUNFX.geo, Lb = SLib(), c = inst._c, nc = noCore(c), HOTc = [255, 255, 255], c0 = Gm.cad(P), am = Gm.aim(inst, t), f = am[2], u = this.dir3(xf, f);
+  const M = this.w3(inst, xf, am[0] + f[0] * 6, am[1] + f[1] * 6, 0, new THREE.Vector3()), R = +P.radius * Us, e = easeO(t / c0), fl = 0.85 + 0.15 * Math.sin(t * 1.3), rr = R * (0.25 + 0.85 * e);
+  this.sphere(nc, M, rr * 2.4 * fl * gk * 0.8, col, 150 / 255 * 0.6, 0); this.sphere(c, M, rr * 1.3 * gk * 1.3, tint, 1, c.toon_ink_m * 0.6);
+  const d3 = new THREE.Vector3();
+  for (let j = 0; j < Math.max(0, Math.round(12 * dens)); j++) {   // streaks pulled in from all round
+    const r0 = Lb.rngFor(inst.seed, j, 640), off = r0.uniform(0, Gm.CHARGE_P), cyc = Math.floor((t + off) / Gm.CHARGE_P), p = (((t + off) / Gm.CHARGE_P) % 1 + 1) % 1;
+    const r = Lb.rngFor(inst.seed, j, 650 + cyc), th = r.uniform(0, 6.28), ph = Math.acos(r() * 2 - 1), rad = r.uniform(36, 70) * Us;
+    d3.set(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th)); const dd = rad * (1 - easeI(p)) + rr * 0.6, d2 = dd + rad * 0.25 * (1 - p);
+    this.tube(nc, M.clone().addScaledVector(d3, d2), M.clone().addScaledVector(d3, dd), 0, 0.7 * Us, Lb.mix(col, HOTc, p), 230 / 255 * p, 0);
+  }
+  if (t < c0) for (let m = 0; m < 2; m++) { const q = (((t + m * Gm.CHARGE_RING) / (2 * Gm.CHARGE_RING)) % 1 + 1) % 1, rg = 50 * Us * (1 - easeI(q)) + rr * 0.3;
+    this.torus(nc, 'ring', M, coneDir(u, m ? 60 : 0, t * 0.2, new THREE.Vector3()), rg, 0.5, 0, col, 180 / 255 * q, 0); }
+  else { const a = t - c0; if (a < 5) this.star3(inst, 690, M, _cf, 4, R * 3.2 * (1 - a / 5), R * 0.4, HOTc, 1 - a / 5, Math.PI / 4);
+    if (e > 0.6) for (let j = 0; j < 2; j++) { const ra = Lb.rngFor(inst.seed, j, 680 + Math.floor(t / 2)); d3.set(ra.uniform(-1, 1), ra.uniform(-1, 1), ra.uniform(-1, 1)).normalize();
+      this.poly3(nc, jag3(inst, 690 + Math.floor(t / 2) * 2 + j, M, M.clone().addScaledVector(d3, rr * 2.2), 3, 3 * Us), 0.5 * Us, HOTc, 200 / 255); } }
+};
+Runner.prototype.aim3 = function (inst, xf, P, col, t, b, Us, gk) {   // the sniper's laser + a reticle facing the camera
+  if (t >= b) return;
+  const Gm = G.GUNFX.geo, Lb = SLib(), nc = noCore(inst._c), HOTc = [255, 255, 255], am = Gm.aim(inst, t), f = am[2], Lp = +P.length;
+  const e = easeO(t / Math.max(1, b)), fl = 0.6 + 0.4 * Math.sin(t * 2.1), O = this.w3(inst, xf, am[0], am[1], 0, new THREE.Vector3());
+  let ex = am[0] + f[0] * Lp, ey = am[1] + f[1] * Lp;
+  this.tube(nc, O, this.w3(inst, xf, ex, ey, 0, new THREE.Vector3()), 0.5 * Us, 0.5 * Us, col, 120 / 255 * fl, 0);
+  this.tube(nc, O, this.w3(inst, xf, ex, ey, 0, new THREE.Vector3()), 0.22 * Us, 0.22 * Us, HOTc, 150 / 255 * fl, 0);
+  if (Gm.tracks(inst)) { const tp = Gm.at(inst.tq_tp, Gm.lockTick(inst, t)); if (Math.hypot(tp[0] - am[0], tp[1] - am[1]) < Lp) { ex = tp[0]; ey = tp[1]; } }
+  const E = this.w3(inst, xf, ex, ey, 0, new THREE.Vector3()), rad = (26 - 18 * e) * Us, rt = (1 - e) * Math.PI / 2;
+  this.torus(nc, 'ring', E, _cf, rad, 0.3, 0, col, 210 / 255, 0);
+  for (let j = 0; j < 4; j++) { const an = rt + j * Math.PI / 2, d3 = _cr.clone().multiplyScalar(Math.cos(an)).addScaledVector(_cu, Math.sin(an));
+    this.tube(nc, E.clone().addScaledVector(d3, rad * 0.6), E.clone().addScaledVector(d3, rad * 1.4), 0.6 * Us, 0.6 * Us, HOTc, 230 / 255, 0); }
+  if (e > 0.8 && t % 4 < 2) this.sphere(nc, E, 4 * Us * gk * 1.4, HOTc, 1, 0);
+  if (b - t <= 6) { const q = (b - t) / 6; this.star3(inst, 691, O, _cf, 4, (14 * (1 - q) + 2) * Us, 1.2 * Us, HOTc, 1 - q, 0); }
+};
+Runner.prototype.rail3 = function (inst, xf, s, P, col, t, dens, Us, gk, gy) {   // the rail: a beam with a true 3D helix, rings, heavy hits
+  const Gm = G.GUNFX.geo, Lb = SLib(), nc = noCore(inst._c), HOTc = [255, 255, 255], k = t - s.b, linger = Math.max(1, Gm.hold(P)); if (k < 0) return;
+  const ln = Gm.railLine(s), A = this.w3(inst, xf, ln[0], ln[1], 0, new THREE.Vector3()), Bp = this.w3(inst, xf, ln[2], ln[3], 0, new THREE.Vector3()), u = Bp.clone().sub(A), Lr = u.length(); u.normalize();
+  if (k < linger) {
+    const q = k / linger, W = +P.radius * (k < 2 ? 2.2 : 1.0) * (1 - q) * Us;
+    this.tube(nc, A, Bp, W * 1.3 + 0.01, W * 1.3 + 0.01, col, 200 / 255 * (1 - q), 0); this.tube(nc, A, Bp, W * 0.5 + 0.01, W * 0.5 + 0.01, HOTc, Math.pow(1 - q, 1.5), 0);
+    const amp = +P.radius * (1.8 + 2.4 * easeO(q)) * Us;
+    [0, 1].forEach(sd => { const pts = []; for (let m = 0; m < 41; m++) { const d = Lr * m / 40, an = d / (14 * Us) + sd * Math.PI + k * 0.5;
+      pts.push(A.clone().addScaledVector(u, d).addScaledVector(coneDir(u, 90, an, new THREE.Vector3()), amp)); }
+      this.line3(nc, pts, 0.65 * Us, xf.az, Lb.mix(col, HOTc, 0.3), 170 / 255 * (1 - q), 0); });
+    [0.15, 0.4, 0.65, 0.9].forEach((fr_, j) => { const aa = k - j; if (aa < 0) return; const qq = Math.min(1, aa / linger), ee = easeO(qq);
+      this.torus(nc, 'ring', A.clone().addScaledVector(u, Lr * fr_), u, (6 + 22 * ee) * Us, 0.3, 0, col, 170 / 255 * (1 - qq), 0); });
+  }
+  inst.tq_imp.forEach((im, n) => { const a = t - im[0] - Gm.RAIL_DELAY, X = this.w3(inst, xf, im[1], im[2], 0, new THREE.Vector3());
+    if (a < 0) { if (t >= im[0]) this.sphere(nc, X, 6 * Us * gk * 1.3, HOTc, 230 / 255, 0); return; }
+    this.heavy3(inst, 9000 + n, X, u, a, Gm.IMPACT_LIFE.rail, +P.thickness * Us, dens, col, Us, gk, gy); });
+};
+/* the ki barrage (strikefx drawKi) */
+Runner.prototype.drawKi = function (l, inst, xf) {
+  const Lb = SLib(), K = G.STRIKEFX.ki, P = inst.fx.params, t = inst.age, c = inst._c, nc = noCore(c), Us = xf.Us, ink = c.toon_ink_m, HOTc = [255, 255, 255];
+  const cs = Lb.colours(inst, this.host), col = cs[0], deep = cs[2] || cs[0], gk = c.strike_glow_pct / 100, gy = c.strike_ground ? l.groundY : null;
+  const fr = new K.Fr(inst, 1), r0 = +P.radius * Us, B0 = +P.thickness * Us, dens = +P.density || 1, all = K.shots(inst, 1), smoke = Lb.mix(K.SMOKE, deep, 0.25);
+  const WPp = p => this.w3(inst, xf, p[0], p[1], 0, new THREE.Vector3()), d3 = new THREE.Vector3();
+  for (const s of all) {   // smoke piling up where they went off
+    if (s.b > t) break; const bl = K.blastAt(inst, s, fr), a = t - bl[0];
+    if (a < 0 || a >= K.SMOKE_LIFE || K.goneSilent(inst, s.i)) continue;
+    this.puffs3(inst, 6000 + s.i, WPp([bl[1], bl[2]]), a, K.SMOKE_LIFE, Math.max(0, Math.round(3 * dens)), +P.thickness * s.size, smoke, 0.55, Us);
+  }
+  const last = all.length ? all[all.length - 1].b : 0;
+  if (t <= last + 4) { const fa = t <= last ? 1 : 1 - (t - last) / 4, fl = 0.8 + 0.2 * Math.sin(t * 2.3);   // the hands glow
+    [1, -1].forEach(side => { const h = fr.f.d(0, side * K.SIDE), X = WPp([inst.x + h[0], inst.y + h[1]]);
+      this.sphere(nc, X, 16 * Us * fl * gk * 0.7, col, 150 / 255 * fa, 0); this.sphere(nc, X, 6 * Us * gk * 1.3, HOTc, 220 / 255 * fa, 0); }); }
+  for (const s of all) {
+    if (s.b > t) break;
+    const k = t - s.b, en = s.end(inst), e = en[0], stopped = en[1], tint = Lb.mix(col, HOTc, 0.3 + s.tint), rs = r0 * s.size;
+    if (k < K.FLASH) { const qf = k / K.FLASH, M = WPp(s.pos(fr, 0)), u = this.dir3(xf, fr.f.d(Math.cos(s.ang) * fr.h, Math.sin(s.ang) * fr.v));   // muzzle flash
+      this.sphere(nc, M, (10 + 10 * easeO(qf)) * Us * s.size * gk * 0.8, col, 220 / 255 * (1 - qf) * 0.7, 0); this.sphere(nc, M, 6 * Us * s.size * gk * 1.2, HOTc, 1 - qf, 0);
+      this.star3(inst, 6100 + s.i, M, u, 4, 16 * Us * s.size * (1 - 0.4 * qf), 1.2 * Us, HOTc, 230 / 255 * (1 - qf), 0); }
+    if (t < e) {   // in flight: comet tail, glowing body, white-hot core
+      const X = WPp(s.pos(fr, k)), T = WPp(s.pos(fr, Math.max(0, k - 2.5))), fl2 = 0.88 + 0.12 * Math.sin(t * 1.7 + s.i * 2.1);
+      this.tube(nc, T, X, 0, rs * 0.95, col, 140 / 255, 0); this.tube(nc, T, X, 0, rs * 0.4, tint, 200 / 255, 0);
+      this.sphere(nc, X, rs * 3.4 * fl2 * gk * 0.6, col, 120 / 255 * 0.7, 0);
+      this.sphere(c, X, rs * 1.8 * gk * 1.2, tint, 1, ink * 0.6);
+      continue;
+    }
+    const ad = t - e; if (ad >= K.BLAST_LIFE || K.goneSilent(inst, s.i)) continue;   // detonation
+    const bp = K.blastAt(inst, s, fr), X = WPp([bp[1], bp[2]]), qd = ad / K.BLAST_LIFE, ee = easeO(ad / 8), Bd = B0 * s.size * (stopped ? 1 : 0.85);
+    if (ad < 5) this.sphere(nc, X, Bd * (0.7 + 0.9 * easeO(ad / 5)) * gk * 1.3, HOTc, 1 - ad / 5, 0);
+    this.sphere(nc, X, Bd * (0.9 + 1.0 * ee) * gk, col, 210 / 255 * (1 - qd) * 0.6, 0);
+    this.sphere(c, X, Bd * (0.5 + 0.45 * ee) * gk * 1.2, Lb.mix(col, HOTc, 0.6), Math.pow(1 - qd, 2), ink * 0.6);
+    if (s.kind >= 1) this.torus(nc, 'ring', X, s.kind === 2 ? UPV : _cf, Bd * (0.5 + 1.7 * easeO(qd)), 0.5, 0, col, 190 / 255 * (1 - qd), 0);
+    const nsp = Math.max(0, Math.round((4 + 5 * (s.kind === 2 ? 1 : 0)) * dens));
+    for (let j = 0; j < nsp; j++) { const rg = Lb.rngFor(inst.seed, s.i, 80 + j), life = 9 + 9 * rg(); if (ad >= life) continue;
+      const th = rg.uniform(0, 6.28), ph = Math.acos(rg() * 2 - 1), sp = rg.uniform(2.5, 6.5), fd = Lb.dragDist(0.87, ad), dk = Math.pow(0.87, ad), qq = ad / life;
+      d3.set(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th));
+      const Bq = X.clone().addScaledVector(d3, sp * fd * Us); Bq.y -= 0.08 * ad * ad * Us; if (gy != null && Bq.y < gy + 0.03) Bq.y = gy + 0.03;
+      this.tube(nc, Bq.clone().addScaledVector(d3, -sp * dk * 1.6 * Us), Bq, 0, 0.7 * Us, Lb.mix(HOTc, col, qq), 1 - qq, 0); }
+  }
+};
 /* Paint every live effect onto its card(s) and place them. cam = the THREE camera, H = drawing buffer height (px).
    opts.hidden: hide body-bound FX (blinked out). */
 Runner.prototype.draw = function (cam, H, opts) {
@@ -1545,5 +1916,5 @@ function movePlan(cfg, S, T, frames, frameMs, rnd) {
 }
 
 G.FX3D = {U, HURT, ANCHORS, LAYS, PIVOTS, DEF3D, MOVE_DEFAULTS, MOVE_PATHS, START_MODES, MOVE_EASES, RENDERS, CHUNKS, TOON_PRIMS, STRIKE_LIMBS,
-  strikeKind, bladeKind, cfg3d, is3d, autoLay, layOf, moveCfg, byAction, Runner, movePlan, spotAround, easeU};
+  strikeKind, bladeKind, gunKind, cfg3d, is3d, autoLay, layOf, moveCfg, byAction, Runner, movePlan, spotAround, easeU};
 })(window);
