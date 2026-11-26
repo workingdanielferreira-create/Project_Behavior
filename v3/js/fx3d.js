@@ -337,7 +337,7 @@ const UPV = new THREE.Vector3(0, 1, 0);
         onHit(enemyRef, damage, knockback, inst), onHitstop(ticks), onShake(px)} */
 function Runner(o) {
   this.o = o; this.by = byAction(o.fx); this.lanes = []; this.cards = []; this.toons = []; this.auras = []; this.ctx = null; this.cur = null;
-  this.hurtNow = null; this.curEnemy = null; this.laneId = 0;
+  this.hurtNow = null; this.curEnemy = null; this.laneId = 0; this.defended = 0; this.landed = 0;
   const F = o.fx || {}, pal = o.palette || {}, rgb = h => FXK.hexRgb(h || '#ffffff', [255, 255, 255]), sp = F.space || {};
   this.lut = FXK.buildLut([rgb(pal.body), rgb(pal.accent)]);
   this.lib = {entry_sets: F.entry_sets || [], paths: F.paths || []};
@@ -353,7 +353,10 @@ function Runner(o) {
     blinkPoint() { return null; }, snapshot() { return {}; }, outline() { return null; }, drawGhost() {},
     hitstop(n) { if (o.onHitstop) o.onHitstop(n); }, shake(px) { if (o.onShake) o.onShake(px); },
     onIntercept() {}, onDrag() {},
-    onHit(inst, dmg, dx, dy, kb) { const e = R.curEnemy; if (e && o.onHit) o.onHit(e.ref, dmg, kb, inst); }};
+    // o.onHit returns a number of ticks when the target DEFENDED (dodge i-frames, a parry window ...): tryHit then
+    // gives the effect its hit back; anything else = the hit landed (FX Studio 3D's dummy always takes it)
+    onHit(inst, dmg, dx, dy, kb) { const e = R.curEnemy; if (!e || !o.onHit) return; const r = o.onHit(e.ref, dmg, kb, inst);
+      if (typeof r === 'number' && r > 0) R.defended = Math.max(R.defended, r); else R.landed++; }};
 }
 Runner.prototype.reload = function (fx) { this.o.fx = fx; this.by = byAction(fx); };
 Runner.prototype.reset = function () { this.lanes = []; this.cards.forEach(c => { c.mesh.visible = false; }); this.toons.forEach(t => { t.m.visible = t.h.visible = false; }); this.auras.forEach(a => { a.m.visible = false; }); };
@@ -431,11 +434,81 @@ Runner.prototype.laneLive = function (l, ctx) {
     l.O.copy(ctx.centre);
     const X = ctx.target ? _v.copy(ctx.target.centre).sub(ctx.centre).setY(0) : _v.copy(ctx.facing).setY(0);
     if (X.lengthSq() > 1e-6) { l.X.copy(X).normalize(); l.L.crossVectors(l.X, l.Y).normalize(); }
-  }
+  } else if (!l.shot && ctx.target) this.reaim(l, ctx);
+  else if (l.shot && l.home && ctx.target && l.player.insts.length) this.aimShot(l, l.player.insts[0], ctx.target.centre);
   l.fig = this.toFrame(l, ctx.centre); l.figLat = _v.copy(ctx.centre).sub(l.O).dot(l.L);
   l.target = ctx.target ? this.toFrame(l, ctx.target.centre) : [40, 0];
   l.tgtLat = ctx.target ? _v.copy(ctx.target.centre).sub(l.O).dot(l.L) : l.figLat;   // the target off the lane's plane
-  l.facing = l.target[0] - l.fig[0] < 0 ? -1 : 1;
+  if (!l.shot) l.facing = l.target[0] - l.fig[0] < 0 ? -1 : 1;   // a shot keeps the facing it left with
+};
+/* Aim (Daniel 2026-11-26, "FX phasing through the target"): an action's lane used to lock its plane toward where the
+   target stood when the action STARTED, so once the target side-stepped every later effect flew / swung beside it.
+   - An action lane now turns about the vertical (REAIM_DEG a tick at most, never flipping: the plane only has to hold
+     both bodies) so the fighter -> target line stays in it. Body-bound effects (attached / orbit / weapon) are re-placed
+     from the bones every tick, so they follow.
+   - A free effect (shot, thrown blade, ground slam ...) leaves into its own SHOT lane the tick it is free (detach):
+     that frame is the lane's, turned about the effect's own point so the target lies in its plane (aimShot), then
+     frozen, so a shot flies straight at where the target was when it left (a real side-step still dodges it).
+     A homing shot's lane re-aims every tick (it homes in 3D); a keyed motion switch re-aims it once. */
+const REAIM_DEG = 15, SHOT_LANES = 48;
+const _ra = new THREE.Vector3(), _rs = new THREE.Vector3();
+Runner.prototype.reaim = function (l, ctx) {
+  const F = _ra.copy(ctx.target.centre).sub(ctx.centre).setY(0); if (F.lengthSq() < 0.04) return; F.normalize();
+  if (F.dot(l.X) < 0) F.negate();
+  const ang = Math.acos(Math.max(-1, Math.min(1, F.dot(l.X)))); if (ang < 1e-4) return;
+  const sg = l.X.z * F.x - l.X.x * F.z < 0 ? -1 : 1;
+  l.X.applyAxisAngle(UPV, sg * Math.min(ang, REAIM_DEG * D)).setY(0).normalize(); l.L.crossVectors(l.X, l.Y).normalize();
+};
+// an instance's point in world space in lane l (its card offsets / turns aside)
+Runner.prototype.instWorld = function (l, inst, out) {
+  const lat = inst._lat == null ? l.figLat : inst._lat;
+  return out.copy(l.O).addScaledVector(l.X, inst.x * U).addScaledVector(l.Y, -inst.y * U).addScaledVector(l.L, lat);
+};
+// turn shot lane l about the vertical through inst's point so T (world) lies in its plane; inst keeps its 2D spot
+Runner.prototype.aimShot = function (l, inst, T) {
+  if (inst._tgt) return;   // it started ON the target: already there
+  const S = this.instWorld(l, inst, _rs), d = _ra.copy(T).sub(S), u = d.dot(l.X), v = d.dot(l.L);
+  if (Math.abs(u) < 0.3 || Math.abs(v) < 0.02) return;
+  l.X.multiplyScalar(Math.abs(u)).addScaledVector(l.L, Math.sign(u) * v).setY(0).normalize(); l.L.crossVectors(l.X, l.Y).normalize();
+  const lat = inst._lat == null ? 0 : inst._lat;
+  l.O.copy(S).addScaledVector(l.X, -inst.x * U).addScaledVector(l.Y, inst.y * U).addScaledVector(l.L, -lat);
+};
+const SHOT_MOVES = {travel: 1, homing: 1, zigzag: 1, boomerang: 1};
+// move free insts (same tick, same effect = one lane) out of lane l into a new shot lane
+Runner.prototype.detach = function (l, insts, ctx) {
+  this.cur = l;
+  const sl = {id: ++this.laneId, key: l.key + '~shot', name: l.name, active: false, shot: true, home: false, player: new FXK.Player(), t: l.t,
+    frames: l.frames, frameMs: l.frameMs, O: l.O.clone(), X: l.X.clone(), Y: l.Y.clone(), L: l.L.clone(), groundY: l.groundY, follow: false,
+    fig: l.fig.slice(), figLat: l.figLat, target: l.target.slice(), tgtLat: l.tgtLat, facing: l.facing};
+  sl.player.clock = l.player.clock; sl.player.t = l.player.t; sl.player.lastT = l.player.lastT;
+  for (const inst of insts) {
+    this.initInst(l, inst);
+    if (inst._blT != null && inst._bl != null) inst._lat = inst._bl;   // was riding a limb until now: it leaves from there
+    const i = l.player.insts.indexOf(inst); if (i >= 0) l.player.insts.splice(i, 1);
+    sl.player.insts.push(inst); inst._mk3 = inst.fx.motion.kind;
+  }
+  sl.home = insts.some(i => i.fx.motion.kind === 'homing');
+  if (ctx && ctx.target) this.aimShot(sl, insts[0], ctx.target.centre);
+  return sl;
+};
+// after every lane ticked: free effects leave their action lanes; a shot lane whose effect switched motion re-aims
+Runner.prototype.sortShots = function (ctx) {
+  const add = [];
+  for (const l of this.lanes) {
+    if (l.shot) {
+      const sw = l.player.insts.find(i => i._mk3 !== i.fx.motion.kind);
+      if (sw) { l.player.insts.forEach(i => { i._mk3 = i.fx.motion.kind; }); l.home = l.player.insts.some(i => i.fx.motion.kind === 'homing');
+        if (ctx.target && SHOT_MOVES[sw.fx.motion.kind]) this.aimShot(l, sw, ctx.target.centre); }
+      continue;
+    }
+    const free = l.player.insts.filter(i => !i.dead && !FXK.bodyBound(i) && !i.cont && !i.open);
+    if (!free.length) continue;
+    const groups = new Map();
+    free.forEach(i => { const k = (i.src || i.fx); let g = groups.get(k); if (!g) groups.set(k, g = []); g.push(i); });
+    groups.forEach(g => add.push(this.detach(l, g, ctx)));
+  }
+  add.forEach(sl => this.lanes.push(sl));
+  this.cur = null;
 };
 /* One 16 ms tick. ctx = {centre, feet: Vector3 (world), facing: level unit Vector3, bone(name) -> Object3D | null,
    target: {centre} | null, enemies: [{centre, r (m), ref}], action: {key, name, frames, frameMs} | null,
@@ -453,10 +526,15 @@ Runner.prototype.tick = function (ctx) {
     this.hits(l, ctx);
   }
   this.cur = null;
+  this.sortShots(ctx);
   this.lanes = this.lanes.filter(l => l.active || l.player.insts.length);
-  // too many lanes: drop the oldest finished one, but never one holding a lasting transformation aura (hyperfx.js)
+  // too many lanes: drop the oldest finished one, but never one holding a lasting transformation aura (hyperfx.js);
+  // shot lanes have their own (bigger) cap
   const keep = l => G.HYPERFX && G.HYPERFX.isTransform && l.player.insts.some(i => G.HYPERFX.isTransform((i.fx.params || {}).style));
-  while (this.lanes.length > 8) { let i = this.lanes.findIndex(l => !l.active && !keep(l)); if (i < 0) i = this.lanes.findIndex(l => !l.active); if (i < 0) break; this.lanes.splice(i, 1); }
+  const own = this.lanes.filter(l => !l.shot);
+  while (own.length > 8) { let i = own.findIndex(l => !l.active && !keep(l)); if (i < 0) i = own.findIndex(l => !l.active); if (i < 0) break; this.lanes.splice(this.lanes.indexOf(own[i]), 1); own.splice(i, 1); }
+  let ns = this.lanes.length - own.length;
+  while (ns > SHOT_LANES) { const i = this.lanes.findIndex(l => l.shot); this.lanes.splice(i, 1); ns--; }
 };
 Runner.prototype.initInst = function (l, inst) {
   if (inst._c) return;
@@ -507,25 +585,77 @@ Runner.prototype.hurtFor = function (l, inst, e, xf) {
   if (n > tol) return null;
   return {x: inst._pv[0] + d.dot(l.X) / xf.Us, y: inst._pv[1] - d.dot(l.Y) / xf.Us, r: HURT * U / xf.Us};
 };
+/* One hit test against this.curEnemy / this.hurtNow; st = that enemy's own hit count for the instance (null for a
+   particle chunk: the chunk keeps its own). A contact the target DEFENDS (dodge i-frames, a parry window, a blink:
+   the game's onHit returns the ticks it still lasts) no longer uses the effect up (Daniel 2026-11-26, "FX phasing
+   through the target"): its hit count, life and lodging go back as they were and it is not tested on that enemy again
+   until the defence is over, so it can still land. Returns true when a hit landed. */
+Runner.prototype.tryHit = function (inst, st) {
+  if (st && inst.age < (st.wait == null ? -1e9 : st.wait)) return false;
+  const sv = st ? [inst.hits, inst.lastHit, inst.ringHits] : null;
+  if (st) { inst.hits = st.hits; inst.lastHit = st.lastHit; inst.ringHits = st.ringHits; }
+  const parts = inst.parts, k = {age: inst.age, life: inst.life, dead: inst.dead, lodge: inst.lodge, hits: inst.hits, lastHit: inst.lastHit,
+    rh: Object.assign({}, inst.ringHits), pq: parts ? parts.map(q => [q.hits, q.lastHit]) : null};
+  this.defended = 0; this.landed = 0;
+  try { FXK.resolveHits(inst, this.host, 1); } catch (err) { console.error('fx3d hit', err); }
+  const back = this.defended > 0 && !this.landed;
+  if (back) {
+    inst.age = k.age; inst.life = k.life; inst.dead = k.dead; inst.lodge = k.lodge; inst.hits = k.hits; inst.lastHit = k.lastHit; inst.ringHits = k.rh;
+    if (parts) { inst.parts = parts; parts.forEach((q, i) => { q.hits = k.pq[i][0]; q.lastHit = k.pq[i][1]; q._wait = inst.age + this.defended; }); }
+    if (st) st.wait = inst.age + this.defended;
+  }
+  if (st) { st.hits = inst.hits; st.lastHit = inst.lastHit; st.ringHits = inst.ringHits; inst.hits = sv[0]; inst.lastHit = sv[1]; inst.ringHits = sv[2]; }
+  return this.landed > 0;
+};
+// particles: each chunk on its own (hurt(q) = its hurt circle or null), so one defended chunk never undoes another's hit
+Runner.prototype.partHits = function (inst, hurt) {
+  const keep = [], all = inst.parts || [];
+  for (const q of all) {
+    if (q._wait != null && inst.age < q._wait) { keep.push(q); continue; }
+    const h = hurt(q); if (!h) { keep.push(q); continue; }
+    inst.parts = [q]; this.hurtNow = h; this.tryHit(inst, null);
+    if (inst.parts.length) keep.push(q);
+  }
+  inst.parts = keep;
+};
+// Fast free effects (a homing punch flies 150-200 px a tick, the hurt circle is 32 across): also tested at points
+// along this tick's path, so nothing skips over a body between two ticks.
+const SWEEP_PRIMS = {sprite: 1, glow: 1, technique: 1};
+Runner.prototype.sweep = function (inst) {
+  const px = inst._sx, py = inst._sy; inst._sx = inst.x; inst._sy = inst.y;
+  if (px == null || inst.age < 1 || !SWEEP_PRIMS[inst.fx.prim] || FXK.bodyBound(inst)) return null;
+  const m = Math.hypot(inst.x - px, inst.y - py), r = HURT * 0.8; if (m <= r || m > 4000) return null;
+  const n = Math.min(24, Math.ceil(m / r)), out = [];
+  for (let i = 1; i < n; i++) out.push([px + (inst.x - px) * i / n, py + (inst.y - py) * i / n]);
+  return out;
+};
 Runner.prototype.hits = function (l, ctx) {
   const en = ctx.enemies || []; if (!en.length) return;
   const xf = {P: new THREE.Vector3(), q: new THREE.Quaternion(), Us: U, bill: false};
   for (const inst of l.player.insts.slice()) {
     const b = inst.fx.battle; if (!b || !b.deals_damage || inst.dead) continue;
     this.initInst(l, inst);
-    if (inst._r3) { this.hits3d(l, inst, en, xf); continue; }
-    const hb = inst._hb || (inst._hb = new Map());
-    for (const e of en) {
-      const h = this.hurtFor(l, inst, e, xf); if (!h) continue;
-      let s = hb.get(e.ref); if (!s) { s = {hits: 0, lastHit: -1e9, ringHits: {}}; hb.set(e.ref, s); }
-      const sv = [inst.hits, inst.lastHit, inst.ringHits];
-      inst.hits = s.hits; inst.lastHit = s.lastHit; inst.ringHits = s.ringHits;
-      this.hurtNow = h; this.curEnemy = e;
-      try { FXK.resolveHits(inst, this.host, 1); } catch (err) { console.error('fx3d hit', err); }
-      s.hits = inst.hits; s.lastHit = inst.lastHit; s.ringHits = inst.ringHits;
-      inst.hits = sv[0]; inst.lastHit = sv[1]; inst.ringHits = sv[2];
-      if (inst.dead) break;
+    const path = this.sweep(inst), x1 = inst.x, y1 = inst.y, over = inst.age >= inst.life;
+    if (path) path.push([x1, y1]);
+    let ended = false;
+    for (const p of path || [[x1, y1]]) {
+      inst.x = p[0]; inst.y = p[1];
+      if (inst._r3) this.hits3d(l, inst, en, xf); else this.hitsCard(l, inst, en, xf);
+      if (inst.dead || (!over && inst.age >= inst.life)) { ended = true; break; }   // it landed and ends there (non-piercing)
     }
+    if (!ended) { inst.x = x1; inst.y = y1; }
+  }
+  this.hurtNow = null; this.curEnemy = null;
+};
+Runner.prototype.hitsCard = function (l, inst, en, xf) {
+  const hb = inst._hb || (inst._hb = new Map());
+  for (const e of en) {
+    const h = this.hurtFor(l, inst, e, xf); if (!h) continue;
+    this.curEnemy = e;
+    if (inst.fx.prim === 'particles') { this.partHits(inst, () => h); if (inst.dead) break; continue; }
+    let s = hb.get(e.ref); if (!s) { s = {hits: 0, lastHit: -1e9, ringHits: {}}; hb.set(e.ref, s); }
+    this.hurtNow = h; this.tryHit(inst, s);
+    if (inst.dead) break;
   }
   this.hurtNow = null; this.curEnemy = null;
 };
@@ -556,23 +686,13 @@ Runner.prototype.hits3d = function (l, inst, en, xf) {
     const dv = _d.copy(e.centre).sub(xf.P), ex = inst._pv[0] + dv.dot(xf.ax) / xf.Us, ey = inst._pv[1] - dv.dot(xf.ay) / xf.Us, nn = dv.dot(xf.az) / xf.Us;
     this.curEnemy = e;
     if (inst.fx.prim === 'particles') {   // each chunk is out of the plane by its own spread
-      const keep = [], all = inst.parts || [];
-      for (const q of all) {
-        inst.parts = [q]; this.hurtNow = fold([q.x, q.y], ex, ey, nn - (q._lv || 0) * (q.age || 0));
-        try { FXK.resolveHits(inst, this.host, 1); } catch (err) { console.error('fx3d hit', err); }
-        if (inst.parts.length) keep.push(q);
-      }
-      inst.parts = keep; continue;
+      this.partHits(inst, q => fold([q.x, q.y], ex, ey, nn - (q._lv || 0) * (q.age || 0)));
+      continue;
     }
     if (Math.abs(nn) > 4000) continue;
     const S = this.shapePoint(inst, ex, ey); if (!S) continue;
     let st = hb.get(e.ref); if (!st) { st = {hits: 0, lastHit: -1e9, ringHits: {}}; hb.set(e.ref, st); }
-    const sv = [inst.hits, inst.lastHit, inst.ringHits];
-    inst.hits = st.hits; inst.lastHit = st.lastHit; inst.ringHits = st.ringHits;
-    this.hurtNow = fold(S, ex, ey, nn);
-    try { FXK.resolveHits(inst, this.host, 1); } catch (err) { console.error('fx3d hit', err); }
-    st.hits = inst.hits; st.lastHit = inst.lastHit; st.ringHits = inst.ringHits;
-    inst.hits = sv[0]; inst.lastHit = sv[1]; inst.ringHits = sv[2];
+    this.hurtNow = fold(S, ex, ey, nn); this.tryHit(inst, st);
     if (inst.dead) break;
   }
   this.hurtNow = null; this.curEnemy = null;

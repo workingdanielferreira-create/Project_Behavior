@@ -408,7 +408,8 @@ If `data/kits.gen.js` is missing, the old hand-made stand-in kits in `kits.js` a
 
 Gameplay rules are Playtest 2's, plus:
 
-- **Parry / deflect (Ctrl+Space)**, for every fighter. You press it; the AI rolls a chance (Settings > AI parries).
+- **Parry / deflect (Ctrl+Space)**, for every fighter. You press it; the AI rolls a chance (Settings > AI parries;
+  5 % perfect / 8 % normal per hit, 10 % per incoming shot, 12 % parry-back while staggered, halved 2026-11-26).
   - **Perfect** (first 130 ms of the window): no damage, no knockback. A melee attacker is staggered and a counter
     window opens, in which the parrier's hits deal 150 %. A shot is sent back at its shooter, or away the way you
     hold WASD.
@@ -480,6 +481,23 @@ anchors (coat tails, extra lines) fall back to the 2D drawing's point. Each effe
 Hits: every enemy within `depth_m` (+ its body) of the plane is tested in that plane with FX Studio's own rules
 (`FXK.resolveHits`, exported for this), each enemy with its own hit count, so a slash can cut through a crowd and a
 non-piercing shot stops at the first. In training every dummy can be hit.
+
+**Hit fixes (Daniel 2026-11-26, "FX are simply phasing through the target").** Measured in headless AI battles: 6-29 %
+of the effects that touched a target never dealt damage. Fixed in `fx3d.js` / `fxlive.js` / `combat.js`:
+- **Aim:** an action's lane no longer stays locked toward where the target stood when the action began. It turns
+  (`REAIM_DEG` 15 a tick at most, never flipping) so the fighter -> target line stays in its plane; body-bound effects
+  follow. A **free** effect (shot, thrown blade, slam ...) moves into its own **shot lane** the tick it is free
+  (`detach` / `sortShots`): the frame turned about the effect's own point so the target lies in its plane, then frozen.
+  A shot flies straight at where the target was when it left, so a real side-step still dodges it. Homing shot lanes
+  re-aim every tick (they home in 3D); a keyed motion switch (static -> travel blades) re-aims once.
+- **Defended contacts keep the hit:** when the target is in dodge i-frames, a parry window or a blink, `damage()`
+  turns the hit down and `fxHit` returns how many ticks the defence still lasts. `Runner.tryHit` then puts the
+  effect's hit count, life and lodging back, and it is not tested on that enemy again until the defence is over, so
+  it can still land. Particles are tested one chunk at a time for this. A dodged FX shows a ghost + ring on the dodger.
+- **No height-gap check for FX:** `damage(..., fx3)` skips the stand-in melee's "too far above / below" test (the
+  FX's own 3D contact decides), so an FX fired from a jump lands on a grounded body.
+- **Swept test:** a fast free sprite / glow / technique is also tested at points along this tick's path
+  (`Runner.sweep`), so a 150-200 px a tick homing punch can't skip over a body.
 
 **Action movement (`action_settings[a].move3d`, fxlive.js in the game).** `enabled`; start: `start_mode` stay / blink /
 dash (`start_ms`) to a spot `start_dist_m` from the target at `start_angle_deg` (0 = the fighter's side of the target,

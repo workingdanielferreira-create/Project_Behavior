@@ -16,7 +16,15 @@ function fxHit(f,e,dmg,kb,inst){if(!e||e.ko||!e.on)return;const fx=inst.fx||{};
   // a transformation burst with no damage (hyperfx.js, Daniel 2026-11-26 "knockback, no damage"): a pure push
   if(!(dmg>0)&&window.HYPERFX&&HYPERFX.isTransform((fx.params||{}).style)){fxShove(f,e,kb);return;}
   const w=kb>=20?'B':kb>=13?'H':kb>=7?'M':'L';const shot=fx.motion&&fx.motion.kind!=='attached'&&fx.motion.kind!=='orbit';
-  damage(f,e,dmg,w,shot,null,kb>0?kb*PX2D*.35:0);}
+  const w0=fxDefendTicks(e),dodging=e.iframe>0;
+  if(damage(f,e,dmg,w,shot,null,kb>0?kb*PX2D*.35:0,false,true)!==false)return;
+  // Defended (dodge i-frames, a parry window, a blink): the effect keeps its hit (fx3d.js tryHit) and may land once the
+  // defence is over (Daniel 2026-11-26: FX phasing through the body). The dodge shows, so it never reads as a miss.
+  if(e.ko||!e.on)return;
+  if(dodging&&e.gone<=0){fx_ghost(e,e.x,e.y);fx_ring(e.x,e.y,0xffffff,1.3,.16,1);}
+  return Math.max(1,w0,fxDefendTicks(e));}
+// How many more ticks a target's defences last: dodge i-frames, an old-style parry, the parry window (parry.js), a blink.
+function fxDefendTicks(t){const pw=t.pw;return Math.max(Math.ceil(t.iframe||0),Math.ceil(t.parry||0),t.gone>0?Math.ceil(t.gone):0,pw&&pw.until>=tick?pw.until-tick+1:0);}
 // Pushed away from the fighter (kb = FX Studio knockback px): no damage, no hit flash, a short stagger so it reads.
 function fxShove(f,e,kb){if(!(kb>0)||e.gone>0)return;const dx=e.x-f.x,dy=e.y-f.y,d=Math.hypot(dx,dy)||1,v=kb*PX2D*6;
   const kvx=e.vx,kvy=e.vy;e.vx+=dx/d*v;e.vy+=dy/d*v;if(!e.dummy||e.dummy.beh!=='stand')stun(e,280,'stag');
