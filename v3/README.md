@@ -586,6 +586,13 @@ FX** / **3D · Impact FX** (and "Punching FX" / "Impact FX").
 an effect started on the target now also lies at the target's own side offset (`lane.tgtLat`, followed while attached)
 instead of in the fighter's aim plane.
 
+**Attached FX follow the body part (Daniel 2026-11-26).** The 2D runtime moves an attached / orbit / weapon effect
+inside its lane's plane every tick, but its distance OUT of that plane (`inst._lat`) was locked where it spawned, so an
+effect attached to a hand / foot / blade / bone stayed put whenever the limb moved sideways or the body turned.
+`Runner.boundLat` now reads the anchor's live 3D point each tick (figure = body centre, target = the target, a 2D-only
+anchor = the body's sideways move since spawn), cached per lane tick; a `pivot: figure` pivot rides the body too. Game
+and FX Studio 3D share it (`fx3d.js`).
+
 Strike keys (FX Studio 3D "3D shape & cel look", section Strike): `strike_limb` auto / haR / haL / ftR / ftL / none (FX
 Studio's line only), `strike_glow_pct` (50: spheres for FX Studio's soft glows, % of the glow radius), `strike_spin_deg`
 (90), `strike_ground` (true). The usual toon_* keys apply.

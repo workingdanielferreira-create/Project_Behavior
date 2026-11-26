@@ -246,6 +246,7 @@ function spriteVel(inst) {
 
 /* ---------------------------------------------------------------- runner: one per fighter */
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _q = new THREE.Quaternion(), _qa = new THREE.Quaternion(), _m = new THREE.Matrix4();
+const _bl2 = new THREE.Vector3(), _bl3 = new THREE.Vector3();
 const _cr = new THREE.Vector3(), _cu = new THREE.Vector3(), _cf = new THREE.Vector3();
 const UPV = new THREE.Vector3(0, 1, 0);
 /* o = {fx: fxkit json, palette {body, accent}, anchors3d: pb_rig3d anchors or null, scene,
@@ -381,10 +382,28 @@ Runner.prototype.initInst = function (l, inst) {
   inst._tgt = an === 'target';   // started ON the target: it lies where the target is, not in the fighter's plane
   inst._lat = W ? _v.copy(W).sub(l.O).dot(l.L) : inst._tgt ? num(l.tgtLat, l.figLat) : l.figLat; inst._latF = l.figLat;
 };
+/* How far out of the lane's plane a body-bound (attached / orbit / weapon) effect lies NOW. The 2D runtime moves it
+   inside the plane every tick (anchorPos), but the out-of-plane part used to be locked where it spawned, so an effect
+   attached to a hand / foot / blade stayed put whenever the limb moved sideways or the body turned (Daniel 2026-11-26:
+   "when I attach fx to any body part it just stays in the same place"). It now reads the anchor's live 3D point each
+   tick (figure = the body centre, target = the target, a 2D-only anchor = the body's sideways move since spawn). */
+Runner.prototype.boundLat = function (l, inst) {
+  if (inst._blT === l.t) return inst._bl;
+  const an = typeof inst.fx.anchor === 'string' ? inst.fx.anchor.replace(/^3d:/, '') : '';
+  let lat;
+  if (an === 'target') lat = num(l.tgtLat, inst._lat);
+  else if (!an || an === 'figure') lat = l.figLat;
+  else {
+    const W = an.indexOf('set:') === 0 || !this.ctx ? null : this.anchorWorld(an, _bl3);
+    lat = W ? _bl2.copy(W).sub(l.O).dot(l.L) : inst._lat + l.figLat - inst._latF;
+  }
+  if (inst._c.pivot === 'figure') inst._pv = l.fig.slice();   // the turn pivot rides the body too
+  inst._blT = l.t; inst._bl = lat; return lat;
+};
 // where an instance's card lies: pivot (world), turn, metres per 2D px
 Runner.prototype.xform = function (l, inst, out) {
   const c = inst._c, lay = inst._lay, Us = U * c.size_pct / 100;
-  const lat = inst._tgt && FXK.bodyBound(inst) ? num(l.tgtLat, inst._lat) : inst._lat + (FXK.bodyBound(inst) ? l.figLat - inst._latF : 0);
+  const lat = FXK.bodyBound(inst) ? this.boundLat(l, inst) : inst._lat;
   const P = out.P.copy(l.O).addScaledVector(l.X, inst._pv[0] * U).addScaledVector(l.Y, -inst._pv[1] * U).addScaledVector(l.L, lat);
   if (lay === 'ground') P.y = l.groundY + 0.03;
   P.addScaledVector(l.X, c.offset[0]).addScaledVector(l.Y, c.offset[1]).addScaledVector(l.L, c.offset[2]);
