@@ -15,7 +15,7 @@
    Per-kit override: kit.parry = {any key below}. Settings > "AI parries" turns the AI rolls off. */
 const PARRY_DEFAULTS={perfectMs:130,windowMs:330,cooldownMs:420,normalReducePct:60,normalKbPct:40,
   staggerMs:500,counterMs:900,counterDmgPct:150,reach:110,fxResult:'random',
-  aiPerfectPct:10,aiNormalPct:14,aiFxPct:18,recoverPct:22};
+  aiPerfectPct:5,aiNormalPct:8,aiFxPct:10,recoverPct:12};   // AI rolls about halved (Daniel 2026-11-26: was 10 / 14 / 18 / 22)
 function parryCfg(f){return f.k.parry?Object.assign({},PARRY_DEFAULTS,f.k.parry):PARRY_DEFAULTS;}
 function pstate(f){return f.pw||(f.pw={start:-1e9,until:-1,cd:0,grade:null,player:false,rolled:-1,seen:new Set(),counterOn:null,counterUntil:-1,ring:null});}
 function playerFig(f){return f.side===0&&level!=='watch';}

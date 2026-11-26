@@ -72,9 +72,11 @@ function hitResolve(a,t,h){ // h=[at,dmg,w,reach]
   if(a.act&&a.act.kind!=='ult'&&t.stun<=0&&t.parry<=0&&t.block<=0&&!(t.dummy&&t.dummy.beh!=='fight')){const nm=a.act.kind==='normal';const pLand=t.snap?0:t.act?(nm?.36:.6):(nm?.2:.45);if(Math.random()>pLand){
     const ang=Math.atan2(t.y-a.y,t.x-a.x)+(Math.random()<.5?1.6:-1.6);const sx=t.x,sy=t.y;t.x=clamp(t.x+Math.cos(ang)*34,20,W-20);t.y=clamp(t.y+Math.sin(ang)*34,20,H-20);fx_ghost(t,sx,sy);return false;}}
   return damage(a,t,h[1],h[2],false,null,h[4]);}
-function damage(a,t,dmg,w,isShot,shot,kbpx,unblock){
+// fx3 = an FX Studio effect (fxlive.js fxHit): its own 3D contact already decided the hit, so the height-gap check
+// (meant for the stand-in melee / shots) is skipped: an FX fired from a jump that reaches a grounded body lands.
+function damage(a,t,dmg,w,isShot,shot,kbpx,unblock,fx3){
   if(t.ko||!t.on||t.gone>0)return false;
-  if(!shot&&Math.abs(a.z-t.z)>(isShot?520:420)&&t.stun<=0)return false; // too far above / below
+  if(!shot&&!fx3&&Math.abs(a.z-t.z)>(isShot?520:420)&&t.stun<=0)return false; // too far above / below
   if(t.iframe>0){if(t.side===0&&t.perfectReady){t.perfectReady=false;perfect(t,a);}return false;}
   if(t.parry>0&&!isShot&&!unblock){t.parry=0;stun(a,450,'stag');a.lastWhiff=true;fx_ring(t.x,t.y,0xffffff,2.6,.3,1.1);fx_sparks(t.x,t.y,0xffffff,24,8);hitstopMs=Math.max(hitstopMs,(70));shake=Math.max(shake,.4);director.cnt++;
     if(t.side===0||a.side===0)callout('PARRY',t.k.name+' turns it aside',cssc(t.k.fx),.6,true);stats.parries[t.side]++;return false;}

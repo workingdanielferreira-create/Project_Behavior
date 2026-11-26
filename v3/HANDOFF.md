@@ -446,6 +446,20 @@ v3-animation skill ("Review questions").
   jump_land. No character has these clips yet, and no kit has flight on, so the fly_* clips are untested in a fight.
 - **Next:** author the clips per character (v3-animation skill), Daniel's verdict in game.
 
+## FX hit fixes (2026-11-26)
+
+- Daniel: "over 50% of the time fx are simply phasing through the target". Measured headless (Playwright, AI vs AI, 5
+  matchups x 45 s): 19-38 % of the hit tests that touched a target were turned down by `damage()` (AI perfect-parry
+  window: one 10 % roll covered 330 ms; dodge i-frames; a melee height-gap check), and the FX had already spent its hit,
+  so it flew on through the body. Also: an action's FX plane stayed locked toward the target's START spot, so
+  side-steps made later FX miss by 1.5-10 m; fast homing punches could skip the body between ticks.
+- His picks: defences stay but a defended contact no longer wastes the FX's hit; lower AI parry chances; each new FX
+  aims at where the target is now (shots already flying keep their path). README "Hit fixes".
+- Result (same probe): effects that touched a target but never dealt damage 6 / 29 / 16 / 26 / 26 % -> 2 / 16 / 9 / 8 / 14 %
+  (puck v hooded_blades, pewpew v sueko, ronin_copy v tough, rapid v puff, sniper v sync); what is left is real defences
+  (e.g. a magnum round passing during a 220 ms dodge), now shown. Shots in shot lanes fly straight (<= 9 cm off a line).
+- **Next:** Daniel's verdict in game.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,
