@@ -101,6 +101,12 @@ input[type=color] { width: 44px; height: 26px; padding: 0; border: 1px solid var
 .list .it input { margin: 0; }
 .params { display: flex; flex-direction: column; gap: 4px; max-height: 340px; overflow: auto; padding-right: 2px; }
 .params .row { grid-template-columns: 150px minmax(0, 1fr); }
+#partsBox details { border: 1px solid var(--line, #3335); border-radius: 6px; margin: 6px 0; padding: 2px 8px; }
+#partsBox summary { cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 13px; }
+#partsBox summary .nm { flex: 1; min-width: 0; }
+#partsBox summary .ed { font-size: 11px; color: var(--key); }
+#partsBox summary button { padding: 0 8px; line-height: 18px; font-size: 11px; }
+#partsBox summary button[aria-pressed=true] { outline: 2px solid var(--key); }
 textarea { width: 100%; box-sizing: border-box; min-height: 180px; resize: vertical; }
 h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 4px 0 0; font-weight: 600; }
 </style>
@@ -162,6 +168,9 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
       <div class="list" id="acts"></div>
       <div class="row"><label>Length</label><div class="pair"><input id="aFrames" type="number" min="1" step="1" title="frames"> × <input id="aFms" type="number" min="1" step="1" title="ms per frame"> ms</div></div>
       <div class="row"><label for="aCool">Cooldown (ms)</label><input id="aCool" type="number" min="0" step="50"></div>
+      <div class="row"><label for="aTd" title="The AI and FX Studio condition triggers start this action only while the target is between these distances (body centre to body centre, height included). Your own key presses ignore it">Trigger distance</label>
+        <div class="pair"><input id="aTd" type="checkbox" aria-label="Use a trigger distance"> <input id="aTdMin" type="number" min="0" step="0.1" title="closest (m)" aria-label="Closest (m)"> – <input id="aTdMax" type="number" min="0" step="0.1" title="farthest (m), 0 = no limit" aria-label="Farthest (m), 0 = no limit"> m</div></div>
+      <p class="note" id="aTdOut"></p>
     </section>
 
     <section id="secDummy"><h2>Target dummy</h2>
@@ -195,6 +204,12 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
     <section id="secToon"><h2>3D shape &amp; cel look <small id="toonOut"></small></h2>
       <p class="note">Laser trails, beams, orbs / bolts, particles, glows and impacts are real 3D shapes with flat cel bands, a white-hot core and an ink outline (they hit with their 3D shape). <b>Card</b> = the 2D drawing as before.</p>
       <div id="toonForm"></div>
+    </section>
+
+    <section id="secParts" hidden><h2>Parts &amp; style extras <small id="partsOut"></small></h2>
+      <p class="note">Every piece of this 3D FX, each with its own settings on top of the cel look above (a part left alone follows it). <b>Solo</b> shows only that part in the preview (not saved). <b>Style extras</b> = counts this style builds from.</p>
+      <div id="extraForm"></div>
+      <div id="partsBox"></div>
     </section>
 
     <section id="secTfx" hidden><h2>Transformation <small id="tfxOut"></small></h2>
@@ -275,6 +290,7 @@ const gizmoObj = new THREE.Object3D(); scene.add(gizmoObj);
 // helpers: ring markers, path line, plane outlines, anchor dots
 function ring(col, r) { const m = new THREE.Mesh(new THREE.RingGeometry(r * 0.82, r, 40), new THREE.MeshBasicMaterial({color: col, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false}));
   m.rotation.x = -Math.PI / 2; m.renderOrder = 2; scene.add(m); return m; }
+const ringTdMin = ring(0xffd84a, 1), ringTdMax = ring(0xffd84a, 1); ringTdMin.geometry = new THREE.RingGeometry(0.985, 1, 96); ringTdMax.geometry = new THREE.RingGeometry(0.985, 1, 96); ringTdMin.visible = ringTdMax.visible = false; ringTdMin.position.y = ringTdMax.position.y = 0.02;
 const ringStart = ring(0x3de0ff, 0.45), ringEnd = ring(0xff7ad9, 0.45), ringFighter = ring(0xffffff, 0.35), ringDummy = ring(0xff5a6a, 0.4);
 const pathLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({color: 0xff7ad9, dashSize: 0.18, gapSize: 0.1}));
 scene.add(pathLine);
@@ -475,6 +491,22 @@ function buildActs() {
   $('actOut').textContent = actions().length + ' actions';
   const t = timing(S.act); $('aFrames').value = t.frames; $('aFms').value = t.fms;
   const as = aset(S.act); $('aCool').value = as ? +as.cooldown_ms || 0 : 0;
+  const td = tdOf(S.act); $('aTd').checked = td.enabled; $('aTdMin').value = td.min_m; $('aTdMax').value = td.max_m; $('aTdMin').disabled = $('aTdMax').disabled = !td.enabled; syncTd();
+}
+/* trigger distance (action_settings[a].trigger_dist, Daniel 2026-11-26; game: realkits.js trigDist + combat.js inTrigDist):
+   min / max metres from the target, max 0 = no limit; rings on the floor round the fighter + the dummy's readout */
+function tdOf(a) { const t = (aset(a) || {}).trigger_dist || {}; return {enabled: !!t.enabled, min_m: Math.max(0, +t.min_m || 0), max_m: Math.max(0, +t.max_m || 0)}; }
+function putTd(k, v) { if (!S.F) return; pushUndo(); const as = aset(S.act, true); as.trigger_dist = Object.assign(tdOf(S.act), {[k]: v}); changed(false); buildActs(); }
+$('aTd').onchange = function () { putTd('enabled', this.checked); };
+$('aTdMin').onchange = function () { putTd('min_m', Math.max(0, +this.value || 0)); };
+$('aTdMax').onchange = function () { putTd('max_m', Math.max(0, +this.value || 0)); };
+function dummyDist() { return Math.hypot(DUM.dist, DUM.h); }
+function syncTd() {
+  if (!S.F) return; const td = tdOf(S.act), d = dummyDist();
+  ringTdMin.visible = td.enabled && td.min_m > 0; ringTdMax.visible = td.enabled && td.max_m > 0;
+  ringTdMin.scale.setScalar(Math.max(0.01, td.min_m)); ringTdMax.scale.setScalar(Math.max(0.01, td.max_m));
+  const ok = !td.enabled || (d >= td.min_m && (!td.max_m || d <= td.max_m));
+  $('aTdOut').textContent = td.enabled ? 'Dummy at ' + d.toFixed(1) + ' m: ' + (ok ? 'in range, the AI can start it' : 'out of range, the AI won\'t start it') + ' (inner ring = closest, outer = farthest).' : 'Off: the AI uses its usual reach; conditions alone decide triggered actions.';
 }
 function selAction(a) { S.act = a; const list = fxOf(a); S.sel = list.length ? list[0][1] : -1; S.k = 0; S.simK = -1; S.plan = null; S.tailMs = null; S.acc = 0;
   buildActs(); buildFxList(); buildForms(); }
@@ -726,15 +758,66 @@ function buildForms() {
     const mv = FX3D.moveCfg(aset(S.act) && aset(S.act).move3d);
     form($('moveForm'), MOVE, mv, (p, v) => { const as = aset(S.act, true); as.move3d = Object.assign(FX3D.moveCfg(as.move3d), as.move3d || {}); as.move3d[p] = v; }, r => { if (r.s) { buildForms(); buildActs(); } });
   } else $('moveForm').innerHTML = '';
-  if (!has) { ['placeForm', 'toonForm', 'lookForm', 'motionForm', 'hitForm', 'params'].forEach(id => { $(id).innerHTML = '<p class="note">' + (S.F ? 'Pick or add an effect.' : '') + '</p>'; }); $('json').value = ''; buildBars(); return; }
+  if (!has) { $('secParts').hidden = true; if (S.runner) S.runner.o.solo = null; ['placeForm', 'toonForm', 'lookForm', 'motionForm', 'hitForm', 'params'].forEach(id => { $(id).innerHTML = '<p class="note">' + (S.F ? 'Pick or add an effect.' : '') + '</p>'; }); $('json').value = ''; buildBars(); return; }
   const v = fxView(e);
   form($('placeForm'), PLACE, v, writeFx, () => syncGizmo());
   form($('toonForm'), TOON, v, writeFx, null); $('toonOut').textContent = is3dV(v) ? '3D shape' : 'card';
   form($('lookForm'), LOOK, v, writeFx, (r) => { if (r.s) { buildFxList(); } }, keyedFx);
   form($('motionForm'), MOTION, v, writeFx, null, keyedFx);
   form($('hitForm'), HIT, v, writeFx, null, keyedFx);
-  buildTfx(v);
+  buildTfx(v); buildParts(v);
   buildParams(); syncJson(); buildBars(); updateCounts(); syncGizmo();
+}
+/* Parts & style extras (fx3d.js partsOf / extrasOf, Daniel 2026-11-26 "deeper configurative options"): every 3D piece of
+   the picked effect, each its own settings at fx3d.parts.<id>.<key> (missing = default = untouched), + style extras at
+   fx3d.extra.<key>. Solo (preview only) hides every other part of this effect. */
+const PART_ROWS = [
+  ['on', 'Shown', 'chk', null, 'Off = this part is not drawn'],
+  ['amount_pct', 'Amount (%)', 'rng', [0, 500, 1], 'Below 100 = some pieces dropped; above = extra copies scattered round each piece (blade bands never copy)'],
+  ['size_pct', 'Size (%)', 'rng', [0, 400, 1], 'Each piece bigger / smaller (tubes thicker, rings wider, bands about their centre)'],
+  ['length_pct', 'Length (%)', 'rng', [0, 400, 1], 'Tubes / streaks / chips stretched along themselves'],
+  ['spread_pct', 'Spread (%)', 'rng', [0, 400, 1], 'Pieces pushed out from (or pulled into) the FX\'s centre'],
+  ['drift_ms', 'Drift out (m/s)', 'rng', [-10, 10, 0.1], 'Each piece keeps moving outward from the centre from when it first shows (negative = pulled in)'],
+  ['rise_ms', 'Rise (m/s)', 'rng', [-10, 10, 0.1], 'Each piece keeps floating up (negative = sinks)'],
+  ['color_mode', 'Colour', 'sel', [['own', 'its own'], ['custom', 'custom colour'], ['white', 'white']], ''],
+  ['color', 'Custom colour', 'col', null, '', v => v.color_mode === 'custom'],
+  ['color_mix_pct', 'Colour mix (%)', 'rng', [0, 100, 1], '100 = all the new colour', v => v.color_mode !== 'own'],
+  ['opacity_pct', 'Opacity (%)', 'rng', [0, 200, 1], ''],
+  ['glow_pct', 'Glow (%)', 'rng', [0, 300, 1], 'Brightness: below 100 darker, above brighter and toward white'],
+  ['additive', 'Additive glow', 'chk', null, 'Adds light instead of painting colour (bright on dark scenes)'],
+  ['core_pct', 'Hot core (%)', 'rng', [-1, 90, 1], '-1 = the cel look above; 0 = none'],
+  ['ink', 'Ink outline', 'sel', [['base', 'as drawn'], ['on', 'on (cel look thickness)'], ['off', 'off']], ''],
+  ['chaos_pct', 'Chaos (%)', 'rng', [0, 400, 1], 'Each piece wanders on its own uneven clock (flame-like, never two passes alike)'],
+  ['flicker_pct', 'Flicker (%)', 'rng', [0, 100, 1], 'Each piece flickers on its own clock']];
+function buildParts(v) {
+  const e = curFx(), list = e && is3dV(v) ? FX3D.partsOf(v) : [], ex = e && is3dV(v) ? FX3D.extrasOf(v) : [];
+  $('secParts').hidden = !list.length && !ex.length; const box = $('partsBox'); box.innerHTML = ''; $('extraForm').innerHTML = '';
+  if (S.runner) S.runner.o.solo = S.solo && e && S.solo.id === e.id ? S.solo : null;
+  if ($('secParts').hidden) return;
+  const P0 = (e.fx3d && e.fx3d.parts) || {}, X0 = (e.fx3d && e.fx3d.extra) || {};
+  $('partsOut').textContent = list.length + ' parts' + (Object.keys(P0).length ? ' · ' + Object.keys(P0).length + ' edited' : '');
+  if (ex.length) {
+    const xv = {fx3d: {extra: {}}}; ex.forEach(r => { xv.fx3d.extra[r[0]] = X0[r[0]] != null ? X0[r[0]] : r[5]; });
+    form($('extraForm'), [{l: 'Style extras', t: 'h'}].concat(ex.map(r => ({l: r[1], p: 'fx3d.extra.' + r[0], t: 'rng', min: r[2], max: r[3], step: r[4], h: r[6] || undefined}))), xv, writeFx, null);
+  }
+  S.partOpen = S.partOpen || {};
+  list.forEach(([id, lab, hint]) => {
+    const d = document.createElement('details'); d.open = !!S.partOpen[id]; d.ontoggle = () => { S.partOpen[id] = d.open; };
+    const sm = document.createElement('summary'), raw = P0[id];
+    sm.innerHTML = '<span class="nm"' + (hint ? ' title="' + esc(hint) + '"' : '') + '>' + esc(lab) + '</span>' + (raw ? '<span class="ed">edited</span>' : '');
+    const so = document.createElement('button'); so.type = 'button'; so.textContent = 'Solo'; so.title = 'Preview only this part of the effect (not saved)';
+    so.setAttribute('aria-pressed', String(!!(S.solo && S.solo.id === e.id && S.solo.part === id)));
+    so.onclick = ev => { ev.preventDefault(); S.solo = S.solo && S.solo.id === e.id && S.solo.part === id ? null : {id: e.id, part: id}; buildParts(fxView(curFx())); status(S.solo ? 'Solo: only "' + lab + '" shows (preview).' : 'Solo off.'); };
+    sm.appendChild(so);
+    if (raw) { const rs = document.createElement('button'); rs.type = 'button'; rs.textContent = 'Reset'; rs.title = 'Back to the defaults (follows the cel look)';
+      rs.onclick = ev => { ev.preventDefault(); pushUndo(); delete e.fx3d.parts[id]; changed(true); }; sm.appendChild(rs); }
+    d.appendChild(sm);
+    const f = document.createElement('div'); d.appendChild(f);
+    const pv = Object.assign({}, FX3D.PART_KEYS, raw || {}), vv = {fx3d: {parts: {[id]: pv}}};
+    form(f, PART_ROWS.map(([k, l, t, o, h, sh]) => { const r = {l, p: 'fx3d.parts.' + id + '.' + k, t, h: h || undefined};
+      if (t === 'rng') { r.min = o[0]; r.max = o[1]; r.step = o[2]; } if (t === 'sel') r.o = o; if (t === 'chk' || t === 'sel') r.s = true; if (sh) r.show = () => sh(pv); return r; }), vv, writeFx, null);
+    box.appendChild(d);
+  });
 }
 /* FX-specific settings panel (HYPERFX.UI[style], hyperfx.js): labelled groups for the picked effect's style. Missing
    settings show their defaults (older effects), a write stores the value on the effect's params. */
@@ -814,7 +897,7 @@ const DUM = {dist: 2.4, ang: 0, h: 0};
 try { Object.assign(DUM, JSON.parse(localStorage.getItem('pbFx3dDummy') || '{}')); } catch (e) {}
 function dummyFeet() { return new THREE.Vector3(Math.cos(DUM.ang * Math.PI / 180) * DUM.dist, DUM.h, -Math.sin(DUM.ang * Math.PI / 180) * DUM.dist); }
 function syncDummyUi() { [['dDist', 'dist'], ['dAng', 'ang'], ['dH', 'h']].forEach(([id, k]) => { $(id).value = DUM[k]; $(id + 'N').value = (+DUM[k]).toFixed(id === 'dAng' ? 0 : 1); });
-  try { localStorage.setItem('pbFx3dDummy', JSON.stringify(DUM)); } catch (e) {} }
+  try { localStorage.setItem('pbFx3dDummy', JSON.stringify(DUM)); } catch (e) {} if (typeof ringTdMin !== 'undefined') syncTd(); }
 [['dDist', 'dist'], ['dAng', 'ang'], ['dH', 'h']].forEach(([id, k]) => { const f = v => { DUM[k] = +v || 0; syncDummyUi(); S.simK = -1; S.plan = null; S.tailMs = null; };
   $(id).oninput = function () { f(this.value); }; $(id + 'N').onchange = function () { f(this.value); }; });
 syncDummyUi();

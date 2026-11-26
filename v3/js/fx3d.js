@@ -94,6 +94,8 @@ function cfg3d(fx) {
   c.impact_spikes = Math.max(0, Math.min(48, Math.round(c.impact_spikes)));
   c.impact_shell = c.impact_shell !== false; c.impact_ring = c.impact_ring !== false;
   if (typeof c.toon_core !== 'string' || !/^#[0-9a-f]{6}$/i.test(c.toon_core)) c.toon_core = DEF3D.toon_core;
+  c.parts = s.parts && typeof s.parts === 'object' ? s.parts : {};   // per-part settings (partCfg)
+  c.extra = s.extra && typeof s.extra === 'object' ? s.extra : {};   // style extras (Runner.xn)
   return c;
 }
 // Does this effect draw as a 3D cel-shaded shape? (render 3d / auto for the foundational kinds; blades stay cards)
@@ -223,7 +225,7 @@ function makeToon(scene, kind, sides) {
     transparent: true, depthWrite: true, side: ink ? THREE.BackSide : THREE.FrontSide}); m.uniforms.uVA.value = kind === 'band' ? 1 : 0; return m; };
   const m = new THREE.Mesh(geo, mk(false)), h = new THREE.Mesh(geo, mk(true));
   m.renderOrder = 4; h.renderOrder = 5; m.frustumCulled = h.frustumCulled = false; scene.add(m); scene.add(h);
-  return {key: kind + sides, m, h, used: false};
+  return {key: kind + sides, kind, sides, m, h, used: false};
 }
 /* ---- the transformation's flame sheath (Daniel 2026-11-26: "make it look like an actual aura", hyperfx.js shape "aura")
    One open unit cylinder (y 0 feet .. 1 top) shaped in the vertex shader into a teardrop shell hugging the body
@@ -583,15 +585,18 @@ Runner.prototype.toon = function (kind, sides) {
 };
 // colour / look onto a shape; rgb = [r, g, b] 0..255, alpha 0..1, ink = metres (0 = none)
 Runner.prototype.paint = function (t, c, rgb, alpha, ink) {
+  const L = this.partLook(t, rgb, alpha, ink, c.toon_ink_m); let coreT = -1, add = false;   // the part's own look (null = untouched)
+  if (L) { rgb = L[0]; alpha = L[1]; coreT = L[2]; if (L[3] != null) ink = L[3]; add = L[4]; }
   const a = Math.max(0, Math.min(1, alpha * c.toon_alpha_pct / 100));
   [t.m, t.h].forEach(x => { const u = x.material.uniforms;
     rgb01(rgb, u.uCol.value); u.uShade.value.copy(u.uCol.value).multiplyScalar(Math.max(0, c.toon_shade_pct) / 100);
-    u.uCore.value.set(c.toon_core); u.uBands.value = c.toon_bands; u.uCoreT.value = Math.max(0, Math.min(0.95, c.toon_core_pct / 100)); u.uAlpha.value = a;
+    u.uCore.value.set(c.toon_core); u.uBands.value = c.toon_bands; u.uCoreT.value = coreT >= 0 ? coreT : Math.max(0, Math.min(0.95, c.toon_core_pct / 100)); u.uAlpha.value = a;
+    x.material.blending = add ? THREE.AdditiveBlending : THREE.NormalBlending;
   });
   const ik = ink == null ? c.toon_ink_m : ink;
   // the colour pass draws first and keeps its depth when there is an ink outline, so the ink shell (drawn after) only
   // shows round the silhouette; a see-through shape with no ink (impact shell) never hides what is behind it
-  t.m.material.depthWrite = a > 0.97 || ik > 0;
+  t.m.material.depthWrite = !add && (a > 0.97 || ik > 0);
   t.h.material.uniforms.uInflate.value = Math.max(0, ik); t.h.visible = ik > 0 && a > 0.02; t.m.visible = a > 0.005;
   return t;
 };
@@ -610,6 +615,208 @@ Runner.prototype.tube = function (c, A, B, r0, r1, rgb, alpha, ink) {
     const u = x.material.uniforms; u.uTaper.value = 1; u.uR0.value = Math.max(0, r0); u.uR1.value = Math.max(0, r1); });
   return t;
 };
+/* ---- Part settings (Daniel 2026-11-26: "update the settings of all the current 3D FX to get deeper configurative options";
+   his picks: a panel per FX family + style extras, every kind of control per part, the cel look stays the base and a part
+   can override it, all families at once).
+   Every 3D shape an effect draws belongs to a PART (the drawing code calls this.pt(id) before each group: "sparks",
+   "shock", "blade" ...). Per effect `fx3d.parts[id]` (PART_KEYS, a missing key = its default, a missing part = untouched):
+     on / amount_pct (below 100 = some pieces dropped, above = extra copies scattered round each piece) / size_pct /
+     length_pct (tubes + chips stretched along themselves) / spread_pct (pushed out from the FX's centre) / drift_ms +
+     rise_ms (each piece keeps moving outward / upward from when it first showed) / colour (own, custom, white; mixed in by
+     color_mix_pct) / opacity_pct / glow_pct (brighter, past 100 toward white) / additive / core_pct (-1 = the cel base) /
+     ink base / on / off / chaos_pct (each piece wanders on its own clock) / flicker_pct.
+   Colour, opacity, glow, cel and flicker apply when a piece is painted; position, size, length, spread, drift, chaos and
+   extra copies in partPass after the whole frame is drawn (so every drawing routine gets them without its own code).
+   `fx3d.extra[key]` = style extras: counts the drawings build structure from (tongues, fins, barrels, prongs ...), read
+   with this.xn(key, default). FX Studio 3D lists both per effect (partsOf / extrasOf) and can solo one part (preview). */
+const PART_KEYS = {on: true, amount_pct: 100, size_pct: 100, length_pct: 100, spread_pct: 100, drift_ms: 0, rise_ms: 0,
+  color_mode: 'own', color: '#ffffff', color_mix_pct: 100, opacity_pct: 100, glow_pct: 100, additive: false, core_pct: -1, ink: 'base',
+  chaos_pct: 0, flicker_pct: 0};
+const PART_COLORS = ['own', 'custom', 'white'];
+const PART_INKS = ['base', 'on', 'off'];
+const P_ = (id, l, h) => [id, l, h || ''];
+const BASIC_PARTS = {
+  beam: [P_('tube', 'Beam tube'), P_('bulb', 'Head bulb'), P_('flare', 'Base flare')],
+  ribbon: [P_('trail', 'Trail tube'), P_('head', 'Head ball')],
+  sprite: [P_('head', 'Head (orb / bolt)'), P_('streak', 'Laser streak')],
+  glow: [P_('orb', 'Glow sphere')],
+  particles: [P_('chunks', 'Chunks')],
+  pulse: [P_('shell', 'Expanding shell'), P_('ring', 'Shock ring'), P_('spikes', 'Spikes')]};
+const IMPACT_PARTS = [P_('flash', 'Impact flash', 'The white flash where it lands'), P_('pressure', 'Pressure spheres', 'Pushed along the blow'),
+  P_('halo', 'Halo'), P_('rays', 'Rays', 'Spilling forward in a cone'), P_('star', 'Spike star'), P_('shock', 'Shock rings', 'Standing across the blow (+ the broken one)'),
+  P_('sparks', 'Sparks', 'Thrown on with the blow, falling'), P_('frame', 'Impact frame', 'Flash + focus lines facing the camera (impact_frame local / full)')];
+const STRIKE_PARTS = [P_('windup', 'Wind-up glint', 'Glint + ring drawing in before the blow'), P_('strokes', 'Air strokes', 'Wind tubes spiralling round the path'),
+  P_('smear', 'Smear frames', 'Tapered forearm / shin smears'), P_('afterglow', 'After-glows', 'The two glows trailing the fist / foot'), P_('fist', 'Fist / foot', 'The stretched sphere driving out')]
+  .concat(IMPACT_PARTS, [P_('ground_ring', 'Ground rings', 'Level rings + glow disc on the floor'), P_('dust', 'Dust puffs'), P_('ground_sparks', 'Ground sparks', 'Kicked up off the wave\'s edge'),
+    P_('vortex', 'Vortex rings', 'Spinning kick'), P_('crater', 'Crater', 'Axe kick: scorch disc + cracks'), P_('rocks', 'Rocks', 'Axe kick: shards thrown up')]);
+const SERIOUS_PARTS = [P_('windup', 'Wind-up', 'Pull-in rings, motes, the glint'), P_('clouds', 'Clouds', 'Blown apart all round the line'), P_('cone', 'Shock cone', 'Three nested cones'),
+  P_('vapour', 'Vapour rings'), P_('speed_lines', 'Speed lines'), P_('front', 'Shock front'), P_('split', 'Sky split'), P_('fist', 'Fist'), P_('flash', 'Fist flash + spikes')];
+const BLADE_COMMON = [P_('aura', 'Aura band', 'The soft band round the blade'), P_('blade', 'Blade', 'The main band (inked)'), P_('edge', 'Hot edge', 'White-hot edge / core line')];
+const BLADE_PARTS = {
+  slash: [P_('glow', 'Bloom glow')].concat(BLADE_COMMON, [P_('air_lines', 'Air lines'), P_('path', 'Path glow', 'The whole path glowing as it ends'), P_('pressure', 'Pressure line'),
+    P_('glint', 'Head glint'), P_('sparks', 'Sparks'), P_('cross', 'Cross X (combo cross)'), P_('hit_marks', 'Hit marks')]),
+  wave: [P_('pressure', 'Pressure rings'), P_('bursts', 'Launch burst'), P_('afterimages', 'Afterimages')].concat(BLADE_COMMON,
+    [P_('core', 'Dark core'), P_('tongues', 'Flame tongues'), P_('glow', 'Centre glow'), P_('embers', 'Embers'), P_('shards', 'End shards'), P_('hit_marks', 'Hit marks')]),
+  crescent: [P_('bursts', 'Launch bursts'), P_('x_glints', 'X glints'), P_('target_mark', 'Moonfall target mark'), P_('afterimages', 'Afterimages')].concat(BLADE_COMMON,
+    [P_('core', 'Dark core'), P_('tongues', 'Flame tongues'), P_('glow', 'Centre glow'), P_('embers', 'Embers'), P_('drag_streaks', 'Drag wind streaks'), P_('contact', 'Drag contact glow'),
+      P_('chips', 'Drag chips'), P_('sparks', 'Sparks'), P_('speed_lines', 'Fall speed lines'), P_('slam', 'Moonfall slam', 'Flash + light pillar'), P_('shock', 'Slam rings'),
+      P_('shards', 'Shards'), P_('hit_marks', 'Hit marks')]),
+  thrust: [P_('charge', 'Charge glint'), P_('speed_lines', 'Speed lines')].concat(BLADE_COMMON, [P_('glint', 'Tip glint'), P_('pressure', 'Pressure rings'),
+    P_('sparks', 'Sparks'), P_('pierced', 'Pierced line'), P_('hit_marks', 'Hit marks')]),
+  arc: [P_('blade', 'Band'), P_('edge', 'White core')]};
+BLADE_PARTS.line = BLADE_PARTS.slash.filter(p => p[0] !== 'cross');
+const GUN_PARTS = {
+  smoke: P_('smoke', 'Smoke'), casings: P_('casings', 'Casings / shells'), muzzle: P_('muzzle', 'Muzzle flash'), prongs: P_('prongs', 'Muzzle prongs'),
+  muzzle_rings: P_('muzzle_rings', 'Muzzle cone / rings'), trail: P_('trail', 'Round trail', 'Tracer streaks, comet tails, ghosts, the bolt'),
+  round: P_('round', 'Round head', 'The bullet / orb / drill body'), rings: P_('rings', 'Round rings', 'Rifling / spinning rings'), grooves: P_('grooves', 'Drill grooves + wind'),
+  lightning: P_('lightning', 'Lightning'), rocket: P_('rocket', 'Rocket body + fins'), exhaust: P_('exhaust', 'Exhaust flame'), barrels: P_('barrels', 'Gatling barrels'),
+  heat: P_('heat', 'Barrel heat glow'), charge_orb: P_('charge_orb', 'Charging orb'), charge_streaks: P_('charge_streaks', 'Charge streaks'),
+  charge_rings: P_('charge_rings', 'Charge rings + release star'), laser: P_('laser', 'Aim laser'), reticle: P_('reticle', 'Reticle'), rail: P_('rail', 'Rail beam'),
+  helix: P_('helix', 'Rail helix'), impact_flash: P_('impact_flash', 'Impact flash'), fireball: P_('fireball', 'Impact glow / fireball'), star: P_('star', 'Spike star + flying lines'),
+  shock: P_('shock', 'Impact rings'), sparks: P_('sparks', 'Sparks'), shards: P_('shards', 'Shards'), hands: P_('hands', 'Hand glows')};
+const GUN_LOOK = {tracer: [], pellet: [], slug: ['rings', 'star', 'shock'], orb: ['rings', 'fireball', 'shock'], rocket: ['rocket', 'exhaust', 'fireball', 'shock'],
+  drill: ['grooves', 'shards', 'star', 'shock'], bolt: ['lightning', 'shock'], rail: ['rail', 'helix', 'rings', 'star', 'shock']};
+const GUN_STYLE = {gatling: ['barrels', 'heat'], charged_blast: ['charge_orb', 'charge_streaks', 'charge_rings', 'lightning'], sniper_rail: ['laser', 'reticle']};
+const HYPER_PARTS = [P_('glows', 'Glows & orbs', 'Every sphere: flashes, fists, fireballs, mist'), P_('streaks', 'Streaks, bolts & flames', 'Every tube: speed lines, flame tongues, lightning, jets'),
+  P_('rings', 'Rings', 'Shock / pressure / vortex rings'), P_('debris', 'Debris & shards', 'Rocks, ice, chips')];
+// a part list for an effect: [[id, label, hint]]
+function partsOf(fx) {
+  if (!fx) return [];
+  const sk = strikeKind(fx), bk = bladeKind(fx), gk = gunKind(fx);
+  if (hyperKind(fx)) return HYPER_PARTS;
+  if (sk === 'serious') return SERIOUS_PARTS;
+  if (sk) return STRIKE_PARTS;
+  if (bk) return BLADE_PARTS[bk] || [];
+  if (gk === 'ki') return ['smoke', 'hands', 'muzzle', 'trail', 'round', 'impact_flash', 'fireball', 'shock', 'sparks'].map(k => GUN_PARTS[k]);
+  if (gk === 'gun') {
+    const st = fx.params.style, g = (G.GUNFX && G.GUNFX.GUNS[st]) || {}, ids = ['smoke'];
+    if (g.shells) ids.push('casings');
+    ids.push('muzzle', 'prongs', 'muzzle_rings');
+    (GUN_STYLE[st] || []).forEach(k => ids.push(k));
+    if (g.look !== 'rail') ids.push('trail', 'round');
+    (GUN_LOOK[g.look] || []).forEach(k => { if (ids.indexOf(k) < 0) ids.push(k); });
+    if (ids.indexOf('fireball') < 0) ids.push('fireball');
+    ids.push('impact_flash', 'sparks');
+    return ids.map(k => GUN_PARTS[k]);
+  }
+  return BASIC_PARTS[fx.prim] || [];
+}
+// style extras: [key, label, min, max, step, default, hint]
+const X_ = (k, l, mn, mx, d, h) => [k, l, mn, mx, 1, d, h || ''];
+function extrasOf(fx) {
+  if (!fx) return [];
+  const sk = strikeKind(fx), bk = bladeKind(fx), gk = gunKind(fx), st = fx.params && fx.params.style, out = [];
+  if (sk === 'serious') out.push(X_('clouds', 'Clouds per side', 0, 40, 10), X_('speed_lines', 'Speed lines', 0, 80, 18));
+  else if (sk) out.push(X_('strokes', 'Air strokes', 0, 16, 4, 'Wind strokes spiralling round the path'), X_('rays', 'Impact rays', 0, 40, 9), X_('star_spikes', 'Impact star spikes', 0, 40, 8),
+    X_('cracks', 'Crater cracks (axe kick)', 0, 24, 7));
+  if (bk === 'slash') out.push(X_('air_lines', 'Air lines', 0, 12, 3));
+  if (bk === 'line') out.push(X_('air_lines', 'Air lines per side', 0, 12, 2));
+  if (bk === 'wave' || bk === 'crescent') out.push(X_('tongues', 'Flame tongues per moon', 0, 40, 11), X_('afterimages', 'Afterimages', 0, 10, 3));
+  if (gk === 'gun') {
+    const g = (G.GUNFX && G.GUNFX.GUNS[st]) || {};
+    out.push(X_('prongs', 'Muzzle prongs', 0, 16, 5));
+    if (g.look === 'rocket') out.push(X_('fins', 'Rocket fins', 0, 12, 4));
+    if (g.look === 'drill') out.push(X_('grooves', 'Drill grooves', 0, 12, 4));
+    if (g.look === 'bolt') out.push(X_('bolt_arcs', 'Arcs round the head', 0, 12, 3));
+    if (g.look === 'slug' || g.look === 'rail' || g.look === 'drill') out.push(X_('star_spikes', 'Impact star spikes', 0, 24, 6));
+    if (g.look === 'rail') out.push(X_('rail_rings', 'Rail rings', 0, 16, 4));
+    if (st === 'gatling') out.push(X_('barrels', 'Gatling barrels', 1, 16, 6));
+  }
+  return out;
+}
+// an effect's part settings, merged with the defaults (null = untouched), cached on its cfg
+function partCfg(c, id) {
+  const cache = c._pp || (c._pp = {}); if (id in cache) return cache[id];
+  const s = c.parts && c.parts[id]; if (!s || typeof s !== 'object') return (cache[id] = null);
+  const p = {}; let dflt = true;
+  for (const k in PART_KEYS) { let v = s[k] === undefined ? PART_KEYS[k] : s[k]; if (typeof PART_KEYS[k] === 'number') v = num(v, PART_KEYS[k]); p[k] = v; if (v !== PART_KEYS[k]) dflt = false; }
+  p.on = p.on !== false; p.additive = !!p.additive;
+  if (PART_COLORS.indexOf(p.color_mode) < 0) p.color_mode = 'own'; if (PART_INKS.indexOf(p.ink) < 0) p.ink = 'base';
+  if (typeof p.color !== 'string' || !/^#[0-9a-f]{6}$/i.test(p.color)) p.color = '#ffffff';
+  p._rgb = FXK.hexRgb(p.color, [255, 255, 255]);
+  return (cache[id] = dflt ? null : p);
+}
+function strHash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; }
+function hash01(a, b, c) { let h = (a ^ Math.imul(b + 0x9E37, 0x85EBCA6B) ^ Math.imul(c + 1, 0xC2B2AE35)) >>> 0; h ^= h >>> 16; h = Math.imul(h, 0x7FEB352D); h ^= h >>> 15; h = Math.imul(h, 0x846CA68B); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
+// the part the next shapes belong to; C = its own centre (spread / drift), else the effect's
+Runner.prototype.pt = function (id, C) {
+  this._pid = id; const I = this._pI;
+  this._pp = I && I._c ? partCfg(I._c, id) : null; this._pC = C ? C.clone() : null;
+};
+// a style extra (count), the default when the effect hasn't set it
+Runner.prototype.xn = function (k, d) { const I = this._pI, x = I && I._c && I._c.extra; const v = x && x[k] != null ? +x[k] : d; return Math.max(0, Math.round(isFinite(v) ? v : d)); };
+const _pv = new THREE.Vector3(), _pd = new THREE.Vector3(), _pw = new THREE.Vector3();
+// paint-time part look: colour, glow, opacity, flicker, amount (dropped pieces); returns [rgb, alpha, coreT or -1, ink or null, additive]
+Runner.prototype.partLook = function (t, rgb, alpha, ink, baseInk) {
+  const I = this._pI, id = this._pid, ks = this._pks || (this._pks = {});
+  t.pid = id; t.pi = I; t.pk = ks[id] = (ks[id] || 0) + 1; t.pc = this._pC; t.pp = this._pp;
+  const p = this._pp; if (!p) return null;
+  const seed = ((I && I.seed) >>> 0) ^ strHash(id || '');
+  if (!p.on) return [rgb, 0, -1, null, false];
+  const am = p.amount_pct / 100;
+  if (am < 1 && hash01(seed, t.pk, 11) >= am) return [rgb, 0, -1, null, false];
+  let c = rgb;
+  if (p.color_mode !== 'own') { const tg = p.color_mode === 'white' ? [255, 255, 255] : p._rgb, k = Math.max(0, Math.min(1, p.color_mix_pct / 100));
+    c = [c[0] + (tg[0] - c[0]) * k, c[1] + (tg[1] - c[1]) * k, c[2] + (tg[2] - c[2]) * k]; }
+  const g = Math.max(0, p.glow_pct / 100);
+  if (g !== 1) { c = g < 1 ? [c[0] * g, c[1] * g, c[2] * g] : (() => { const w = Math.min(1, g - 1), m = Math.min(g, 1.6); return [Math.min(255, c[0] * m) + (255 - Math.min(255, c[0] * m)) * w * 0.6, Math.min(255, c[1] * m) + (255 - Math.min(255, c[1] * m)) * w * 0.6, Math.min(255, c[2] * m) + (255 - Math.min(255, c[2] * m)) * w * 0.6]; })(); }
+  let a = alpha * Math.max(0, p.opacity_pct / 100);
+  if (p.flicker_pct > 0) { const age = (I && I.age) || 0, r1 = hash01(seed, t.pk, 21), r2 = hash01(seed, t.pk, 22);
+    const n = 0.5 + 0.5 * (0.6 * Math.sin(age * (0.9 + 1.7 * r1) + r2 * 6.3) + 0.4 * Math.sin(age * (2.3 + 2.9 * r2) + r1 * 6.3));
+    a *= 1 - Math.min(1, p.flicker_pct / 100) * n; }
+  const ik = p.ink === 'off' ? 0 : p.ink === 'on' ? Math.max(ink || 0, baseInk) : null;
+  return [c, a, p.core_pct >= 0 ? Math.min(0.95, p.core_pct / 100) : -1, ik, p.additive];
+};
+// after the frame: position / size / length / spread / drift / chaos / copies / solo for every piece painted this frame
+Runner.prototype.partPass = function () {
+  const solo = this.o.solo, n0 = this.toons.length, TK = (FXK.TICK_MS || 16) / 1000;
+  for (let i = 0; i < n0; i++) {
+    const t = this.toons[i]; if (!t.used || t.dup) continue;
+    if (solo && t.pi && ((t.pi.src || t.pi.fx).id === solo.id) && t.pid !== solo.part) { t.m.visible = t.h.visible = false; continue; }
+    const p = t.pp; if (!p || !t.m.visible) continue;
+    const I = t.pi, band = t.kind === 'band', seed = ((I && I.seed) >>> 0) ^ strHash(t.pid || '');
+    const pos = _pv.copy(band ? t.bc : t.m.position), C = t.pc || (I && I._wc) || pos;
+    const sz = Math.max(0, p.size_pct / 100), ln = Math.max(0, p.length_pct / 100), sp = p.spread_pct / 100;
+    _pd.copy(pos).sub(C); const dl = _pd.length();
+    const out = _pw.copy(C).addScaledVector(_pd, sp);
+    if (p.drift_ms || p.rise_ms) {
+      const bm = I._pb || (I._pb = {}), key = t.pid + '|' + t.pk; if (bm[key] == null) bm[key] = I.age;
+      const dt = Math.max(0, I.age - bm[key]) * TK;
+      if (dl > 1e-4) out.addScaledVector(_pd, p.drift_ms * dt / dl); else out.y += p.drift_ms * dt;
+      out.y += p.rise_ms * dt;
+    }
+    // a size reference for chaos / copies (m)
+    const ref = band ? 0.25 : t.kind === 'tube' ? Math.max(t.m.material.uniforms.uR0.value, t.m.material.uniforms.uR1.value) * 2 + t.m.scale.y * 0.15 : Math.max(t.m.scale.x, t.m.scale.y) * (t.kind === 'ring' || /^arc/.test(t.kind) ? 0.3 : 1);
+    if (p.chaos_pct > 0) { const age = I.age || 0, k = p.chaos_pct / 100 * (ref * sz + 0.05);
+      for (let ax = 0; ax < 3; ax++) { const r1 = hash01(seed, t.pk, 31 + ax), r2 = hash01(seed, t.pk, 41 + ax);
+        const v = Math.sin(age * (0.12 + 0.5 * r1) + r2 * 6.28) * 0.65 + Math.sin(age * (0.37 + 0.9 * r2) + r1 * 6.28) * 0.35;
+        out.setComponent(ax, out.getComponent(ax) + v * k); } }
+    [t.m, t.h].forEach(x => {
+      const u = x.material.uniforms;
+      if (band) { x.scale.setScalar(sz); x.position.copy(out).addScaledVector(t.bc, -sz); return; }
+      x.position.copy(out);
+      if (t.kind === 'tube') { u.uR0.value *= sz; u.uR1.value *= sz; x.scale.y *= ln; }
+      else if (t.kind === 'shard' || t.kind === 'cube' || t.kind === 'ball') x.scale.set(x.scale.x * sz * ln, x.scale.y * sz, x.scale.z * sz);
+      else x.scale.multiplyScalar(sz);
+    });
+    const am = p.amount_pct / 100;
+    if (am > 1 && !band) {
+      const extra = Math.floor(am - 1) + (hash01(seed, t.pk, 51) < (am - 1) % 1 ? 1 : 0);
+      for (let j = 0; j < Math.min(extra, 8); j++) {
+        const d = this.toon(t.kind, t.sides); d.dup = 1;
+        [[t.m, d.m], [t.h, d.h]].forEach(([s, x]) => { const a = s.material.uniforms, b = x.material.uniforms;
+          ['uCol', 'uShade', 'uCore'].forEach(k => b[k].value.copy(a[k].value));
+          ['uBands', 'uCoreT', 'uAlpha', 'uR0', 'uR1', 'uTaper', 'uInflate', 'uVA'].forEach(k => { b[k].value = a[k].value; });
+          x.material.depthWrite = s.material.depthWrite; x.material.blending = s.material.blending; x.visible = s.visible;
+          x.position.copy(s.position); x.quaternion.copy(s.quaternion); x.scale.copy(s.scale); });
+        const th = hash01(seed, t.pk * 16 + j, 61) * Math.PI * 2, ph = Math.acos(hash01(seed, t.pk * 16 + j, 62) * 2 - 1), rr = (ref * sz * 1.5 + 0.12) * (0.5 + hash01(seed, t.pk * 16 + j, 63)) * (1 + p.chaos_pct / 100);
+        _pd.set(Math.sin(ph) * Math.cos(th), Math.cos(ph) * 0.6, Math.sin(ph) * Math.sin(th)).multiplyScalar(rr);
+        d.m.position.add(_pd); d.h.position.add(_pd);
+      }
+    }
+  }
+  for (let i = 0; i < this.toons.length; i++) this.toons[i].dup = 0;
+};
 Runner.prototype.draw3d = function (l, inst, xf) {
   const fx = inst.fx, P = fx.params || {}, c = inst._c, Us = xf.Us, lut = this.lut;
   const col = FXK.colorPair(fx, lut)[0], ink = c.toon_ink_m, W = (x, y, z, o) => this.w3(inst, xf, x, y, z, o || new THREE.Vector3());
@@ -618,29 +825,29 @@ Runner.prototype.draw3d = function (l, inst, xf) {
     const b = FXK.beamSegs(inst, this.host, 1); if (!b) return;
     const wk = c.beam_width_pct / 100, wob = 1 + c.beam_wobble_pct / 100 * Math.sin(inst.age * 0.9 + (inst.seed || 0)), a = b.am;
     const segs = b.segs.length > 1 && !(P.jitter > 0) ? [[b.tx, b.ty, b.hx, b.hy, b.wT, b.wH]] : b.segs.map(q => [q[2], q[3], q[0], q[1], q[4], q[4]]);
-    segs.forEach(q => this.tube(c, W(q[0], q[1]), W(q[2], q[3]), q[4] / 2 * Us * wk * wob, q[5] / 2 * Us * wk * wob, col, a, ink));
-    if (c.beam_bulb_pct > 0) this.sphere(c, W(b.hx, b.hy), b.wH / 2 * Us * wk * wob * c.beam_bulb_pct / 100, col, a, ink);
-    if (c.beam_flare_pct > 0) this.sphere(c, W(b.tx, b.ty), b.wT / 2 * Us * wk * wob * c.beam_flare_pct / 100, col, a, ink);
+    this.pt('tube'); segs.forEach(q => this.tube(c, W(q[0], q[1]), W(q[2], q[3]), q[4] / 2 * Us * wk * wob, q[5] / 2 * Us * wk * wob, col, a, ink));
+    this.pt('bulb'); if (c.beam_bulb_pct > 0) this.sphere(c, W(b.hx, b.hy), b.wH / 2 * Us * wk * wob * c.beam_bulb_pct / 100, col, a, ink);
+    this.pt('flare'); if (c.beam_flare_pct > 0) this.sphere(c, W(b.tx, b.ty), b.wT / 2 * Us * wk * wob * c.beam_flare_pct / 100, col, a, ink);
     return;
   }
   if (prim === 'ribbon') {   // laser trail: a tube along it, thick at the head, thinning to the tail
     const h = inst.hist || [], n = h.length; if (n < 2) return;
     const wk = c.laser_width_pct / 100, wAt = t => (P.taper ? P.w_tail + (P.w_head - P.w_tail) * t : P.w_head) / 2 * Us * wk, al = Math.max(0, Math.min(1, (+P.alpha || 255) / 255));
-    let prev = W(h[0][0], h[0][1]);
+    let prev = W(h[0][0], h[0][1]); this.pt('trail');
     for (let i = 1; i < n; i++) { const cur = W(h[i][0], h[i][1]); this.tube(c, prev, cur, wAt((i - 1) / n), wAt(i / n), col, al, ink); prev = cur; }
-    this.sphere(c, prev, wAt(1) * 1.15, col, al, ink);
+    this.pt('head'); this.sphere(c, prev, wAt(1) * 1.15, col, al, ink);
     return;
   }
   if (prim === 'sprite') {   // orb / bolt: a head + a laser streak stretched opposite its motion
     if (inst.age >= inst.life) return;
     const fade = P.fade ? Math.max(0, 1 - inst.age / inst.life) : 1, r = Math.max(0.5, +P.radius || 3) * Us * 1.25, H = W(inst.x, inst.y);
-    const v = spriteVel(inst), sp = Math.hypot(v[0], v[1]);
+    const v = spriteVel(inst), sp = Math.hypot(v[0], v[1]); this.pt('head');
     if (P.shape === 'bolt' && sp > 0.01 && (+P.stretch || 1) > 1.001) {
       _bx.makeBasis(xf.ax, xf.ay, xf.az); const q = new THREE.Quaternion().setFromRotationMatrix(_bx).multiply(_qa.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -Math.atan2(v[1], v[0])));
       this.sphere(c, H, r, col, fade, ink, {q, x: +P.stretch, y: 1, z: 1});
     } else this.sphere(c, H, r, col, fade, ink);
     const L = Math.min(c.laser_max_m, sp * c.laser_streak * Us);
-    if (L > r * 0.8) { const T = W(inst.x - v[0] / sp * L / Us, inst.y - v[1] / sp * L / Us); this.tube(c, T, H, 0, r * c.laser_width_pct / 100, col, fade, ink); }
+    this.pt('streak'); if (L > r * 0.8) { const T = W(inst.x - v[0] / sp * L / Us, inst.y - v[1] / sp * L / Us); this.tube(c, T, H, 0, r * c.laser_width_pct / 100, col, fade, ink); }
     return;
   }
   if (prim === 'glow') {   // orb
@@ -650,11 +857,11 @@ Runner.prototype.draw3d = function (l, inst, xf) {
     if (inst.cont) k = P.fade === 'in' ? t : 1;
     const pk = P.pulse_hz > 0 ? 0.85 + 0.15 * Math.sin(2 * Math.PI * P.pulse_hz * (inst.age * FXK.TICK_MS / 1000)) : 1;
     const gr = Math.max(+P.core_r || 0, (P.r_start + (P.r_end - P.r_start) * t) * 0.6) * Us * pk;
-    if (gr > 0 && k > 0) this.sphere(c, W(inst.x, inst.y), gr, col, k, ink);
+    this.pt('orb'); if (gr > 0 && k > 0) this.sphere(c, W(inst.x, inst.y), gr, col, k, ink);
     return;
   }
   if (prim === 'particles') {   // 3D chunks
-    const parts = inst.parts || [], kind = c.chunk_shape;
+    const parts = inst.parts || [], kind = c.chunk_shape; this.pt('chunks');
     parts.forEach((q, i) => {
       if (q._lv == null) { const v = Math.hypot(q.vx || 0, q.vy || 0) || 1; q._lv = (Math.random() * 2 - 1) * v * c.chunk_spread_pct / 100; q._sp = [Math.random() * 6, Math.random() * 6, 0.08 + Math.random() * 0.25]; }
       const tt = Math.min(1, q.age / q.life); let size = q.s0;
@@ -675,10 +882,10 @@ Runner.prototype.draw3d = function (l, inst, xf) {
     rings.forEach((q, j) => {
       if (q.a <= 0.004 || q.r <= 0) return;
       const R = q.r * Us;
-      if (c.impact_shell) { const s0 = Object.assign({}, c, {toon_core_pct: 0}); this.sphere(s0, C, R, c2, q.a * c.impact_shell_pct / 100, 0, {q: qb, x: sh.sx, y: sh.sy, z: Math.max(sh.sx, sh.sy)}); }
-      if (c.impact_ring) { const t = this.paint(this.toon('ring', c.toon_sides), c, col, q.a, ink * 0.5);
+      this.pt('shell', C); if (c.impact_shell) { const s0 = Object.assign({}, c, {toon_core_pct: 0}); this.sphere(s0, C, R, c2, q.a * c.impact_shell_pct / 100, 0, {q: qb, x: sh.sx, y: sh.sy, z: Math.max(sh.sx, sh.sy)}); }
+      this.pt('ring', C); if (c.impact_ring) { const t = this.paint(this.toon('ring', c.toon_sides), c, col, q.a, ink * 0.5);
         [t.m, t.h].forEach(x => { x.position.copy(C); x.quaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2); x.scale.set(R * sh.sx, R * sh.sy, R * (1 + q.w * Us * 2)); x.material.uniforms.uTaper.value = 0; }); }
-      if (j === 0 && c.impact_spikes > 0) {
+      this.pt('spikes', C); if (j === 0 && c.impact_spikes > 0) {
         const rnd = FXK.rng((inst.seed || 1) + 7), L = R * c.impact_spike_pct / 100, base = Math.max(0.02, (q.w || 2) * Us * 0.8);
         for (let k = 0; k < c.impact_spikes; k++) {
           const th = rnd() * Math.PI * 2, ph = Math.acos(rnd() * 2 - 1), dir = _d.set(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th));
@@ -804,15 +1011,15 @@ Runner.prototype.drawStrike = function (l, inst, xf) {
   // ---- motion (fx_motion)
   if (H.look(P, 'fx_motion') === 'energy') {
     const rf = M.rf * Us, Wd = M.W * Us;
-    if (t < M.t0) {   // wind-up: a glint drawing in
+    this.pt('windup'); if (t < M.t0) {   // wind-up: a glint drawing in
       const L0 = this.limb3(inst, xf, S, M.t0), e = (t + 1) / Math.max(1, M.t0);
       this.sphere(c, L0.T, rf * (0.8 + 1.2 * e) * gk, col, (120 + 100 * e) / 255, ink);
       this.torus(noCore(c), 'ring', L0.T, L0.u, rf * (3 - 2 * e), 0.6, 0, HOTc, 150 * e / 255, 0);
     } else {
       const K = H.K;
-      if ((P.motion_arcs === undefined ? true : P.motion_arcs) && t <= M.tm + K.ARC_LINGER) {   // air strokes spiralling round the path
+      this.pt('strokes'); if ((P.motion_arcs === undefined ? true : P.motion_arcs) && t <= M.tm + K.ARC_LINGER) {   // air strokes spiralling round the path
         const te = Math.min(t, M.tm), f = t <= M.tm ? 1 : 1 - (t - M.tm) / (K.ARC_LINGER + 1);
-        for (let j = 0; j < K.ARC_N + 1; j++) {
+        for (let j = 0, nStroke = this.xn('strokes', K.ARC_N + 1); j < nStroke; j++) {
           const r = Lb.rngFor(inst.seed, j, 300);
           const off = r.uniform(-1, 1) * (rf * 0.6 + Wd * 0.4), lag = r.uniform(0, 0.5), span = r.uniform(2, 3.4), gap = r.uniform(0.38, 0.55), wmax = r.uniform(1.4, 2.6) * Us;
           const az0 = r() * Math.PI * 2, tw = r.uniform(-1, 1) * c.strike_spin_deg * D;
@@ -827,7 +1034,7 @@ Runner.prototype.drawStrike = function (l, inst, xf) {
           });
         }
       }
-      if ((P.motion_smear === undefined ? true : P.motion_smear) && t < M.tc) {   // smear frames of the forearm / shin
+      this.pt('smear'); if ((P.motion_smear === undefined ? true : P.motion_smear) && t < M.tc) {   // smear frames of the forearm / shin
         for (let k = K.SMEAR_N; k > 0; k--) {
           const s = t - K.SMEAR_STEP * k; if (s < M.t0) continue;
           const L3 = this.limb3(inst, xf, S, s), ln = L3.T.distanceTo(L3.R); if (ln < 2 * Us) continue;
@@ -838,11 +1045,11 @@ Runner.prototype.drawStrike = function (l, inst, xf) {
       if (t < M.tout) {   // the fist / foot, stretched by its speed, with two after-glows
         const fade = t <= M.tm ? 1 : 1 - (t - M.tm) / Math.max(1, M.tout - M.tm), L3 = this.limb3(inst, xf, S, t);
         if (L3.T.distanceTo(L3.R) > Us) {
-          [[2, 60], [1, 100]].forEach(ja => { const g = this.limb3(inst, xf, S, Math.max(M.t0, t - ja[0])); this.sphere(noCore(c), g.T, rf * 1.8 * gk, col, ja[1] / 255 * fade, 0); });
+          this.pt('afterglow'); [[2, 60], [1, 100]].forEach(ja => { const g = this.limb3(inst, xf, S, Math.max(M.t0, t - ja[0])); this.sphere(noCore(c), g.T, rf * 1.8 * gk, col, ja[1] / 255 * fade, 0); });
           const prev = this.limb3(inst, xf, S, Math.max(M.t0, t - 1)), v = L3.T.clone().sub(prev.T), sp = v.length();
           const st = 1 + Math.min(1.6, sp / Math.max(1e-3, rf * 3));
           _sq.setFromUnitVectors(XV, sp > 1e-4 ? v.divideScalar(sp) : L3.u);
-          this.sphere(c, L3.T, rf * 1.4 * gk * 1.6, col, fade, ink, {q: _sq.clone(), x: st, y: 1 / Math.sqrt(st), z: 1 / Math.sqrt(st)});
+          this.pt('fist'); this.sphere(c, L3.T, rf * 1.4 * gk * 1.6, col, fade, ink, {q: _sq.clone(), x: st, y: 1 / Math.sqrt(st), z: 1 / Math.sqrt(st)});
         }
       }
     }
@@ -862,27 +1069,27 @@ Runner.prototype.impact3d = function (inst, c, C, u3, a, sc, salt, col, Us, gk, 
   const Lb = SLib(), K = G.HITFX.K, P = inst.fx.params || {}, HOTc = [255, 255, 255], ink = c.toon_ink_m, nc = noCore(c);
   if (!(a >= 0 && a < K.IMPACT_LIFE)) return;
   const q = a / K.IMPACT_LIFE, d3 = new THREE.Vector3(), A = new THREE.Vector3(), B = new THREE.Vector3();
-  if (a < 6) this.sphere(nc, C, (18 + 24 * easeO(a / 6)) * sc * Us * gk, HOTc, 1 - a / 6, 0);   // flash
-  if (a < 10) { const e = easeO(a / 10);   // pressure spheres pushed along the blow
+  this.pt('flash', C); if (a < 6) this.sphere(nc, C, (18 + 24 * easeO(a / 6)) * sc * Us * gk, HOTc, 1 - a / 6, 0);   // flash
+  this.pt('pressure', C); if (a < 10) { const e = easeO(a / 10);   // pressure spheres pushed along the blow
     for (let k = 0; k < 3; k++) this.sphere(c, A.copy(C).addScaledVector(u3, (6 + 16 * k) * sc * e * Us), (22 - 5 * k) * sc * (0.6 + 0.6 * e) * Us * gk, col, (190 - 50 * k) / 255 * (1 - a / 10), 0); }
-  this.sphere(nc, C, (26 + 20 * easeO(q)) * sc * Us * gk, col, 120 / 255 * (1 - q) * 0.6, 0);   // halo
-  if (a < 9) { const f = 1 - a / 9, e = easeO(a / 4);   // rays spilling forward
-    for (let j = 0; j < 9; j++) { const r = Lb.rngFor(inst.seed, j, 500 + salt);
+  this.pt('halo', C); this.sphere(nc, C, (26 + 20 * easeO(q)) * sc * Us * gk, col, 120 / 255 * (1 - q) * 0.6, 0);   // halo
+  this.pt('rays', C); if (a < 9) { const f = 1 - a / 9, e = easeO(a / 4);   // rays spilling forward
+    for (let j = 0, nr = this.xn('rays', 9); j < nr; j++) { const r = Lb.rngFor(inst.seed, j, 500 + salt);
       const dg = r.uniform(-38, 38), ln = r.uniform(40, 110) * sc * e * Us, w = r.uniform(3, 6) * sc * Us, d0 = 6 * sc * Us; coneDir(u3, Math.abs(dg), r() * Math.PI * 2, d3);
       this.tube(c, A.copy(C).addScaledVector(d3, d0), B.copy(C).addScaledVector(d3, d0 + ln), w * 0.5 * f, 0, col, 170 / 255 * f, ink * 0.5); } }
-  if (a < 7) { const qs = a / 7, e = easeO(a / 3);   // a star of spikes all round
-    for (let j = 0; j < 8; j++) { const r = Lb.rngFor(inst.seed, j, 520 + salt), th = r() * Math.PI * 2, ph = Math.acos(r() * 2 - 1);
+  this.pt('star', C); if (a < 7) { const qs = a / 7, e = easeO(a / 3);   // a star of spikes all round
+    for (let j = 0, ns = this.xn('star_spikes', 8); j < ns; j++) { const r = Lb.rngFor(inst.seed, j, 520 + salt), th = r() * Math.PI * 2, ph = Math.acos(r() * 2 - 1);
       d3.set(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th));
       this.tube(c, C, B.copy(C).addScaledVector(d3, (14 + 22 * e) * sc * Us * r.uniform(0.7, 1.15)), (5 + 6 * e) * 0.35 * sc * Us, 0, col, 1 - qs, ink * 0.5); }
     this.sphere(c, C, (5 + 4 * e) * sc * Us, HOTc, Math.pow(1 - qs, 1.5), 0); }
-  [[0, 0, 1], [1, 4, 1.6]].forEach(rg => {   // shock ring standing across the blow, and a broken one further out
+  this.pt('shock', C); [[0, 0, 1], [1, 4, 1.6]].forEach(rg => {   // shock ring standing across the blow, and a broken one further out
     const aa = a - rg[1]; if (aa < 0) return;
     const qq = aa / (K.IMPACT_LIFE - rg[1]), ee = easeO(qq), kk = rg[2], P0 = A.copy(C).addScaledVector(u3, 10 * sc * ee * kk * Us), R = (10 + 46 * ee) * sc * kk * Us;
     if (rg[0] === 0) this.torus(c, 'ring', P0, u3, R, 0.7, 0, col, 210 / 255 * (1 - qq), ink * 0.5);
     else { const r = Lb.rngFor(inst.seed, 0, 540 + salt), n = 3 + Math.trunc(r() * 3), t0 = r() * Math.PI * 2;
       for (let i = 0; i < n; i++) this.torus(c, 'arc' + n, P0, u3, R, 0.7, t0 + i * Math.PI * 2 / n, col, 190 / 255 * (1 - qq), ink * 0.5); }
   });
-  const nSp = Math.max(0, Math.round(14 * (+P.density || 1) * sc));   // sparks thrown on with the blow, falling
+  this.pt('sparks', C); const nSp = Math.max(0, Math.round(14 * (+P.density || 1) * sc));   // sparks thrown on with the blow, falling
   for (let j = 0; j < nSp; j++) {
     const r = Lb.rngFor(inst.seed, j, 560 + salt), life = 10 + 10 * r(); if (a >= life) continue;
     const dg = r.uniform(-65, 65), sp = r.uniform(3, 9), fd = Lb.dragDist(0.87, a), dk = Math.pow(0.87, a), q2 = a / life;
@@ -899,7 +1106,7 @@ Runner.prototype.impactFrame3d = function (inst, c, C, a, sc, salt, col, Us) {
   if ((mode !== 'local' && mode !== 'full') || !(a >= 0 && a < SF.IMPACT_FRAME_TICKS) || SF.HIT_OPTION_STYLES.indexOf(P.style) < 0) return;
   const full = mode === 'full', camD = this._camPos ? C.distanceTo(this._camPos) : 20;
   const R = full ? Math.max(0.3, Math.min(7, camD * 0.6)) : (+P.impact_frame_r || 0) * sc * Us; if (R < 0.05) return;
-  const Lb = SLib(), lit = a === 0, INKc = SF.INK, bg = lit ? [255, 255, 255] : INKc, fg = lit ? INKc : Lb.mix(col, [255, 255, 255], 0.5), nc = noCore(c);
+  this.pt('frame', C); const Lb = SLib(), lit = a === 0, INKc = SF.INK, bg = lit ? [255, 255, 255] : INKc, fg = lit ? INKc : Lb.mix(col, [255, 255, 255], 0.5), nc = noCore(c);
   this.sphere(nc, C, R * (full ? 1 : 0.6), bg, (full ? (lit ? 190 : 150) : (lit ? 235 : 200)) / 255, 0);
   const Rl = full ? R * 4 : R, n = full ? 32 : 22, F = new THREE.Vector3().copy(C).addScaledVector(_cf, R * (full ? 1 : 0.6) * 1.02), d3 = new THREE.Vector3(), A = new THREE.Vector3(), B = new THREE.Vector3();
   for (let j = 0; j < n; j++) {
@@ -916,7 +1123,7 @@ Runner.prototype.strikeEnv = function (l, inst, xf, ev, col, gk) {
   const hx = _s3.copy(xf.ax).setY(0); if (hx.lengthSq() < 1e-6) hx.copy(l.X); hx.normalize(); const hX = hx.clone();
   const A = new THREE.Vector3(), B = new THREE.Vector3(), d3 = new THREE.Vector3();
   // dust puffs (hitfx puffs, energy): drifting along the ground (dirx = the way along the aim; 0 = all round), rising
-  const puffs = (life, n, spread, rise, size, sl, dirx) => {
+  const puffs = (life, n, spread, rise, size, sl, dirx) => { this.pt('dust', G0);
     for (let j = 0; j < n; j++) {
       const r = Lb.rngFor(inst.seed, j, sl), lf = life * r.uniform(0.7, 1); if (a >= lf) continue;
       const q = a / lf, e = easeO(q), az = dirx ? Math.atan2(0, dirx) + r.uniform(-0.7, 0.7) : (j + r.uniform(-0.3, 0.3)) * Math.PI * 2 / n;
@@ -927,12 +1134,12 @@ Runner.prototype.strikeEnv = function (l, inst, xf, ev, col, gk) {
   };
   if (kind === 'push') {
     if (a < 0 || a >= 16) return; const q = a / 16, e = easeO(q);
-    this.torus(nc, 'ring', G0, UP, (6 + 26 * e) * sc * Us, 0.5, 0, col, 180 / 255 * (1 - q), 0);
+    this.pt('ground_ring', G0); this.torus(nc, 'ring', G0, UP, (6 + 26 * e) * sc * Us, 0.5, 0, col, 180 / 255 * (1 - q), 0);
     puffs(16, 4, 26 * sc, 8 * sc, 6 * sc, 700 + salt, ev[4]); return;
   }
   if (kind === 'kickup') { if (a < 0 || a >= 18) return; puffs(18, Math.max(1, Math.round(5 * (+P.density || 1))), 12, 26, 7, 720 + salt, 0); return; }
   if (kind === 'vortex') {   // wind rings round the body, level, turning with the kick
-    const Ln = ev[4], s = ev[5], fade = ev[6], cc = Lb.mix(col, HOTc, 0.3);
+    const Ln = ev[4], s = ev[5], fade = ev[6], cc = Lb.mix(col, HOTc, 0.3); this.pt('vortex', G0);
     for (let j = 0; j < 3; j++) { const R = Ln * (0.8 + 0.25 * j) * Us, Cj = A.copy(G0).addScaledVector(UP, -Ln * 0.15 * (j - 1) * Us).clone();
       for (let i = 0; i < 3; i++) this.torus(nc, 'arc3', Cj, UP, R, 0.6, -s * (a * 0.55 + j * 1.3) + i * Math.PI * 2 / 3, cc, (190 - 40 * j) / 255 * fade, 0); }
     return;
@@ -940,12 +1147,12 @@ Runner.prototype.strikeEnv = function (l, inst, xf, ev, col, gk) {
   if (kind === 'crater') {   // axe kick: scorch disc, cracks running out all round, debris thrown up, a ground wave
     if (a < 0 || a >= K.CRATER_LIFE) return;
     const q = a / K.CRATER_LIFE, e = easeO(Math.min(1, a / 8)), R = (22 + 26 * e) * sc * Us;
-    _sq.setFromUnitVectors(ZV, UP); this.sphere(nc, A.copy(G0).addScaledVector(UP, 0.01), R, K.SCORCH, 120 / 255 * (1 - q) * 1.5, 0, {q: _sq.clone(), x: 1, y: 1, z: 0.04});
-    for (let j = 0; j < 7; j++) { const r = Lb.rngFor(inst.seed, j, 780 + salt), an = (j + r.uniform(-0.35, 0.35)) * Math.PI * 2 / 7, ln = (20 + 60 * e) * sc * r.uniform(0.6, 1.2);
+    this.pt('crater', G0); _sq.setFromUnitVectors(ZV, UP); this.sphere(nc, A.copy(G0).addScaledVector(UP, 0.01), R, K.SCORCH, 120 / 255 * (1 - q) * 1.5, 0, {q: _sq.clone(), x: 1, y: 1, z: 0.04});
+    const nCr = this.xn('cracks', 7); for (let j = 0; j < nCr; j++) { const r = Lb.rngFor(inst.seed, j, 780 + salt), an = (j + r.uniform(-0.35, 0.35)) * Math.PI * 2 / Math.max(1, nCr), ln = (20 + 60 * e) * sc * r.uniform(0.6, 1.2);
       let prev = G0.clone().addScaledVector(UP, 0.03);
       for (let k = 1; k < 5; k++) { const hz = d3.copy(hX).applyAxisAngle(UP, an + r.uniform(-0.25, 0.25)), cur = G0.clone().addScaledVector(hz, ln * k / 4 * Us).addScaledVector(UP, 0.03);
         this.tube(c, prev, cur, 1.3 * Us * (1 - k / 6), 1.3 * Us * (1 - (k + 1) / 6), col, 1 - q, 0); prev = cur; } }
-    const n = Math.max(0, Math.round(8 * (+P.density || 1)));
+    const n = Math.max(0, Math.round(8 * (+P.density || 1))); this.pt('rocks', G0);
     for (let j = 0; j < n; j++) { const r = Lb.rngFor(inst.seed, j, 800 + salt), vx = r.uniform(-3, 3), vy = r.uniform(3, 7), h = vy * a - 0.225 * a * a; if (h < -4) continue;
       const hz = d3.copy(hX).applyAxisAngle(UP, r() * Math.PI * 2); A.copy(G0).addScaledVector(hz, Math.abs(vx) * a * Us).addScaledVector(UP, Math.max(0, h) * Us);
       const tn = this.paint(this.toon('shard', 0), c, K.ROCK, 1 - q, ink * 0.6), sz = r.uniform(2, 4) * Us, sp = a * 0.3;
@@ -956,9 +1163,9 @@ Runner.prototype.strikeEnv = function (l, inst, xf, ev, col, gk) {
   // ground wave under an impact: a level ring, a flat glow and sparks kicked up off its edge
   if (a < 0 || a >= K.ENV_LIFE) return;
   const q = a / K.ENV_LIFE, e = easeO(q), R = (14 + 56 * e) * sc * Us;
-  this.torus(nc, 'ring', G0, UP, R, 0.5, 0, col, 200 / 255 * (1 - q), 0);
+  this.pt('ground_ring', G0); this.torus(nc, 'ring', G0, UP, R, 0.5, 0, col, 200 / 255 * (1 - q), 0);
   _sq.setFromUnitVectors(ZV, UP); this.sphere(nc, G0, R * 0.7, col, 90 / 255 * (1 - q) * 0.7, 0, {q: _sq.clone(), x: 1, y: 1, z: 0.05});
-  for (let j = 0; j < 6; j++) { const r = Lb.rngFor(inst.seed, j, 740 + salt), az = r() * Math.PI * 2, hz = d3.copy(hX).applyAxisAngle(UP, az).clone();
+  this.pt('ground_sparks', G0); for (let j = 0; j < 6; j++) { const r = Lb.rngFor(inst.seed, j, 740 + salt), az = r() * Math.PI * 2, hz = d3.copy(hX).applyAxisAngle(UP, az).clone();
     A.copy(G0).addScaledVector(hz, R * r.uniform(0.5, 1)); B.copy(A).addScaledVector(hz, 8 * Us).addScaledVector(UP, r.uniform(2, 10) * (1 - q) * Us);
     this.tube(nc, A, B, 0.65 * Us, 0, Lb.mix(col, HOTc, 0.5), 220 / 255 * (1 - q), 0); }
 };
@@ -1014,6 +1221,7 @@ Runner.prototype.drawHyper = function (l, inst, xf) {
   const dirW = (d, out) => out.set(0, 0, 0).addScaledVector(F, d[0]).addScaledVector(V, d[1]).addScaledVector(S, d[2]).normalize();
   for (const e of shapes) {
     const cc = e.core === false ? noCore(c) : c, ink = (e.ink == null ? 1 : e.ink) * c.toon_ink_m, P0 = w(e.p, new THREE.Vector3());
+    this.pt(e.k === 'sph' ? 'glows' : e.k === 'tube' ? 'streaks' : e.k === 'ring' ? 'rings' : e.k === 'aura' ? '' : 'debris', O);
     if (e.k === 'sph') {
       let st = null;
       if (e.st > 1.01 && e.d) { const q = new THREE.Quaternion().setFromUnitVectors(XV, dirW(e.d, _hA)); st = {q, x: e.st, y: 1, z: 1}; }
@@ -1052,7 +1260,7 @@ Runner.prototype.drawSerious = function (l, inst, xf, c0, gk) {
   const fw = (fr, x, y, o) => { const p = fr.w(x, y); return this.w3(inst, xf, p[0], p[1], 0, o || new THREE.Vector3()); };
   const aim = xf.ax.clone().multiplyScalar(inst.tq_f[0]).addScaledVector(xf.ay, -inst.tq_f[1]); if (aim.lengthSq() < 1e-8) aim.copy(xf.ax); aim.normalize();
   const A = new THREE.Vector3(), B = new THREE.Vector3(), d3 = new THREE.Vector3();
-  if (t < Tw) {   // the wind-up: stillness, air pulling in, motes lifting, a glint
+  this.pt('windup'); if (t < Tw) {   // the wind-up: stillness, air pulling in, motes lifting, a glint
     const fr0 = Lb.frame(inst), u = t / Tw, fist = fw(fr0, -rf * easeO(u), 0);
     for (let j = 0; j < 2; j++) { const v = ((t / 9 + j * 0.5) % 1 + 1) % 1; this.torus(nc, 'ring', fist, aim, rf * (1.2 + 5 * (1 - v)) * Us, 0.6, 0, Lb.mix(col, HOTc, 0.5), 120 / 255 * u * v, 0); }
     for (let i = 0; i < Math.max(0, Math.round(8 * dens)); i++) { const r = Lb.rngFor(inst.seed, i, 601), per = r.uniform(26, 44), v = ((t / per + r()) % 1 + 1) % 1, dx = r.uniform(-60, 60);
@@ -1069,7 +1277,7 @@ Runner.prototype.drawSerious = function (l, inst, xf, c0, gk) {
   const aS = Math.max(0, Math.min(1, k / (Th * 0.6 + 1))) * (k < SP.OUT + Th ? 1 : Math.max(0, 1 - (k - SP.OUT - Th) / SP.SPLIT_LIFE));
   const O = fw(fr, 0, 0);
   // clouds blown apart all round the line
-  const nC = Math.max(0, Math.round(10 * dens));
+  this.pt('clouds', O); const nC = Math.max(0, Math.round(this.xn('clouds', 10) * dens));
   for (let j = 0; j < nC; j++) for (let s = -1; s <= 1; s += 2) {
     const r = Lb.rngFor(inst.seed, j, 611 + (s > 0 ? 1 : 0)), clx = (j + 0.5) / nC * Lr * 1.4; if (clx > df * 1.4) continue;
     const push = (k - clx / (Lr * 1.4) * Th) * r.uniform(1.2, 2.4), rad = SP.hw(P, 1, Math.min(clx, Lr)) * 0.6 + Math.max(0, push), sz = r.uniform(18, 34);
@@ -1079,16 +1287,16 @@ Runner.prototype.drawSerious = function (l, inst, xf, c0, gk) {
   }
   if (aC > 0 && df > 2) {
     // the shock cone: three nested round cones (outer colour, bright, white-hot core), curved like FX Studio's
-    [[1, col, 55], [0.6, bright, 70], [0.22, HOTc, 110]].forEach(cn => {
+    this.pt('cone', O); [[1, col, 55], [0.6, bright, 70], [0.22, HOTc, 110]].forEach(cn => {
       for (let i = 0; i < 4; i++) { const x0 = df * i / 4, x1 = df * (i + 1) / 4;
         this.tube(nc, A.copy(O).addScaledVector(aim, x0 * Us), B.copy(O).addScaledVector(aim, x1 * Us), SP.hw(P, 1, x0) * cn[0] * Us, SP.hw(P, 1, x1) * cn[0] * Us, cn[1], cn[2] / 255 * aC * 1.8, 0); }
     });
-    for (let i = 0; i < SP.RINGS; i++) {   // vapour rings left where the front passed
+    this.pt('vapour', O); for (let i = 0; i < SP.RINGS; i++) {   // vapour rings left where the front passed
       const ki = (i + 0.5) * Th / SP.RINGS, aa = k - ki; if (aa < 0 || aa >= 20) continue;
       const qq = aa / 20, rlx = SP.front(P, 1, ki);
       this.torus(nc, 'ring', A.copy(O).addScaledVector(aim, rlx * Us), aim, SP.hw(P, 1, rlx) * (1 + 0.3 * qq) * Us, 0.4, 0, HOTc, 170 / 255 * (1 - qq) * aC, 0);
     }
-    for (let i = 0; i < Math.max(0, Math.round(18 * dens)); i++) {   // speed lines racing along it, all round
+    this.pt('speed_lines', O); for (let i = 0; i < Math.max(0, Math.round(this.xn('speed_lines', 18) * dens)); i++) {   // speed lines racing along it, all round
       const r = Lb.rngFor(inst.seed, i, 621), v = r.uniform(-1, 1), sln = r.uniform(40, 120), slx = ((k * r.uniform(0.04, 0.08) + r()) % 1) * df;
       coneDir(aim, 90, r() * Math.PI * 2, d3);
       const rad = Math.abs(v) * 0.9 * Us;
@@ -1096,21 +1304,21 @@ Runner.prototype.drawSerious = function (l, inst, xf, c0, gk) {
       B.copy(O).addScaledVector(aim, slx * Us).addScaledVector(d3, SP.hw(P, 1, slx) * rad);
       this.tube(nc, A, B, 0, 0.8 * Us, Lb.mix(col, HOTc, 0.6), 200 / 255 * aC, 0);
     }
-    if (k < SP.OUT + Th + 8) {   // the shock front
+    this.pt('front', O); if (k < SP.OUT + Th + 8) {   // the shock front
       const aF = k < SP.OUT + Th ? 1 : 1 - (k - SP.OUT - Th) / 8, hw = SP.hw(P, 1, df); A.copy(O).addScaledVector(aim, df * Us);
       this.torus(c, 'ring', A, aim, hw * Us, 1.6, 0, col, 120 / 255 * aF * 1.5, ink);
       this.torus(nc, 'ring', A, aim, hw * Us * 0.97, 0.8, 0, HOTc, 230 / 255 * aF, 0);
     }
   }
-  if (aS > 0) {   // the sky split along its line
+  this.pt('split', O); if (aS > 0) {   // the sky split along its line
     const end = Math.min(Lr * 1.6, df * 1.6); B.copy(O).addScaledVector(aim, end * Us);
     this.tube(nc, O, B, 5 * Us, 5 * Us, col, 70 / 255 * aS, 0);
     this.tube(nc, O, B, 1.3 * Us, 1.3 * Us, HOTc, 230 / 255 * aS, 0);
     this.sphere(nc, B, 24 * Us * gk, HOTc, 160 / 255 * aS, 0);
   }
   const fist = A.copy(O).addScaledVector(aim, rf * 3 * easeO(Math.min(1, k / SP.OUT)) * Us).clone();   // the fist and its flash
-  if (aC > 0) this.sphere(c, fist, rf * 2.4 * Us * gk, col, Math.min(1, 170 / 255 * aC + 0.3), ink);
-  if (k < SP.FLASH) { const q = k / SP.FLASH, e = easeO(q);
+  this.pt('fist', fist); if (aC > 0) this.sphere(c, fist, rf * 2.4 * Us * gk, col, Math.min(1, 170 / 255 * aC + 0.3), ink);
+  this.pt('flash', fist); if (k < SP.FLASH) { const q = k / SP.FLASH, e = easeO(q);
     this.sphere(nc, fist, (30 + 60 * e) * Us * gk, HOTc, 1 - q, 0);
     for (let j = 0; j < 10; j++) { const r = Lb.rngFor(inst.seed, j, 631), th = r() * Math.PI * 2, ph = Math.acos(r() * 2 - 1);
       d3.set(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th));
@@ -1179,6 +1387,7 @@ Runner.prototype.band = function (c, rows, nz, rgb, alpha, ink) {
   if (g.index !== bandIndex(flip)) g.setIndex(bandIndex(flip));
   g.attributes.position.needsUpdate = true; g.attributes.aA.needsUpdate = true;
   g.computeVertexNormals(); g.setDrawRange(0, (n - 1) * 24);
+  t.bc = (t.bc || new THREE.Vector3()).set(0, 0, 0); for (let i = 0; i < n; i++) t.bc.add(rows[i].O).add(rows[i].I); t.bc.multiplyScalar(0.5 / n);   // its centre (partPass)
   [t.m, t.h].forEach(x => { x.position.set(0, 0, 0); x.quaternion.identity(); x.scale.set(1, 1, 1); x.material.uniforms.uTaper.value = 0; });
   return t;
 };
@@ -1200,7 +1409,7 @@ Runner.prototype.diamond3 = function (c, A, B, w, rgb, a, ink) {
 // FX Studio's hit marks (swordfx hitMarks): an X glint, a ring and a flash where each hit landed
 Runner.prototype.hitMarks3 = function (inst, xf, WP, col, u2, dirf, gk) {
   const Lb = SLib(), Gm = G.SWORDFX.geo, c = inst._c, nc = noCore(c), Us = xf.Us, t = inst.age, HOTc = [255, 255, 255];
-  (inst.tq_hits || []).forEach(h => {
+  this.pt('hit_marks'); (inst.tq_hits || []).forEach(h => {
     const k = t - h[2]; if (k < 0 || k >= Gm.HIT_MARK_LIFE) return;
     const u0 = dirf ? dirf(h[2]) : u2, f = 1 - k / Gm.HIT_MARK_LIFE, e = easeO(k / 4), L = (18 + 10 * e) * Us, C = WP(h[0], h[1]);
     [u0, FXK.rot(u0.slice(), 70)].forEach(u => {
@@ -1252,32 +1461,32 @@ Runner.prototype.cut3 = function (A, g, fr, t, ci) {
   const st = g.state(t), tail = st[0], head = st[1], ga = st[2], R = g.R, Ts = g.Ts, sl = g.slices(t);
   const W = (s, r) => { const q = g.local(s, r), p = fr.w(q[0], q[1]); return WP(p[0], p[1]); };
   if (sl.length) {
-    if (t <= Ts + 6) { const bf = ga * (t <= Ts ? 1 : 1 - (t - Ts) / 6); this.sphere(nc, W(tail + (head - tail) * 0.7, R), Math.min(0.9 * R, 36) * Us * gk * 0.8, col, 80 / 255 * bf, 0); }
+    this.pt('glow'); if (t <= Ts + 6) { const bf = ga * (t <= Ts ? 1 : 1 - (t - Ts) / 6); this.sphere(nc, W(tail + (head - tail) * 0.7, R), Math.min(0.9 * R, 36) * Us * gk * 0.8, col, 80 / 255 * bf, 0); }
     const hz = 5;
-    this.band(nc, sl.map(q => ({O: W(q[0], R + 0.3 * q[2] + hz), I: W(q[0], R - 0.7 * q[2] - hz), th: q[2] * kth * Us * 0.3, a: ga * Math.pow(q[1], 0.9)})), nz, col, 70 / 255, 0);
-    this.band(c, sl.map(q => ({O: W(q[0], R + 0.3 * q[2]), I: W(q[0], R - 0.7 * q[2]), th: q[2] * kth * Us * 0.5, a: ga * Math.pow(q[1], 0.9)})), nz, Lb.mix(col, bright, 0.55), 235 / 255, ink);
-    this.band(nc, sl.map(q => { const e = Math.max(1.2, 0.3 * q[2]); return {O: W(q[0], R + 0.3 * q[2] + 0.3), I: W(q[0], R + 0.3 * q[2] - e), th: q[2] * kth * Us * 0.55, a: Math.pow(ga * Math.pow(q[1], 0.9), 1.2)}; }), nz, HOTc, 1, 0);
+    this.pt('aura'); this.band(nc, sl.map(q => ({O: W(q[0], R + 0.3 * q[2] + hz), I: W(q[0], R - 0.7 * q[2] - hz), th: q[2] * kth * Us * 0.3, a: ga * Math.pow(q[1], 0.9)})), nz, col, 70 / 255, 0);
+    this.pt('blade'); this.band(c, sl.map(q => ({O: W(q[0], R + 0.3 * q[2]), I: W(q[0], R - 0.7 * q[2]), th: q[2] * kth * Us * 0.5, a: ga * Math.pow(q[1], 0.9)})), nz, Lb.mix(col, bright, 0.55), 235 / 255, ink);
+    this.pt('edge'); this.band(nc, sl.map(q => { const e = Math.max(1.2, 0.3 * q[2]); return {O: W(q[0], R + 0.3 * q[2] + 0.3), I: W(q[0], R + 0.3 * q[2] - e), th: q[2] * kth * Us * 0.55, a: Math.pow(ga * Math.pow(q[1], 0.9), 1.2)}; }), nz, HOTc, 1, 0);
   }
-  if (t <= Ts + 4 && head - tail > 0.05) {   // air lines riding the cut
+  this.pt('air_lines'); if (t <= Ts + 4 && head - tail > 0.05) {   // air lines riding the cut
     const sf = t <= Ts ? 1 : 1 - (t - Ts) / 4;
-    for (let k = 0; k < 3; k++) { const r = R + 5 + 4 * k, sa = Math.max(tail, head - 0.45 + 0.1 * k), sb = head - 0.05; if (sb - sa < 0.02) continue;
+    for (let k = 0, nl = this.xn('air_lines', 3); k < nl; k++) { const r = R + 5 + 4 * k, sa = Math.max(tail, head - 0.45 + 0.1 * k), sb = head - 0.05; if (sb - sa < 0.02) continue;
       const pl = []; for (let j = 0; j < 10; j++) pl.push(W(sa + (sb - sa) * j / 9, r));
       this.line3(nc, pl, 0.55 * Us, nz, col, 120 / 255 * sf * (1 - k * 0.25), 0, u => Math.sin(Math.PI * u)); }
   }
   const k2 = (t - (Ts - 1)) / 10;   // the whole path, glowing as it ends
-  if (k2 >= 0 && k2 < 1) { const path = []; for (let j = 0; j < 25; j++) path.push(W(j / 24, R + 0.1 * g.W));
+  this.pt('path'); if (k2 >= 0 && k2 < 1) { const path = []; for (let j = 0; j < 25; j++) path.push(W(j / 24, R + 0.1 * g.W));
     this.line3(nc, path, 1.75 * Us, nz, col, 160 / 255 * (1 - k2), 0); this.line3(nc, path, 0.6 * Us, nz, HOTc, Math.pow(1 - k2, 2), 0); }
   const k3 = (t - Ts) / 12;   // a pressure line widening off it
-  if (k3 >= 0 && k3 < 1) { const rr = R * (1 + 0.35 * easeO(k3)), pw = []; for (let j = 0; j < 21; j++) pw.push(W(0.1 + 0.8 * j / 20, rr));
+  this.pt('pressure'); if (k3 >= 0 && k3 < 1) { const rr = R * (1 + 0.35 * easeO(k3)), pw = []; for (let j = 0; j < 21; j++) pw.push(W(0.1 + 0.8 * j / 20, rr));
     this.line3(nc, pw, (1 * (1 - k3) + 0.1) * Us, nz, col, 130 / 255 * (1 - k3), 0, u => Math.sin(Math.PI * u)); }
-  if (t <= Ts + 3) {   // the head glint
+  this.pt('glint'); if (t <= Ts + 3) {   // the head glint
     const fa = t <= Ts ? 1 : 1 - (t - Ts) / 3, hp = W(head, R), pp = W(Math.max(0, head - 0.03), R), u = hp.clone().sub(pp); if (u.lengthSq() < 1e-10) u.copy(xf.ax); u.normalize();
     this.sphere(c, hp, 7 * Us * gk, col, Math.min(1, 200 / 255 * fa + 0.2), ink * 0.5); this.sphere(nc, hp, 6 * Us * gk, HOTc, fa, 0);
     const v = _bo.crossVectors(u, nz).normalize().clone();
     this.diamond3(nc, hp.clone().addScaledVector(u, -16 * Us), hp.clone().addScaledVector(u, 16 * Us), 0.9 * Us, HOTc, 230 / 255 * fa, 0);
     this.diamond3(nc, hp.clone().addScaledVector(v, -6 * Us), hp.clone().addScaledVector(v, 6 * Us), 0.7 * Us, HOTc, 230 / 255 * fa, 0);
   }
-  const nsp = Math.max(0, Math.round(16 * (+P.density || 1)));   // sparks thrown off the edge, out of the plane too
+  this.pt('sparks'); const nsp = Math.max(0, Math.round(16 * (+P.density || 1)));   // sparks thrown off the edge, out of the plane too
   for (let i = 0; i < nsp; i++) {
     const rg = Lb.rngFor(inst.seed, i, 7 + 100 * ci), b = 1 + rg() * (Ts - 1), life = 10 + rg() * 10, kk = t - b; if (kk < 0 || kk >= life) continue;
     const sb2 = easeO(b / Ts), q0 = g.local(sb2, R + 0.2 * g.W), q1 = g.local(Math.min(1, sb2 + 0.02), R + 0.2 * g.W), p0 = fr.w(q0[0], q0[1]), p1 = fr.w(q1[0], q1[1]);
@@ -1290,7 +1499,7 @@ Runner.prototype.cross2 = function (A, fr, geos, starts) {   // combo_cross: the
   const {inst, xf, WP, col, gk} = A, Lb = SLib(), Gm = G.SWORDFX.geo, c = inst._c, nc = noCore(c), Us = xf.Us, HOTc = [255, 255, 255];
   const a = inst.age - (starts[1] + Lb.swing(inst.fx.params)); if (a < 0 || a >= Gm.CROSS_LIFE) return;
   const ga = geos[0], gb = geos[1], pa = ga.local(0.5, ga.R), pb = gb.local(0.5, gb.R), m = fr.w((pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2), C = WP(m[0], m[1]);
-  const q = a / Gm.CROSS_LIFE, e = easeO(a / 6), L = (0.9 + 0.5 * e) * ga.R * Us;
+  const q = a / Gm.CROSS_LIFE, e = easeO(a / 6), L = (0.9 + 0.5 * e) * ga.R * Us; this.pt('cross', C);
   [ga, gb].forEach(gg => { const d = this.dir3(xf, fr.d(gg.d[0], gg.d[1]));
     this.diamond3(c, C.clone().addScaledVector(d, -L), C.clone().addScaledVector(d, L), 3 * Us * (1 - q) + 0.01, col, 230 / 255 * (1 - q), c.toon_ink_m * 0.5); });
   this.sphere(nc, C, (20 + 26 * e) * Us * (1 - q) * gk, HOTc, 240 / 255 * (1 - q), 0);
@@ -1308,32 +1517,32 @@ Runner.prototype.sline3 = function (A) {
   const E = (s, off) => { const p = g.at(s), tg = g.tangent(s), q = fr.w(p[0] - tg[1] * off, p[1] + tg[0] * off); return WP(q[0], q[1]); };
   if (t < Ts + hd + SL.fade(P) && hi - lo > 0.004 && ga > 0.01) {
     const sl = SL.slices(g, lo, hi, wf), uA = s => head !== null && hi > lo ? 1 - Math.abs(s - head) / Math.max(1e-6, hi - lo) : 0.7;
-    if (t <= Ts + 6) this.sphere(nc, AT((lo + hi) / 2), Math.min(0.45 * g.L, 40 * S) * Us * gk * 0.8, col, 80 / 255 * (t <= Ts ? 1 : 1 - (t - Ts) / 6) * ga, 0);
+    this.pt('glow'); if (t <= Ts + 6) this.sphere(nc, AT((lo + hi) / 2), Math.min(0.45 * g.L, 40 * S) * Us * gk * 0.8, col, 80 / 255 * (t <= Ts ? 1 : 1 - (t - Ts) / 6) * ga, 0);
     const hz = 5 * S;
-    this.band(nc, sl.map(q => ({O: E(q[0], 0.5 * q[1] + hz), I: E(q[0], -0.5 * q[1] - hz), th: q[1] * kth * Us * 0.3, a: ga * (0.35 + 0.65 * uA(q[0]))})), nz, col, 70 / 255, 0);
-    this.band(c, sl.map(q => ({O: E(q[0], 0.5 * q[1]), I: E(q[0], -0.5 * q[1]), th: q[1] * kth * Us * 0.5, a: ga * (0.35 + 0.65 * uA(q[0]))})), nz, Lb.mix(col, bright, 0.55), 235 / 255, ink);
-    this.band(nc, sl.map(q => { const e = Math.max(0.8 * S, 0.22 * q[1]); return {O: E(q[0], e * 0.5), I: E(q[0], -e * 0.5), th: q[1] * kth * Us * 0.56, a: Math.pow(ga * (0.35 + 0.65 * uA(q[0])), 1.2)}; }), nz, HOTc, 1, 0);
-    if (t <= Ts + 4) { const sf = t <= Ts ? 1 : 1 - (t - Ts) / 4;
-      for (let k = 0; k < 2; k++) [1, -1].forEach(sd => { const off = sd * (g.W * 0.5 + (5 + 5 * k) * S), a0 = lo + (hi - lo) * (0.1 + 0.1 * k), a1 = hi - (hi - lo) * 0.05; if (a1 - a0 < 0.02) return;
+    this.pt('aura'); this.band(nc, sl.map(q => ({O: E(q[0], 0.5 * q[1] + hz), I: E(q[0], -0.5 * q[1] - hz), th: q[1] * kth * Us * 0.3, a: ga * (0.35 + 0.65 * uA(q[0]))})), nz, col, 70 / 255, 0);
+    this.pt('blade'); this.band(c, sl.map(q => ({O: E(q[0], 0.5 * q[1]), I: E(q[0], -0.5 * q[1]), th: q[1] * kth * Us * 0.5, a: ga * (0.35 + 0.65 * uA(q[0]))})), nz, Lb.mix(col, bright, 0.55), 235 / 255, ink);
+    this.pt('edge'); this.band(nc, sl.map(q => { const e = Math.max(0.8 * S, 0.22 * q[1]); return {O: E(q[0], e * 0.5), I: E(q[0], -e * 0.5), th: q[1] * kth * Us * 0.56, a: Math.pow(ga * (0.35 + 0.65 * uA(q[0])), 1.2)}; }), nz, HOTc, 1, 0);
+    this.pt('air_lines'); if (t <= Ts + 4) { const sf = t <= Ts ? 1 : 1 - (t - Ts) / 4;
+      for (let k = 0, nl = this.xn('air_lines', 2); k < nl; k++) [1, -1].forEach(sd => { const off = sd * (g.W * 0.5 + (5 + 5 * k) * S), a0 = lo + (hi - lo) * (0.1 + 0.1 * k), a1 = hi - (hi - lo) * 0.05; if (a1 - a0 < 0.02) return;
         const pl = []; for (let j = 0; j < 10; j++) pl.push(E(a0 + (a1 - a0) * j / 9, off));
         this.line3(nc, pl, 0.55 * S * Us, nz, col, 110 / 255 * sf * (1 - 0.35 * k), 0, u => Math.sin(Math.PI * u)); }); }
   }
   const k2 = (t - (Ts - 1)) / 10;
-  if (k2 >= 0 && k2 < 1) { const path = []; for (let j = 0; j < 25; j++) path.push(AT(j / 24));
+  this.pt('path'); if (k2 >= 0 && k2 < 1) { const path = []; for (let j = 0; j < 25; j++) path.push(AT(j / 24));
     this.line3(nc, path, 1.75 * S * Us, nz, col, 160 / 255 * (1 - k2), 0); this.line3(nc, path, 0.6 * S * Us, nz, HOTc, Math.pow(1 - k2, 2), 0); }
   const k3 = (t - Ts) / 12;
-  if (k3 >= 0 && k3 < 1) { const off3 = g.W * 0.5 + 18 * S * easeO(k3);
+  this.pt('pressure'); if (k3 >= 0 && k3 < 1) { const off3 = g.W * 0.5 + 18 * S * easeO(k3);
     [1, -1].forEach(sd => { const pl = []; for (let j = 0; j <= 20; j++) pl.push(E(0.1 + 0.8 * j / 20, sd * off3));
       this.line3(nc, pl, (0.9 * S * (1 - k3) + 0.1) * Us, nz, col, 110 / 255 * (1 - k3), 0, u => Math.sin(Math.PI * u)); }); }
   const frm = SL.from_(P);
-  if (t <= Ts + 3) { const fa = t <= Ts ? 1 : 1 - (t - Ts) / 3, kk = Lb.easeOut3(Math.min(t, Ts) / Ts);
+  this.pt('glint'); if (t <= Ts + 3) { const fa = t <= Ts ? 1 : 1 - (t - Ts) / 3, kk = Lb.easeOut3(Math.min(t, Ts) / Ts);
     (frm === 'end' ? [1 - kk] : frm === 'centre' ? [0.5 - 0.5 * kk, 0.5 + 0.5 * kk] : [kk]).forEach(hs => {
       const hp = AT(hs); let u = this.dir3(xf, fr.d.apply(fr, g.tangent(hs))); if (frm === 'end' || (frm === 'centre' && hs < 0.5)) u.negate();
       this.sphere(c, hp, 7 * S * Us * gk, col, Math.min(1, 200 / 255 * fa + 0.2), ink * 0.5); this.sphere(nc, hp, 6 * S * Us * gk, HOTc, fa, 0);
       const v = _bo.crossVectors(u, nz).normalize().clone();
       this.diamond3(nc, hp.clone().addScaledVector(u, -16 * S * Us), hp.clone().addScaledVector(u, 16 * S * Us), 0.9 * S * Us, HOTc, 230 / 255 * fa, 0);
       this.diamond3(nc, hp.clone().addScaledVector(v, -6 * S * Us), hp.clone().addScaledVector(v, 6 * S * Us), 0.7 * S * Us, HOTc, 230 / 255 * fa, 0); }); }
-  const nSp = Math.max(0, Math.round(16 * (+P.density || 1)));
+  this.pt('sparks'); const nSp = Math.max(0, Math.round(16 * (+P.density || 1)));
   for (let i = 0; i < nSp; i++) {
     const r = Lb.rngFor(inst.seed, i, 211), b = 1 + r() * (Ts - 1), life = 10 + r() * 10, kt = t - b; if (kt < 0 || kt >= life) continue;
     const kb = Lb.easeOut3(b / Ts), sb = frm === 'end' ? 1 - kb : frm === 'centre' ? 0.5 + (i % 2 ? 0.5 : -0.5) * kb : kb;
@@ -1350,14 +1559,15 @@ Runner.prototype.moon3 = function (A, fr, R, W, k, tl, mi, fade, half) {
   if (fade <= 0) return;
   const ph = (inst.seed % 1000) * 0.01 + mi * 1.7, pts = CR.pts(R, W, k, 20, half), P3 = (x, y) => { const p = fr.w(x, y); return WP(p[0], p[1]); };
   const rowsAt = (o0, o1, thk) => pts.map(q => ({O: P3(q[1][0] - q[2][0] * q[3] * o0, q[1][1] - q[2][1] * q[3] * o0), I: P3(q[1][0] - q[2][0] * q[3] * o1, q[1][1] - q[2][1] * q[3] * o1), th: q[3] * kth * Us * thk}));
-  this.band(nc, pts.map(q => ({O: P3(q[1][0] + q[2][0] * 6 * k, q[1][1] + q[2][1] * 6 * k), I: P3(q[1][0] - q[2][0] * (q[3] + 4 * k), q[1][1] - q[2][1] * (q[3] + 4 * k)), th: q[3] * kth * Us * 0.3})), nz, col, 80 / 255 * fade, 0);
-  this.band(c, rowsAt(0, 1, 0.5), nz, Lb.mix(col, HOTc, 0.25), 235 / 255 * fade, ink);
+  this.pt('aura'); this.band(nc, pts.map(q => ({O: P3(q[1][0] + q[2][0] * 6 * k, q[1][1] + q[2][1] * 6 * k), I: P3(q[1][0] - q[2][0] * (q[3] + 4 * k), q[1][1] - q[2][1] * (q[3] + 4 * k)), th: q[3] * kth * Us * 0.3})), nz, col, 80 / 255 * fade, 0);
+  this.pt('blade'); this.band(c, rowsAt(0, 1, 0.5), nz, Lb.mix(col, HOTc, 0.25), 235 / 255 * fade, ink);
   const e = half ? pts.length : pts.length - 2;   // the dark core, standing just proud of both faces
-  this.band(nc, pts.slice(2, e).map(q => { const mm = q[3] * (0.88 + 0.2 * Lb.flame(q[0], tl, ph)); return {O: P3(q[1][0] - q[2][0] * q[3] * 0.3, q[1][1] - q[2][1] * q[3] * 0.3), I: P3(q[1][0] - q[2][0] * mm, q[1][1] - q[2][1] * mm), th: q[3] * kth * Us * 0.56}; }), nz, Lb.mix(deep, col, 0.3), 240 / 255 * fade, 0);
+  this.pt('core'); this.band(nc, pts.slice(2, e).map(q => { const mm = q[3] * (0.88 + 0.2 * Lb.flame(q[0], tl, ph)); return {O: P3(q[1][0] - q[2][0] * q[3] * 0.3, q[1][1] - q[2][1] * q[3] * 0.3), I: P3(q[1][0] - q[2][0] * mm, q[1][1] - q[2][1] * mm), th: q[3] * kth * Us * 0.56}; }), nz, Lb.mix(deep, col, 0.3), 240 / 255 * fade, 0);
   const front = []; pts.forEach(q => { if (Math.abs(q[0]) < 0.85) front.push(P3(q[1][0], q[1][1])); });
-  this.line3(nc, front, 1.1 * k * Us, nz, HOTc, fade, 0, u => Math.pow(Math.sin(Math.PI * u), 0.5));
-  for (let i = 0; i < 11; i++) {   // flame tongues off its back, fanning out of the plane
-    const v = -0.9 + 1.8 * i / 10, r = Lb.rngFor(inst.seed, i, 17 + 40 * mi), u1 = r.uniform(0.6, 1.4), u2 = r.uniform(3.4, 5.2), zf = r.uniform(-0.45, 0.45);
+  this.pt('edge'); this.line3(nc, front, 1.1 * k * Us, nz, HOTc, fade, 0, u => Math.pow(Math.sin(Math.PI * u), 0.5));
+  this.pt('tongues'); const nTg = this.xn('tongues', 11);
+  for (let i = 0; i < nTg; i++) {   // flame tongues off its back, fanning out of the plane
+    const v = nTg > 1 ? -0.9 + 1.8 * i / (nTg - 1) : 0, r = Lb.rngFor(inst.seed, i, 17 + 40 * mi), u1 = r.uniform(0.6, 1.4), u2 = r.uniform(3.4, 5.2), zf = r.uniform(-0.45, 0.45);
     if (half && v > 0.05) continue;
     const a = v * CR.K.ARC_DEG * D, dx = Math.cos(a), dy = Math.sin(a), ww = W * k * Math.pow(1 - Math.pow(Math.abs(v), 1.8), 0.85);
     const bx = (CR.K.CX * R + R * dx) * k - dx * ww * 0.8, by = R * dy * k - dy * ww * 0.8;
@@ -1366,13 +1576,13 @@ Runner.prototype.moon3 = function (A, fr, R, W, k, tl, mi, fade, half) {
     const B0 = P3(bx, by), B1 = P3(bx + ux / n * ln, by + uy / n * ln).addScaledVector(nz, zf * ln * Us);
     this.tube(nc, B0, B1, u2 * k * Us * 0.5, 0, col, 170 / 255 * fade, 0);
   }
-  const mid = half ? pts[pts.length - 1] : pts[pts.length >> 1];
+  const mid = half ? pts[pts.length - 1] : pts[pts.length >> 1]; this.pt('glow');
   this.sphere(nc, P3(mid[1][0], mid[1][1]), 20 * k * Us * gk * 0.7, col, 130 / 255 * fade, 0);
 };
 // launch flash (crescentfx burst): glow, a cross-cut diamond and a ring (flat < 1 = lying on the ground)
 Runner.prototype.burst3 = function (A, x, y, vx, vy, t, flat) {
   const {inst, xf, WP, col, gk} = A, nc = noCore(inst._c), Us = xf.Us, HOTc = [255, 255, 255]; if (t < 0 || t >= 14) return;
-  const q = t / 14, e = easeO(q), C = WP(x, y), d = this.dir3(xf, [vx, vy]);
+  const q = t / 14, e = easeO(q), C = WP(x, y), d = this.dir3(xf, [vx, vy]); this.pt('bursts', C);
   this.sphere(nc, C, (14 + 30 * e) * Us * gk, col, 160 / 255 * (1 - q), 0);
   this.diamond3(nc, C.clone().addScaledVector(d, -45 * Us), C.clone().addScaledVector(d, 45 * Us), 2 * Us * (1 - q) + 0.01, col, 220 / 255 * (1 - q), 0);
   this.diamond3(nc, C.clone().addScaledVector(d, -40 * Us), C.clone().addScaledVector(d, 40 * Us), 0.7 * Us * (1 - q) + 0.01, HOTc, 1 - q, 0);
@@ -1381,7 +1591,7 @@ Runner.prototype.burst3 = function (A, x, y, vx, vy, t, flat) {
 // an X glint where blades cross / split (crescentfx cross)
 Runner.prototype.xglint3 = function (A, x, y, f, a, life, size) {
   const {inst, xf, WP, col, gk} = A, nc = noCore(inst._c), Us = xf.Us, HOTc = [255, 255, 255], C = WP(x, y), q = a / life, e = easeO(a / 5), ln = size * (0.7 + 0.5 * e) * Us;
-  [38, -38].forEach(dg => { const d = this.dir3(xf, FXK.rot([f[0], f[1]], dg));
+  this.pt('x_glints', C); [38, -38].forEach(dg => { const d = this.dir3(xf, FXK.rot([f[0], f[1]], dg));
     this.diamond3(inst._c, C.clone().addScaledVector(d, -ln), C.clone().addScaledVector(d, ln), 1.7 * Us * (1 - q) + 0.01, col, 230 / 255 * (1 - q), inst._c.toon_ink_m * 0.5); });
   this.sphere(nc, C, (10 + 16 * e) * Us * (1 - q) * gk, HOTc, 230 / 255 * (1 - q), 0);
   this.torus(nc, 'ring', C, xf.az, (6 + size * 0.8 * easeO(q)) * Us, 0.6, 0, col, 190 / 255 * (1 - q), 0);
@@ -1390,7 +1600,7 @@ Runner.prototype.xglint3 = function (A, x, y, f, a, life, size) {
 Runner.prototype.shards3 = function (A, fr, R, k, mi, a, half, cnt) {
   const {inst, xf, WP, col, gk} = A, Lb = SLib(), CR = G.CRESCENTFX, c = inst._c, Us = xf.Us, HOTc = [255, 255, 255], q = a / CR.K.SHARD_LIFE; if (q >= 1 || a < 0) return;
   const ff = 1 - Math.min(1, a / 10), cp = fr.w((CR.K.CX + 1) * R * k * 0.5, half ? -0.4 * R * k : 0);
-  this.sphere(noCore(c), WP(cp[0], cp[1]), 40 * k * Us * ff * gk * 0.7, HOTc, 200 / 255 * ff, 0);
+  this.pt('shards', WP(cp[0], cp[1])); this.sphere(noCore(c), WP(cp[0], cp[1]), 40 * k * Us * ff * gk * 0.7, HOTc, 200 / 255 * ff, 0);
   for (let i = 0; i < cnt; i++) {
     const r = Lb.rngFor(inst.seed, i, 91 + 40 * mi); let v = r.uniform(-0.9, 0.9); const j1 = r.uniform(-0.4, 0.4), j2 = r.uniform(-0.4, 0.4), sp = r.uniform(2, 6);
     const rot = r.uniform(0, Math.PI * 2) + r.uniform(-0.25, 0.25) * a, ln = r.uniform(7, 12) * (0.6 + 0.4 * k), vz = r.uniform(-0.7, 0.7) * sp;
@@ -1405,7 +1615,7 @@ Runner.prototype.shards3 = function (A, fr, R, k, mi, a, half, cnt) {
 Runner.prototype.embers3 = function (A, list, R, W) {
   const {inst, xf, WP, col, deep} = A, Lb = SLib(), CR = G.CRESCENTFX, P = inst.fx.params, nc = noCore(inst._c), Us = xf.Us, HOTc = [255, 255, 255], t = inst.age;
   const per = Math.max(0, Math.round(3 * (+P.density || 1) / Math.sqrt(Math.max(1, list.n)))); if (!per) return;
-  let left = 40;
+  let left = 40; this.pt('embers');
   for (let b = t - 1; b >= Math.max(0, t - CR.K.EMBER_LIFE) && left > 0; b--) {
     const mo = list.at(b);
     for (const m of mo) {
@@ -1428,11 +1638,11 @@ Runner.prototype.wave3 = function (A) {
   const L = g.L, k = g.grow(t), fade = t < L ? 1 : 1 - Lb.cl((t - L) / 8), f = inst.tq_f, o0 = inst.tq_o;
   const spd = Math.hypot(inst.x - o0[0], inst.y - o0[1]) / Math.max(1, Math.min(t, L)), posAt = b => { b = Math.min(b, L); return [o0[0] + f[0] * spd * b, o0[1] + f[1] * spd * b]; };
   const aim = this.dir3(xf, f);
-  for (let b = 0; b <= Math.min(t, L); b += 8) { const a = t - b; if (a >= 14) continue;   // pressure rings left along its path
+  this.pt('pressure'); for (let b = 0; b <= Math.min(t, L); b += 8) { const a = t - b; if (a >= 14) continue;   // pressure rings left along its path
     const e = easeO(a / 14), cc = posAt(b); this.torus(nc, 'ring', WP(cc[0] - f[0] * 0.2 * g.R, cc[1] - f[1] * 0.2 * g.R), aim, (0.9 + 0.6 * e) * g.R * k * Us, 0.3, 0, col, 90 / 255 * (1 - a / 14), 0); }
   this.burst3(A, o0[0], o0[1], fr.vx, fr.vy, t);
   if (fade > 0) {
-    for (let j = 1; j < 4; j++) { const ox = -spd * 2.2 * j, frj = {w: (x, y) => fr.w(x + ox, y)}, pts = G.CRESCENTFX.pts(g.R, g.W, k, 20, false);   // afterimages
+    this.pt('afterimages'); for (let j = 1, na = this.xn('afterimages', 3); j <= na; j++) { const ox = -spd * 2.2 * j, frj = {w: (x, y) => fr.w(x + ox, y)}, pts = G.CRESCENTFX.pts(g.R, g.W, k, 20, false);   // afterimages
       this.band(nc, pts.map(q => ({O: WP.apply(null, frj.w(q[1][0], q[1][1])), I: WP.apply(null, frj.w(q[1][0] - q[2][0] * q[3], q[1][1] - q[2][1] * q[3])), th: q[3] * A.kth * Us * 0.3})), xf.az, col, 55 / 255 / j * fade, 0); }
     this.moon3(A, fr, g.R, g.W, k, t, 0, fade, false);
   }
@@ -1455,20 +1665,21 @@ Runner.prototype.crescent3 = function (A) {
     const ss = Lb.cl(+(P.split_pct == null ? 45 : P.split_pct) / 100) * CR.reach(inst, 1), a = t - ss / spd;
     if (a >= 0 && a < 14 && ss / spd < Lf) { this.xglint3(A, o[0] + f[0] * ss, o[1] + f[1] * ss, f, a, 14, 1.5 * R); this.xglint3(A, o[0] + f[0] * ss, o[1] + f[1] * ss, [nx, ny], a, 14, R); }
   } else if (st === 'crescent_scatter') {
-    CR.scatterPlan(inst, P, CR.count(P)).forEach(pl => { const a2 = t - pl[0]; if (a2 < 0 || a2 >= 8) return;
+    this.pt('bursts'); CR.scatterPlan(inst, P, CR.count(P)).forEach(pl => { const a2 = t - pl[0]; if (a2 < 0 || a2 >= 8) return;
       const q = a2 / 8, d = FXK.rot([f[0], f[1]], pl[1] * m), ln = 38 * pl[3], C = WP(o[0], o[1]);
       this.sphere(nc, C, (10 + 18 * easeO(q)) * Us * gk, col, 150 / 255 * (1 - q), 0);
       this.diamond3(nc, WP(o[0] + d[1] * ln, o[1] - d[0] * ln), WP(o[0] - d[1] * ln, o[1] + d[0] * ln), 1.5 * Us * (1 - q) + 0.01, col, 220 / 255 * (1 - q), 0);
       this.diamond3(nc, C, WP(o[0] + d[0] * ln * 1.6, o[1] + d[1] * ln * 1.6), 0.7 * Us * (1 - q) + 0.01, HOTc, 240 / 255 * (1 - q), 0); });
   } else if (st === 'crescent_fall') {
     const ti = CR.impactTick(P), g = CR.groundPoint(inst, 1);
-    if (t < ti) { const u = t / ti, rx = R * (1.6 - 0.5 * u), G0 = WP(g[0], g[1]), th = +(P.fall_angle_deg == null ? 18 : P.fall_angle_deg) * D, hh = (+P.length || 0) + 2 * R;
+    this.pt('target_mark'); if (t < ti) { const u = t / ti, rx = R * (1.6 - 0.5 * u), G0 = WP(g[0], g[1]), th = +(P.fall_angle_deg == null ? 18 : P.fall_angle_deg) * D, hh = (+P.length || 0) + 2 * R;
       this.torus(nc, 'ring', G0, UPV, rx * Us, 0.5, 0, col, (60 + 160 * u) / 255, 0); this.torus(nc, 'ring', G0, UPV, rx * 0.55 * Us, 0.5, 0, HOTc, 140 / 255 * u * u, 0);
       this.tube(nc, WP(g[0] - Math.sin(th) * m * hh, g[1] - Math.cos(th) * hh), G0, 0.4 * Us * (1 + u), 0.6 * Us * (1 + u), col, (30 + 90 * u) / 255, 0);
       this.sphere(nc, G0, (8 + 14 * u) * Us * gk, col, 120 / 255 * u, 0); }
   }
   const mo = CR.moons(inst, 1, t);
-  (st === 'crescent_fall' && t > CR.impactTick(P) + 1 ? [] : [3, 2, 1]).forEach(j => {   // afterimages
+  this.pt('afterimages'); const nAf = this.xn('afterimages', 3);
+  (st === 'crescent_fall' && t > CR.impactTick(P) + 1 ? [] : Array.from({length: nAf}, (_, i) => nAf - i)).forEach(j => {   // afterimages
     CR.moons(inst, 1, t - 2 * j).forEach(q => { if (q[6] >= 0) return; const now = mo.find(z => z[0] === q[0]); if (!now || now[3] <= 0) return;
       const pts = CR.pts(R, W, q[2], 20, q[5]), fr = q[1];
       this.band(nc, pts.map(p => { const a = fr.w(p[1][0], p[1][1]), b = fr.w(p[1][0] - p[2][0] * p[3], p[1][1] - p[2][1] * p[3]); return {O: WP(a[0], a[1]), I: WP(b[0], b[1]), th: p[3] * A.kth * Us * 0.3}; }), xf.az, col, 55 / 255 / j * now[3], 0); });
@@ -1488,14 +1699,14 @@ Runner.prototype.drag3 = function (A, mo, R, W) {
   const f = inst.tq_f, m = inst.tq_m, Lf = CR.activeTicks(P), dens = +P.density || 1, sx = (m >= 0 ? 1 : -1) * Math.max(Math.abs(f[0]), 0.3), gp = CR.gp(inst, 1);
   if (t < Lf && mo.length) {
     const fr = mo[0][1], k = mo[0][2];
-    for (let j = 0; j < Math.round(6 * dens); j++) {
+    this.pt('drag_streaks'); for (let j = 0; j < Math.round(6 * dens); j++) {
       const slot = Math.floor((t + j * 3) / 5), r = Lb.rngFor(inst.seed, slot, 600 + j), v = -r.uniform(0.05, 0.92), ln = r.uniform(1.4, 3.6) * R, rise = r.uniform(-0.18, 0.1);
       const u = ((t + j * 3) % 5) / 5, an = v * CR.K.ARC_DEG * D, ww = W * k * Math.pow(1 - Math.pow(Math.abs(v), 1.8), 0.85);
       const p0 = fr.w((CR.K.CX * R + R * Math.cos(an)) * k - Math.cos(an) * ww - u * 0.5 * R, R * Math.sin(an) * k), p1 = [p0[0] - sx * ln * (0.4 + 0.6 * u), p0[1] - f[1] * ln * (0.4 + 0.6 * u) + rise * ln];
       this.tube(nc, WP(p1[0], p1[1]), WP(p0[0], p0[1]), 0, (0.5 + 0.7 * (1 - Math.abs(v))) * Us, col, 150 / 255 * Math.sin(Math.PI * u), 0);
     }
     const g = CR.groundPoint(inst, 1), G0 = WP(g[0], g[1]), fl = 0.75 + 0.25 * Math.sin(t * 1.9 + (inst.seed % 97));
-    this.sphere(nc, G0, 26 * k * Us * gk * 0.7, col, 170 / 255 * fl, 0); this.sphere(nc, G0, 11 * k * Us * gk, HOTc, fl, 0);
+    this.pt('contact', G0); this.sphere(nc, G0, 26 * k * Us * gk * 0.7, col, 170 / 255 * fl, 0); this.sphere(nc, G0, 11 * k * Us * gk, HOTc, fl, 0);
     this.torus(nc, 'ring', G0, UPV, 0.9 * R * k * Us, 0.5, t * 0.3, col, 150 / 255 * fl, 0);
   }
   const per = Math.max(0, Math.round(4 * dens)), grav = 0.34;
@@ -1504,7 +1715,7 @@ Runner.prototype.drag3 = function (A, mo, R, W) {
     for (let j = 0; j < per; j++) {
       const r = Lb.rngFor(inst.seed, b, 500 + j), life = 8 + 12 * r(), a = t - b, bv = r.uniform(1.5, 7.5), up = r.uniform(0.6, 5.5), side = r.uniform(-1, 1), chip = r() < 0.3; if (a >= life) continue;
       const q = a / life, vz = side * 2.5;
-      if (chip) { const fd = Lb.dragDist(0.9, a), X = P0.clone().addScaledVector(this.dir3(xf, [-sx, 0]), bv * fd * Us).addScaledVector(xf.az, vz * fd * Us);
+      this.pt(chip ? 'chips' : 'sparks'); if (chip) { const fd = Lb.dragDist(0.9, a), X = P0.clone().addScaledVector(this.dir3(xf, [-sx, 0]), bv * fd * Us).addScaledVector(xf.az, vz * fd * Us);
         X.y += Math.max(0, up * fd - 0.5 * grav * a * a) * Us;
         const tn = this.paint(this.toon('shard', 0), c, Lb.mix(col, HOTc, 0.2), 1 - q, c.toon_ink_m * 0.5);
         [tn.m, tn.h].forEach(x => { x.position.copy(X); x.rotation.set(a * 0.4 + j, b, a * 0.3); x.scale.setScalar(2 * Us * (1 - q * 0.4)); x.material.uniforms.uTaper.value = 0; }); }
@@ -1518,19 +1729,19 @@ Runner.prototype.fall3 = function (A, mo, R, W) {
   const m = inst.tq_m, ti = CR.impactTick(P), th = +(P.fall_angle_deg == null ? 18 : P.fall_angle_deg) * D, ax = Math.sin(th) * m, ay = Math.cos(th), g = CR.groundPoint(inst, 1), G0 = WP(g[0], g[1]);
   if (t >= CR.K.FALL_WIND && t < ti && mo.length) {
     const fr = mo[0][1], k = mo[0][2];
-    for (let j = 0; j < 7; j++) { const r = Lb.rngFor(inst.seed, Math.floor(t / 2), 700 + j), yy = r.uniform(-0.95, 0.95) * R * k, ln = r.uniform(1.2, 3.2) * R, p0 = fr.w(CR.K.CX * R * k - 0.2 * R, yy);
+    this.pt('speed_lines'); for (let j = 0; j < 7; j++) { const r = Lb.rngFor(inst.seed, Math.floor(t / 2), 700 + j), yy = r.uniform(-0.95, 0.95) * R * k, ln = r.uniform(1.2, 3.2) * R, p0 = fr.w(CR.K.CX * R * k - 0.2 * R, yy);
       this.tube(nc, WP(p0[0] - ax * ln, p0[1] - ay * ln).addScaledVector(xf.az, r.uniform(-0.6, 0.6) * R * Us), WP(p0[0], p0[1]), 0, 0.7 * Us, col, 150 / 255, 0); }
   }
   const a = t - ti; if (a < 0 || a >= 24) return;
   const q = a / 24, e = easeO(a / 9), ff = 1 - Math.min(1, a / 10);
-  this.sphere(nc, G0, (30 + 50 * e) * Us * gk, HOTc, 240 / 255 * ff, 0);
+  this.pt('slam', G0); this.sphere(nc, G0, (30 + 50 * e) * Us * gk, HOTc, 240 / 255 * ff, 0);
   this.sphere(nc, G0, 2.2 * R * (0.5 + 0.5 * e) * Us * gk, col, 150 / 255 * (1 - q), 0);
   const hh = ((+P.length || 0) * 0.6 + 2.5 * R) * (1 - 0.3 * q);   // the light pillar along its fall
   this.diamond3(nc, G0, WP(g[0] - ax * hh, g[1] - ay * hh), ((0.5 * W + 6) * ff + 0.3) * Us * 0.5, col, 200 / 255 * ff, 0);
   this.diamond3(nc, G0, WP(g[0] - ax * hh * 0.92, g[1] - ay * hh * 0.92), ((0.16 * W + 2) * ff + 0.2) * Us * 0.5, HOTc, ff, 0);
-  for (let j = 0; j < 3; j++) { const aa = a - j * 3; if (aa < 0) continue; const qq = aa / 20; if (qq >= 1) continue;
+  this.pt('shock', G0); for (let j = 0; j < 3; j++) { const aa = a - j * 3; if (aa < 0) continue; const qq = aa / 20; if (qq >= 1) continue;
     this.torus(j ? nc : c, 'ring', G0, UPV, (0.5 + 2.3 * easeO(qq)) * R * (1 + 0.25 * j) * Us, 0.5, 0, j ? col : HOTc, 220 / 255 * (1 - qq), j ? 0 : c.toon_ink_m * 0.5); }
-  for (let i = 0; i < Math.max(0, Math.round(18 * (+P.density || 1))); i++) {   // shards thrown up all round
+  this.pt('shards', G0); for (let i = 0; i < Math.max(0, Math.round(18 * (+P.density || 1))); i++) {   // shards thrown up all round
     const r = Lb.rngFor(inst.seed, i, 720), life = 12 + 12 * r(), an = -Math.PI * r.uniform(0.08, 0.92), sp = r.uniform(3, 10), ln = r.uniform(5, 11); if (a >= life) continue;
     const az = r() * Math.PI * 2, hz = new THREE.Vector3(Math.cos(az), 0, Math.sin(az)), fd = Lb.dragDist(0.92, a), q2 = a / life;
     const X = G0.clone().addScaledVector(hz, Math.cos(an) * sp * fd * Us * Math.sign(Math.cos(an) || 1)).addScaledVector(UPV, Math.max(0, -Math.sin(an) * sp * fd - 0.15 * a * a) * Us);
@@ -1542,19 +1753,19 @@ Runner.prototype.fall3 = function (A, mo, R, W) {
 Runner.prototype.thrust3 = function (A) {
   const {inst, xf, WP, col, bright, gk, gy} = A, Lb = SLib(), Gm = G.SWORDFX.geo, P = inst.fx.params, t = inst.age, fr = Lb.frame(inst), c = inst._c, nc = noCore(c), Us = xf.Us, HOTc = [255, 255, 255], ink = c.toon_ink_m;
   const Lmax = +P.length, Wd = +P.thickness, T = Gm.thrTimes(P), l = Gm.thrLen(P, t, Lmax), O = WP(inst.x, inst.y), aim = this.dir3(xf, inst.tq_f), dens = +P.density || 1;
-  if (t < T[0] + 1) { const cp = Lb.cl(t / T[0]), fa = t < T[0] ? 1 : 0.5; this.tube(nc, O.clone().addScaledVector(aim, -14 * cp * Us), O, 0, 1 * Us, Lb.mix(col, HOTc, cp), 200 / 255 * fa, 0);
+  this.pt('charge', O); if (t < T[0] + 1) { const cp = Lb.cl(t / T[0]), fa = t < T[0] ? 1 : 0.5; this.tube(nc, O.clone().addScaledVector(aim, -14 * cp * Us), O, 0, 1 * Us, Lb.mix(col, HOTc, cp), 200 / 255 * fa, 0);
     this.sphere(nc, O, (5 + 8 * cp) * Us * gk, HOTc, 220 / 255 * fa, 0); }
-  if (t >= T[0] && t < T[1] + 6) { const fa = t < T[1] ? 1 : 1 - (t - T[1]) / 6, reach = t < T[1] ? l : Lmax;   // speed lines all round it
+  this.pt('speed_lines', O); if (t >= T[0] && t < T[1] + 6) { const fa = t < T[1] ? 1 : 1 - (t - T[1]) / 6, reach = t < T[1] ? l : Lmax;   // speed lines all round it
     for (let i = 0; i < Math.max(0, Math.round(7 * dens)); i++) { const r = Lb.rngFor(inst.seed, i, 21), side = r.uniform(-2.4, 2.4) * Wd, su0 = r.uniform(0, 0.45), su1 = Math.min(1, su0 + r.uniform(0.3, 0.55)), az = r() * Math.PI * 2;
       const off = coneDir(aim, 90, az, new THREE.Vector3()).multiplyScalar(Math.abs(side) * Us);
       this.tube(nc, O.clone().addScaledVector(aim, su0 * reach * Us).add(off), O.clone().addScaledVector(aim, su1 * reach * Us).add(off), 0, 0.55 * Us, Lb.mix(col, HOTc, 0.4), 150 / 255 * fa, 0); } }
   if (l > 1) {
     const segs = 4, at = u => O.clone().addScaledVector(aim, u * l * Us);
     for (let j = 0; j < segs; j++) { const u0 = j / segs, u1 = (j + 1) / segs, h0 = Gm.thrHw(u0, Wd) * Us, h1 = Gm.thrHw(u1, Wd) * Us;
-      this.tube(nc, at(u0), at(u1), h0 * 1.6, h1 * 1.6, col, 110 / 255, 0);
-      this.tube(c, at(u0), at(u1), h0, h1, Lb.mix(col, bright, u1), 225 / 255, ink);
-      this.tube(nc, at(u0), at(u1), h0 * 0.35, h1 * 0.35, HOTc, 1, 0); }
-    const tip = at(1); this.sphere(nc, tip, 8 * Us * gk, col, 110 / 255, 0); this.sphere(nc, tip, 7 * Us * gk, HOTc, 230 / 255, 0);
+      this.pt('aura', O); this.tube(nc, at(u0), at(u1), h0 * 1.6, h1 * 1.6, col, 110 / 255, 0);
+      this.pt('blade', O); this.tube(c, at(u0), at(u1), h0, h1, Lb.mix(col, bright, u1), 225 / 255, ink);
+      this.pt('edge', O); this.tube(nc, at(u0), at(u1), h0 * 0.35, h1 * 0.35, HOTc, 1, 0); }
+    const tip = at(1); this.pt('glint', tip); this.sphere(nc, tip, 8 * Us * gk, col, 110 / 255, 0); this.sphere(nc, tip, 7 * Us * gk, HOTc, 230 / 255, 0);
     const v = coneDir(aim, 90, 0, new THREE.Vector3());
     this.diamond3(nc, tip.clone().addScaledVector(aim, -14 * Us), tip.clone().addScaledVector(aim, 14 * Us), 0.6 * Us, HOTc, 230 / 255, 0);
     this.diamond3(nc, tip.clone().addScaledVector(v, -5 * Us), tip.clone().addScaledVector(v, 5 * Us), 0.6 * Us, HOTc, 230 / 255, 0);
@@ -1562,15 +1773,15 @@ Runner.prototype.thrust3 = function (A) {
   }
   const a = t - T[1];
   if (a >= 0 && a < 12) {   // pressure rings round the point + sparks thrown forward
-    const q = a / 12, e = easeO(q), tip = O.clone().addScaledVector(aim, Lmax * Us);
+    const q = a / 12, e = easeO(q), tip = O.clone().addScaledVector(aim, Lmax * Us); this.pt('pressure', tip);
     this.torus(nc, 'ring', tip, aim, (5 + 22 * e) * Us, 0.4, 0, col, 220 / 255 * (1 - q), 0);
     this.torus(nc, 'ring', O.clone().addScaledVector(aim, Lmax * (0.72 - 0.1 * e) * Us), aim, (4 + 14 * e) * Us, 0.4, 0, HOTc, 160 / 255 * (1 - q), 0);
     this.sphere(nc, tip, 22 * Us * (1 - q) * gk, HOTc, 210 / 255 * (1 - q), 0);
-    for (let i = 0; i < Math.max(0, Math.round(10 * dens)); i++) { const r = Lb.rngFor(inst.seed, i, 23), life = 9 + 7 * r(); if (a >= life) continue;
+    this.pt('sparks', tip); for (let i = 0; i < Math.max(0, Math.round(10 * dens)); i++) { const r = Lb.rngFor(inst.seed, i, 23), life = 9 + 7 * r(); if (a >= life) continue;
       const dg = r.uniform(-35, 35), sp = r.uniform(3, 8), qq = a / life, d3 = coneDir(aim, Math.abs(dg), r() * Math.PI * 2, new THREE.Vector3()), fd = Lb.dragDist(0.86, a), dk = Math.pow(0.86, a);
       const B = tip.clone().addScaledVector(d3, sp * fd * Us); this.tube(nc, B.clone().addScaledVector(d3, -sp * dk * 1.5 * Us), B, 0, 0.6 * Us, Lb.mix(HOTc, col, qq), 1 - qq, 0); }
   }
-  if (t >= T[2] && t < T[3] + Gm.THR_FADE) { const q = (t - T[2]) / (Gm.THR_RETRACT + Gm.THR_FADE), bt = O.clone().addScaledVector(aim, Lmax * Us);   // the pierced line, hanging
+  this.pt('pierced', O); if (t >= T[2] && t < T[3] + Gm.THR_FADE) { const q = (t - T[2]) / (Gm.THR_RETRACT + Gm.THR_FADE), bt = O.clone().addScaledVector(aim, Lmax * Us);   // the pierced line, hanging
     this.tube(nc, O, bt, (1.3 * (1 - q) + 0.15) * Us, (1.3 * (1 - q) + 0.15) * Us, col, 150 / 255 * (1 - q), 0);
     this.tube(nc, O, bt, 0.5 * Us, 0.5 * Us, HOTc, 220 / 255 * (1 - q) * (1 - q), 0); }
   this.hitMarks3(inst, xf, WP, col, inst.tq_f, null, gk);
@@ -1586,8 +1797,8 @@ Runner.prototype.arc3 = function (A) {
       rows.push({O: WP(inst.x + dx * (R + w / 2), inst.y + dy * (R + w / 2)), I: WP(inst.x + dx * (R - w / 2), inst.y + dy * (R - w / 2)), th: w * kth * Us * 0.5, a: q[4] / 255});
       core.push({O: WP(inst.x + dx * (R + cw / 2), inst.y + dy * (R + cw / 2)), I: WP(inst.x + dx * (R - cw / 2), inst.y + dy * (R - cw / 2)), th: w * kth * Us * 0.56, a: q[4] / 255 * P.core_alpha}); });
   });
-  this.band(c, rows, xf.az, col, 1, c.toon_ink_m);
-  this.band(nc, core, xf.az, [255, 255, 255], 1, 0);
+  this.pt('blade'); this.band(c, rows, xf.az, col, 1, c.toon_ink_m);
+  this.pt('edge'); this.band(nc, core, xf.az, [255, 255, 255], 1, 0);
 };
 /* ---- 3D gunfire + ki barrage (Daniel 2026-11-26, batch 3 of "more 3D FX") ----
    The ten GUNFX styles (machine gun, shotgun, magnum, charged blast, dual pistols, sniper rail, gatling, rocket barrage,
@@ -1660,18 +1871,18 @@ Runner.prototype.drawGun = function (l, inst, xf) {
     const k = t - s.b;
     if (s.j === 0) {
       const h = s.head(0), O = WP(s.ox, s.oy);
-      if (nSmoke) this.puffs3(inst, s.i * 4 + 2, O.clone().addScaledVector(D3(h), 8 * Us), k, Gm.SMOKE_LIFE, nSmoke, g.flash_px * 0.7, smoke, 0.45, Us);
-      if (g.shells && dens > 0) this.casing3(inst, s.i * 4 + 3, O, D3(h), hside, k, g.shells, Us, gy);
+      this.pt('smoke', O); if (nSmoke) this.puffs3(inst, s.i * 4 + 2, O.clone().addScaledVector(D3(h), 8 * Us), k, Gm.SMOKE_LIFE, nSmoke, g.flash_px * 0.7, smoke, 0.45, Us);
+      this.pt('casings', O); if (g.shells && dens > 0) this.casing3(inst, s.i * 4 + 3, O, D3(h), hside, k, g.shells, Us, gy);
     }
-    if (s.look === 'rail') { inst.tq_imp.forEach((im, n) => this.puffs3(inst, 9100 + n, WP(im[1], im[2]), t - im[0] - Gm.RAIL_DELAY, Gm.SMOKE_LIFE, nDust, +P.thickness * 0.6, smoke, 0.35, Us)); continue; }
+    if (s.look === 'rail') { this.pt('smoke'); inst.tq_imp.forEach((im, n) => this.puffs3(inst, 9100 + n, WP(im[1], im[2]), t - im[0] - Gm.RAIL_DELAY, Gm.SMOKE_LIFE, nDust, +P.thickness * 0.6, smoke, 0.35, Us)); continue; }
     const en = s.end(inst);
     if (s.look === 'rocket') {
-      for (let kp = 0; kp < Math.min(k, en[0] - s.b); kp += Gm.ROCKET_PUFF) { const pp = s.pos(kp); this.puffs3(inst, 20000 + s.i * 64 + Math.floor(kp / Gm.ROCKET_PUFF), WP(pp[0], pp[1]), k - kp, 30, 1, +P.radius * 1.6, smoke, 0.15, Us); }
+      this.pt('smoke'); for (let kp = 0; kp < Math.min(k, en[0] - s.b); kp += Gm.ROCKET_PUFF) { const pp = s.pos(kp); this.puffs3(inst, 20000 + s.i * 64 + Math.floor(kp / Gm.ROCKET_PUFF), WP(pp[0], pp[1]), k - kp, 30, 1, +P.radius * 1.6, smoke, 0.15, Us); }
       if (t < en[0]) this.rocket3(inst, xf, s, k, t, col, Us);
     }
-    const bl = Gm.blastAt(inst, s); if (bl && nDust) this.puffs3(inst, s.i * 4 + 1, WP(bl[1], bl[2]), t - bl[0], Gm.SMOKE_LIFE, nDust, +P.thickness * 0.6 * s.size, smoke, 0.35, Us);
+    const bl = Gm.blastAt(inst, s); this.pt('smoke'); if (bl && nDust) this.puffs3(inst, s.i * 4 + 1, WP(bl[1], bl[2]), t - bl[0], Gm.SMOKE_LIFE, nDust, +P.thickness * 0.6 * s.size, smoke, 0.35, Us);
   }
-  if (st === 'gatling' && t > lb[lb.length - 1]) { const mp = Gm.at(inst.tq_path, t);
+  this.pt('smoke'); if (st === 'gatling' && t > lb[lb.length - 1]) { const mp = Gm.at(inst.tq_path, t);
     for (let m = 0; m < 4; m++) this.puffs3(inst, 9200 + m, WP(mp[0], mp[1] - 4), t - lb[lb.length - 1] - m * 3, Gm.SMOKE_LIFE, Math.max(0, Math.round(2 * dens)), 6, smoke, 0.6, Us); }
   // 2: the gun before / while it fires
   if (st === 'gatling') this.gatling3(inst, xf, P, col, t, lb.filter(b => b <= t).length, lb.length, Us, gk);
@@ -1704,16 +1915,17 @@ Runner.prototype.muzzle3 = function (inst, xf, g, s, k, col, P, Us, gk) {
   if (k >= g.flash || k < 0) return;
   const Lb = SLib(), c = inst._c, nc = noCore(c), HOTc = [255, 255, 255], q = k / g.flash, X = this.w3(inst, xf, s.ox, s.oy, 0, new THREE.Vector3()), u = this.dir3(xf, s.head(0));
   const fs = g.flash_px * s.size * (1 - 0.35 * q) * Us, e = easeO(q), d3 = new THREE.Vector3();
-  this.sphere(nc, X, fs * 1.3 * gk, col, 210 / 255 * (1 - q), 0); this.sphere(nc, X, fs * 0.5 * gk * 1.4, HOTc, 1 - q, 0);
+  this.pt('muzzle', X); this.sphere(nc, X, fs * 1.3 * gk, col, 210 / 255 * (1 - q), 0); this.sphere(nc, X, fs * 0.5 * gk * 1.4, HOTc, 1 - q, 0);
   const v = coneDir(u, 90, k * 0.7, new THREE.Vector3());
   this.diamond3(nc, X.clone().addScaledVector(u, -fs * 1.4), X.clone().addScaledVector(u, fs * 1.4), 0.8 * Us, HOTc, 235 / 255 * (1 - q), 0);
   this.diamond3(nc, X.clone().addScaledVector(v, -fs * 0.6), X.clone().addScaledVector(v, fs * 0.6), 0.8 * Us, HOTc, 235 / 255 * (1 - q), 0);
-  [-28, 0, 28, 28, 28].forEach((dg, jj) => {   // prongs fanned round the barrel
+  this.pt('prongs', X); const PR0 = [-28, 0, 28, 28, 28], nPr = this.xn('prongs', 5);
+  Array.from({length: nPr}, (_, i) => i < 5 ? PR0[i] : 28).forEach((dg, jj) => {   // prongs fanned round the barrel
     const r = Lb.rngFor(inst.seed, s.i, 120 + jj), ln = fs * (dg === 0 ? 1.2 : 0.75) * r.uniform(0.8, 1.2) * (1 - 0.5 * q);
     coneDir(u, Math.abs(dg), jj * 2.1 + (dg < 0 ? Math.PI : 0), d3);
     this.tube(nc, X, X.clone().addScaledVector(d3, ln), fs * 0.11, 0, Lb.mix(col, HOTc, 0.5), 230 / 255 * (1 - q), 0);
   });
-  if (s.look === 'pellet') {   // the shotgun's flash cone + pressure ring
+  this.pt('muzzle_rings', X); if (s.look === 'pellet') {   // the shotgun's flash cone + pressure ring
     const half = ((+P.span || 0) * 0.6 + 6) * D, lnc = fs * 2.4 * (0.6 + 0.4 * e);
     this.tube(nc, X, X.clone().addScaledVector(u, lnc), fs * 0.15, Math.tan(half) * lnc, col, 120 / 255 * (1 - q), 0);
     this.torus(nc, 'ring', X.clone().addScaledVector(u, fs * 1.4 * e), u, fs * (0.6 + 1.3 * e), 0.5, 0, HOTc, 200 / 255 * (1 - q), 0);
@@ -1735,26 +1947,27 @@ Runner.prototype.round3 = function (inst, xf, s, k, t, col, tint, P, stopped, Us
   const fa = ['tracer', 'pellet', 'slug'].indexOf(look) >= 0 ? (stopped ? 1 : Math.max(0, Math.min(1, (s.flight - k) / Math.max(1, s.flight * Gm.FADE_TAIL)))) : 1;
   if (look === 'tracer' || look === 'pellet') {
     const T = WPp(s.pos(Math.max(0, k - (look === 'tracer' ? Gm.TRACER_TAIL : 1.6))));
-    this.tube(nc, T, X, 0, r * (look === 'tracer' ? 0.75 : 0.6), tint, 230 / 255 * fa, 0);
-    this.sphere(c, X, r * 1.2 * gk * 1.4, col, fa, ink * 0.4);
+    this.pt('trail', X); this.tube(nc, T, X, 0, r * (look === 'tracer' ? 0.75 : 0.6), tint, 230 / 255 * fa, 0);
+    this.pt('round', X); this.sphere(c, X, r * 1.2 * gk * 1.4, col, fa, ink * 0.4);
   } else if (look === 'slug') {
-    for (let j = 0; j < 4; j++) { const kj = k - (j + 1) * 0.8; if (kj < 0) break;
+    this.pt('rings', X); for (let j = 0; j < 4; j++) { const kj = k - (j + 1) * 0.8; if (kj < 0) break;
       this.torus(nc, 'ring', WPp(s.pos(kj)), u, r * (1.6 + 0.5 * j), 0.5, 0, Lb.mix(col, HOTc, 0.3), 170 / 255 * (1 - j / 4) * fa, 0); }
     const T = WPp(s.pos(Math.max(0, k - 2.6)));
-    this.tube(nc, T, X, 0, r * 0.9, col, 150 / 255 * fa, 0); this.tube(nc, T, X, 0, r * 0.35, HOTc, 230 / 255 * fa, 0);
-    _sq.setFromUnitVectors(XV, u); this.sphere(c, X, r * 1.5 * gk * 1.3, col, fa, ink, {q: _sq.clone(), x: 1.6, y: 1, z: 1});
+    this.pt('trail', X); this.tube(nc, T, X, 0, r * 0.9, col, 150 / 255 * fa, 0); this.tube(nc, T, X, 0, r * 0.35, HOTc, 230 / 255 * fa, 0);
+    this.pt('round', X); _sq.setFromUnitVectors(XV, u); this.sphere(c, X, r * 1.5 * gk * 1.3, col, fa, ink, {q: _sq.clone(), x: 1.6, y: 1, z: 1});
   } else if (look === 'orb') {
     const fl = 0.88 + 0.12 * Math.sin(t * 1.7);
-    [[4, 40], [2, 70]].forEach(ja => this.sphere(nc, WPp(s.pos(Math.max(0, k - ja[0]))), r * 1.8 * gk, col, ja[1] / 255, 0));
+    this.pt('trail', X); [[4, 40], [2, 70]].forEach(ja => this.sphere(nc, WPp(s.pos(Math.max(0, k - ja[0]))), r * 1.8 * gk, col, ja[1] / 255, 0));
     const T = WPp(s.pos(Math.max(0, k - 5))); this.tube(nc, T, X, 0, r * 0.7, col, 120 / 255, 0);
-    this.sphere(c, X, r * 1.6 * fl * gk * 1.3, tint, 1, ink);
-    for (let j = 0; j < 2; j++) this.torus(nc, 'ring', X, coneDir(u, 55, t * 0.35 + j * Math.PI, new THREE.Vector3()), r * 1.4, 0.6, t * 0.2, HOTc, 170 / 255, 0);
+    this.pt('round', X); this.sphere(c, X, r * 1.6 * fl * gk * 1.3, tint, 1, ink);
+    this.pt('rings', X); for (let j = 0; j < 2; j++) this.torus(nc, 'ring', X, coneDir(u, 55, t * 0.35 + j * Math.PI, new THREE.Vector3()), r * 1.4, 0.6, t * 0.2, HOTc, 170 / 255, 0);
   } else if (look === 'drill') {
     const R = r, base = X.clone().addScaledVector(u, -R * 0.6), tip = X.clone().addScaledVector(u, R * 2.4);
-    this.sphere(nc, X, R * 2.8 * gk * 0.7, col, 0.35, 0);
+    this.pt('round', X); this.sphere(nc, X, R * 2.8 * gk * 0.7, col, 0.35, 0);
     this.tube(c, base, tip, R * 1.05, 0, col, 1, ink); this.tube(nc, base, tip, R * 0.6, 0, Lb.mix(col, HOTc, 0.6), 0.9, 0);
-    for (let j = 0; j < 4; j++) {   // spiral grooves turning round the cone
-      const pts = []; for (let m = 0; m <= 6; m++) { const pp = m / 6, an = j * Math.PI / 2 + t * Gm.DRILL_SPIN * 6.28 + pp * 3;
+    this.pt('grooves', X); const nGr = this.xn('grooves', 4);
+    for (let j = 0; j < nGr; j++) {   // spiral grooves turning round the cone
+      const pts = []; for (let m = 0; m <= 6; m++) { const pp = m / 6, an = j * Math.PI * 2 / Math.max(1, nGr) + t * Gm.DRILL_SPIN * 6.28 + pp * 3;
         pts.push(base.clone().lerp(tip, pp).addScaledVector(coneDir(u, 90, an, new THREE.Vector3()), R * 1.1 * (1 - pp))); }
       this.poly3(nc, pts, 0.35 * Us, HOTc, 0.8); }
     [1, -1].forEach(sd => { const pts = []; for (let m = 0; m < 15; m++) { const db = m * R * 0.9;   // wind helix behind it
@@ -1765,9 +1978,9 @@ Runner.prototype.round3 = function (inst, xf, s, k, t, col, tint, P, stopped, Us
     for (let m = 0; m < n + 1; m++) { const dm = d0 + (d - d0) * m / n, o = m === n ? 0 : rr.uniform(-7, 7), oz = m === n ? 0 : rr.uniform(-7, 7), w = s.fr.d(Math.cos(s.ang) * dm, Math.sin(s.ang) * dm), h = s.head(k);
       pts.push(this.w3(inst, xf, s.ox + w[0] - h[1] * o, s.oy + w[1] + h[0] * o, oz, new THREE.Vector3())); }
     const flb = 0.7 + 0.3 * Math.sin(t * 2.7 + s.i);
-    this.poly3(nc, pts, 1.3 * Us, col, 150 / 255 * flb); this.poly3(nc, pts, 0.5 * Us, HOTc, 200 / 255 * flb);
-    this.sphere(c, X, r * 1.4 * gk * 1.4, Lb.mix(col, HOTc, 0.4), 1, ink * 0.5);
-    for (let j = 0; j < 3; j++) { const ra = Lb.rngFor(inst.seed, s.i, 420 + Math.floor(t / 2) * 3 + j), apts = [X.clone()], d3 = new THREE.Vector3(ra.uniform(-1, 1), ra.uniform(-1, 1), ra.uniform(-1, 1)).normalize();
+    this.pt('trail', X); this.poly3(nc, pts, 1.3 * Us, col, 150 / 255 * flb); this.poly3(nc, pts, 0.5 * Us, HOTc, 200 / 255 * flb);
+    this.pt('round', X); this.sphere(c, X, r * 1.4 * gk * 1.4, Lb.mix(col, HOTc, 0.4), 1, ink * 0.5);
+    this.pt('lightning', X); for (let j = 0, nb = this.xn('bolt_arcs', 3); j < nb; j++) { const ra = Lb.rngFor(inst.seed, s.i, 420 + Math.floor(t / 2) * 3 + j), apts = [X.clone()], d3 = new THREE.Vector3(ra.uniform(-1, 1), ra.uniform(-1, 1), ra.uniform(-1, 1)).normalize();
       for (let m = 0; m < 3; m++) { d3.add(new THREE.Vector3(ra.uniform(-0.8, 0.8), ra.uniform(-0.8, 0.8), ra.uniform(-0.8, 0.8))).normalize(); apts.push(apts[m].clone().addScaledVector(d3, r * 1.6)); }
       this.poly3(nc, apts, 0.6 * Us, Lb.mix(col, HOTc, 0.5), 200 / 255); }
   }
@@ -1776,15 +1989,17 @@ Runner.prototype.rocket3 = function (inst, xf, s, k, t, col, Us) {
   const Lb = SLib(), Gm = G.GUNFX.geo, c = inst._c, nc = noCore(c), HOTc = [255, 255, 255], r = +inst.fx.params.radius * s.size * Us;
   const p = s.pos(k), X = this.w3(inst, xf, p[0], p[1], 0, new THREE.Vector3()), u = this.dir3(xf, s.head(k)), body = Lb.mix(Gm.STEEL, col, 0.15);
   _sq.setFromUnitVectors(XV, u); const q = _sq.clone();
-  this.sphere(c, X, r * 0.65, body, 1, c.toon_ink_m * 0.6, {q, x: 2.9, y: 1, z: 1});   // the body
+  this.pt('rocket', X); this.sphere(c, X, r * 0.65, body, 1, c.toon_ink_m * 0.6, {q, x: 2.9, y: 1, z: 1});   // the body
   this.sphere(c, X.clone().addScaledVector(u, r * 1.4), r * 0.5, col, 1, c.toon_ink_m * 0.6);   // the nose band
-  for (let j = 0; j < 4; j++) {   // four fins
-    const w = coneDir(u, 90, j * Math.PI / 2 + k * 0.15, new THREE.Vector3()), F = X.clone().addScaledVector(u, -r * 1.3).addScaledVector(w, r * 0.7);
+  const nFin = this.xn('fins', 4);
+  for (let j = 0; j < nFin; j++) {   // fins
+    const w = coneDir(u, 90, j * Math.PI * 2 / Math.max(1, nFin) + k * 0.15, new THREE.Vector3()), F = X.clone().addScaledVector(u, -r * 1.3).addScaledVector(w, r * 0.7);
     const tn = this.paint(this.toon('shard', 0), c, col, 1, c.toon_ink_m * 0.5);
     [tn.m, tn.h].forEach(x => { x.position.copy(F); x.quaternion.setFromUnitVectors(XV, u); x.scale.set(r * 0.6, r * 0.55, r * 0.09); x.material.uniforms.uTaper.value = 0; });
     x_rot(tn, w, u);
   }
   const r2 = Lb.rngFor(inst.seed, s.i, 140 + t % 16), ln = r * (2.6 + 1.6 * r2()), B = X.clone().addScaledVector(u, -r * 1.8);   // the exhaust
+  this.pt('exhaust', B);
   this.tube(nc, B.clone().addScaledVector(u, -ln), B, 0, r * 0.55, col, 220 / 255, 0); this.tube(nc, B.clone().addScaledVector(u, -ln * 0.6), B, 0, r * 0.25, HOTc, 1, 0);
   this.sphere(nc, B, r * 2.2 * 0.5, col, 150 / 255, 0);
 };
@@ -1797,9 +2012,9 @@ Runner.prototype.gunImpact3 = function (inst, xf, s, a, X, stopped, col, P, dens
   const u = this.dir3(xf, s.head(!stopped ? s.flight : Math.max(0, inst.tq_ki[s.i][0] - s.b))), key = s.i * 4 + 1;
   if (look === 'tracer' || look === 'pellet') {
     if (a >= life) return; const sc = look === 'pellet' ? 0.7 : 1, q = a / life;
-    if (a < 3) this.sphere(nc, X, B * (0.5 + 0.5 * easeO(a / 3)) * sc * gk * 1.4, HOTc, 1 - a / 3, 0);
-    this.sphere(nc, X, B * (0.8 + 0.8 * easeO(q)) * sc * gk, col, 180 / 255 * (1 - q) * 0.7, 0);
-    this.sparks3(inst, key, X, u.clone().negate(), 70, a, Math.max(0, Math.round(4 * dens)), col, 2, 5.5, 12, Us, gy);
+    this.pt('impact_flash', X); if (a < 3) this.sphere(nc, X, B * (0.5 + 0.5 * easeO(a / 3)) * sc * gk * 1.4, HOTc, 1 - a / 3, 0);
+    this.pt('fireball', X); this.sphere(nc, X, B * (0.8 + 0.8 * easeO(q)) * sc * gk, col, 180 / 255 * (1 - q) * 0.7, 0);
+    this.pt('sparks', X); this.sparks3(inst, key, X, u.clone().negate(), 70, a, Math.max(0, Math.round(4 * dens)), col, 2, 5.5, 12, Us, gy);
   } else if (look === 'slug') this.heavy3(inst, key, X, u, a, life, B, dens, col, Us, gk, gy);
   else if (look === 'orb' || look === 'rocket') this.explode3(inst, key, X, a, life, B, dens, col, Us, gk, gy);
   else if (look === 'bolt') this.strike3(inst, key, X, a, life, B, dens, col, Us, gk, gy);
@@ -1808,49 +2023,50 @@ Runner.prototype.gunImpact3 = function (inst, xf, s, a, X, stopped, col, P, dens
 Runner.prototype.heavy3 = function (inst, key, X, u, a, life, B, dens, col, Us, gk, gy) {
   if (a < 0 || a >= life) return;
   const Lb = SLib(), nc = noCore(inst._c), HOTc = [255, 255, 255], q = a / life, d3 = new THREE.Vector3();
-  if (a < 5) this.sphere(nc, X, B * (0.6 + 0.8 * easeO(a / 5)) * gk * 1.3, HOTc, 1 - a / 5, 0);
-  if (a < 9) { const e = easeO(a / 4), qs = a / 9; this.star3(inst, key, X, u, 6, B * (0.5 + 0.9 * e), B * (0.2 + 0.2 * e), col, 225 / 255 * (1 - qs), 0.2 * qs);
-    this.star3(inst, key + 1, X, u, 6, B * (0.3 + 0.5 * e), B * (0.12 + 0.1 * e), HOTc, Math.pow(1 - qs, 1.5), 0.2 * qs + 0.5); }
-  this.sphere(nc, X, B * (0.9 + 0.7 * easeO(q)) * gk, col, 140 / 255 * (1 - q) * 0.6, 0);
-  [[0, 1.0], [3, 1.4]].forEach(dk => { const aa = a - dk[0], k = dk[1]; if (aa < 0) return; const qq = aa / (life - dk[0]), ee = easeO(qq);
+  this.pt('impact_flash', X); if (a < 5) this.sphere(nc, X, B * (0.6 + 0.8 * easeO(a / 5)) * gk * 1.3, HOTc, 1 - a / 5, 0);
+  const nSt = this.xn('star_spikes', 6); this.pt('star', X);
+  if (a < 9) { const e = easeO(a / 4), qs = a / 9; this.star3(inst, key, X, u, nSt, B * (0.5 + 0.9 * e), B * (0.2 + 0.2 * e), col, 225 / 255 * (1 - qs), 0.2 * qs);
+    this.star3(inst, key + 1, X, u, nSt, B * (0.3 + 0.5 * e), B * (0.12 + 0.1 * e), HOTc, Math.pow(1 - qs, 1.5), 0.2 * qs + 0.5); }
+  this.pt('fireball', X); this.sphere(nc, X, B * (0.9 + 0.7 * easeO(q)) * gk, col, 140 / 255 * (1 - q) * 0.6, 0);
+  this.pt('shock', X); [[0, 1.0], [3, 1.4]].forEach(dk => { const aa = a - dk[0], k = dk[1]; if (aa < 0) return; const qq = aa / (life - dk[0]), ee = easeO(qq);
     this.torus(nc, 'ring', X.clone().addScaledVector(u, B * 0.4 * ee * k), u, B * (0.3 + 1.5 * ee) * k, 0.4, 0, col, 210 / 255 * (1 - qq), 0); });
-  if (a < 11) { const ql = a / 11; for (let j = 0; j < 10; j++) { const r = Lb.rngFor(inst.seed, key, 600 + j), th = r() * 6.28, ph = Math.acos(r() * 2 - 1);
+  this.pt('star', X); if (a < 11) { const ql = a / 11; for (let j = 0; j < 10; j++) { const r = Lb.rngFor(inst.seed, key, 600 + j), th = r() * 6.28, ph = Math.acos(r() * 2 - 1);
     d3.set(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th)); const r1 = B * (0.4 + 1.5 * easeO(ql)) * r.uniform(0.8, 1.2), ln = B * r.uniform(0.4, 0.8) * (1 - ql);
     this.tube(nc, X.clone().addScaledVector(d3, r1), X.clone().addScaledVector(d3, r1 + ln), 0.5 * Us, 0, Lb.mix(HOTc, col, ql), 230 / 255 * (1 - ql), 0); } }
-  this.sparks3(inst, key, X, u.clone().negate(), 80, a, Math.max(0, Math.round(9 * dens)), col, 3, 7.5, 18, Us, gy);
+  this.pt('sparks', X); this.sparks3(inst, key, X, u.clone().negate(), 80, a, Math.max(0, Math.round(9 * dens)), col, 3, 7.5, 18, Us, gy);
 };
 Runner.prototype.explode3 = function (inst, key, X, a, life, B, dens, col, Us, gk, gy) {
   if (a < 0 || a >= life) return;
   const Lb = SLib(), c = inst._c, nc = noCore(c), HOTc = [255, 255, 255], q = a / life, ee = easeO(a / 9);
-  if (a < 6) this.sphere(nc, X, B * (0.8 + 0.9 * easeO(a / 6)) * gk * 1.3, HOTc, 1 - a / 6, 0);
-  this.sphere(nc, X, B * (1.0 + 0.9 * ee) * gk, col, 215 / 255 * (1 - q) * 0.6, 0);   // the fireball swelling, its hot heart
+  this.pt('impact_flash', X); if (a < 6) this.sphere(nc, X, B * (0.8 + 0.9 * easeO(a / 6)) * gk * 1.3, HOTc, 1 - a / 6, 0);
+  this.pt('fireball', X); this.sphere(nc, X, B * (1.0 + 0.9 * ee) * gk, col, 215 / 255 * (1 - q) * 0.6, 0);   // the fireball swelling, its hot heart
   this.sphere(c, X, B * (0.55 + 0.5 * ee) * gk * 1.2, Lb.mix(col, HOTc, 0.6), Math.pow(1 - q, 2), c.toon_ink_m * 0.6);
   for (let j = 0; j < 5; j++) { const r = Lb.rngFor(inst.seed, key, 860 + j), th = r() * 6.28, ph = Math.acos(r() * 2 - 1), d3 = new THREE.Vector3(Math.sin(ph) * Math.cos(th), Math.abs(Math.cos(ph)) * 0.8, Math.sin(ph) * Math.sin(th));
     this.sphere(c, X.clone().addScaledVector(d3, B * 0.7 * ee), B * r.uniform(0.3, 0.5) * (1 - 0.6 * q) * gk * 1.4, Lb.mix(col, HOTc, 0.25), (1 - q) * 0.85, c.toon_ink_m * 0.5); }   // billows
-  [[0, 1.0, UPV], [4, 1.5, _cf]].forEach(dk => { const aa = a - dk[0]; if (aa < 0) return; const qq = aa / (life - dk[0]);
+  this.pt('shock', X); [[0, 1.0, UPV], [4, 1.5, _cf]].forEach(dk => { const aa = a - dk[0]; if (aa < 0) return; const qq = aa / (life - dk[0]);
     this.torus(nc, 'ring', X, dk[2], B * (0.5 + 1.6 * easeO(qq)) * dk[1], 0.5, 0, col, 190 / 255 * (1 - qq), 0); });
-  this.sparks3(inst, key, X, UPV, 180, a, Math.max(0, Math.round(12 * dens)), col, 3, 8, 22, Us, gy);
+  this.pt('sparks', X); this.sparks3(inst, key, X, UPV, 180, a, Math.max(0, Math.round(12 * dens)), col, 3, 8, 22, Us, gy);
 };
 Runner.prototype.strike3 = function (inst, key, X, a, life, B, dens, col, Us, gk, gy) {   // lightning drops from the sky
   if (a < 0 || a >= life) return;
   const Lb = SLib(), nc = noCore(inst._c), HOTc = [255, 255, 255], q = a / life;
-  if (a < 10) { const r = Lb.rngFor(inst.seed, key, 800), top = X.clone().add(new THREE.Vector3(r.uniform(-30, 30) * Us, 170 * Us, r.uniform(-30, 30) * Us)), fl = 0.75 + 0.25 * Math.sin(a * 3.1);
+  this.pt('lightning', X); if (a < 10) { const r = Lb.rngFor(inst.seed, key, 800), top = X.clone().add(new THREE.Vector3(r.uniform(-30, 30) * Us, 170 * Us, r.uniform(-30, 30) * Us)), fl = 0.75 + 0.25 * Math.sin(a * 3.1);
     const pts = jag3(inst, key * 64 + Math.floor(a / 2), top, X, 9, 12 * Us); this.poly3(nc, pts, 2.1 * Us, col, 210 / 255 * fl * (1 - a / 10)); this.poly3(nc, pts, 0.8 * Us, HOTc, 1 - a / 10); }
-  if (a < 5) this.sphere(nc, X, B * (0.8 + 0.8 * easeO(a / 5)) * gk * 1.3, HOTc, 1 - a / 5, 0);
-  this.sphere(nc, X, B * (0.9 + 0.6 * easeO(q)) * gk, col, 160 / 255 * (1 - q) * 0.6, 0);
+  this.pt('impact_flash', X); if (a < 5) this.sphere(nc, X, B * (0.8 + 0.8 * easeO(a / 5)) * gk * 1.3, HOTc, 1 - a / 5, 0);
+  this.pt('fireball', X); this.sphere(nc, X, B * (0.9 + 0.6 * easeO(q)) * gk, col, 160 / 255 * (1 - q) * 0.6, 0);
   const G0 = X.clone(); if (gy != null) G0.y = gy + 0.02;
-  this.torus(nc, 'ring', G0, UPV, B * (0.4 + 1.4 * easeO(q)), 0.5, 0, col, 190 / 255 * (1 - q), 0);
-  if (a < 14) for (let j = 0; j < 6; j++) { const r2 = Lb.rngFor(inst.seed, key, 820 + j), th = r2() * 6.28, ph = Math.acos(r2() * 2 - 1), ln = B * r2.uniform(0.6, 1.1);
+  this.pt('shock', X); this.torus(nc, 'ring', G0, UPV, B * (0.4 + 1.4 * easeO(q)), 0.5, 0, col, 190 / 255 * (1 - q), 0);
+  this.pt('lightning', X); if (a < 14) for (let j = 0; j < 6; j++) { const r2 = Lb.rngFor(inst.seed, key, 820 + j), th = r2() * 6.28, ph = Math.acos(r2() * 2 - 1), ln = B * r2.uniform(0.6, 1.1);
     const E = X.clone().addScaledVector(new THREE.Vector3(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th)), ln);
     this.poly3(nc, jag3(inst, key * 64 + 32 + j + Math.floor(a / 2) * 6, X, E, 4, 5 * Us), 0.6 * Us, Lb.mix(col, HOTc, 0.5), 230 / 255 * (1 - a / 14)); }
-  this.sparks3(inst, key, X, UPV, 60, a, Math.max(0, Math.round(6 * dens)), col, 2.5, 6, 16, Us, gy);
+  this.pt('sparks', X); this.sparks3(inst, key, X, UPV, 60, a, Math.max(0, Math.round(6 * dens)), col, 2.5, 6, 16, Us, gy);
 };
 Runner.prototype.shatter3 = function (inst, key, X, u, a, life, B, dens, col, Us, gk) {   // the drill bursts into spinning shards
   if (a < 0 || a >= life) return;
   const Lb = SLib(), c = inst._c, nc = noCore(c), HOTc = [255, 255, 255], q = a / life, d3 = new THREE.Vector3();
-  if (a < 5) this.sphere(nc, X, B * (0.6 + 0.6 * easeO(a / 5)) * gk * 1.3, HOTc, 1 - a / 5, 0);
-  this.sphere(nc, X, B * (0.7 + 0.6 * easeO(q)) * gk, col, 150 / 255 * (1 - q) * 0.6, 0);
-  for (let j = 0; j < Math.max(0, Math.round(8 * dens)); j++) { const r = Lb.rngFor(inst.seed, key, 900 + j), sp = r.uniform(2.5, 6), fd = Lb.dragDist(0.9, a), sz = B * r.uniform(0.15, 0.3);
+  this.pt('impact_flash', X); if (a < 5) this.sphere(nc, X, B * (0.6 + 0.6 * easeO(a / 5)) * gk * 1.3, HOTc, 1 - a / 5, 0);
+  this.pt('fireball', X); this.sphere(nc, X, B * (0.7 + 0.6 * easeO(q)) * gk, col, 150 / 255 * (1 - q) * 0.6, 0);
+  this.pt('shards', X); for (let j = 0; j < Math.max(0, Math.round(8 * dens)); j++) { const r = Lb.rngFor(inst.seed, key, 900 + j), sp = r.uniform(2.5, 6), fd = Lb.dragDist(0.9, a), sz = B * r.uniform(0.15, 0.3);
     coneDir(u, Math.abs(r.uniform(-70, 70)), r() * 6.28, d3); const S = X.clone().addScaledVector(d3, sp * fd * Us), rt = r.uniform(0, 6.28) + a * r.uniform(-0.4, 0.4);
     const tn = this.paint(this.toon('shard', 0), c, Lb.mix(col, HOTc, 0.5), 1 - q, c.toon_ink_m * 0.5);
     [tn.m, tn.h].forEach(x => { x.position.copy(S); x.rotation.set(rt, rt * 0.6 + j, a * 0.3); x.scale.set(sz, sz * 0.5, sz * 0.35); x.material.uniforms.uTaper.value = 0; }); }
@@ -1859,10 +2075,10 @@ Runner.prototype.gatling3 = function (inst, xf, P, col, t, fired, total, Us, gk)
   const Gm = G.GUNFX.geo, Lb = SLib(), c = inst._c, nc = noCore(c), endf = Gm.cad(P) + Gm.hold(P); if (t > endf + Gm.GAT_SPIN_DOWN) return;
   const am = Gm.aim(inst, t), f = am[2], u = this.dir3(xf, f), fade = t <= endf ? 1 : 1 - (t - endf) / Gm.GAT_SPIN_DOWN, phi = Gm.gatPhi(P, t);
   const M = this.w3(inst, xf, am[0] + f[0] * 4, am[1] + f[1] * 4, 0, new THREE.Vector3());
-  this.torus(c, 'ring', M, u, 6 * Us, 1.2, 0, col, 170 / 255 * fade, c.toon_ink_m * 0.4);
-  for (let j = 0; j < 6; j++) { const w = coneDir(u, 90, phi + j * Math.PI / 3, new THREE.Vector3()), Bp = M.clone().addScaledVector(w, 5 * Us);
+  this.pt('barrels', M); this.torus(c, 'ring', M, u, 6 * Us, 1.2, 0, col, 170 / 255 * fade, c.toon_ink_m * 0.4);
+  const nBr = Math.max(1, this.xn('barrels', 6)); for (let j = 0; j < nBr; j++) { const w = coneDir(u, 90, phi + j * Math.PI * 2 / nBr, new THREE.Vector3()), Bp = M.clone().addScaledVector(w, 5 * Us);
     this.tube(c, Bp.clone().addScaledVector(u, -6 * Us), Bp.clone().addScaledVector(u, 4 * Us), 1.1 * Us, 1.1 * Us, Lb.mix(Gm.STEEL, col, 0.3), fade, c.toon_ink_m * 0.4); }
-  const heat = fired / Math.max(1, total);
+  const heat = fired / Math.max(1, total); this.pt('heat', M);
   this.sphere(nc, M, 10 * Us * gk * 0.8, Lb.mix([255, 90, 30], col, 0.3), 170 / 255 * heat * fade, 0);
   this.sphere(nc, M, 4 * Us * gk * 1.2, Lb.mix([255, 200, 120], [255, 255, 255], 0.3), 200 / 255 * heat * fade, 0);
 };
@@ -1870,18 +2086,18 @@ Runner.prototype.charge3 = function (inst, xf, P, col, tint, t, b, dens, Us, gk)
   if (t > b) return;
   const Gm = G.GUNFX.geo, Lb = SLib(), c = inst._c, nc = noCore(c), HOTc = [255, 255, 255], c0 = Gm.cad(P), am = Gm.aim(inst, t), f = am[2], u = this.dir3(xf, f);
   const M = this.w3(inst, xf, am[0] + f[0] * 6, am[1] + f[1] * 6, 0, new THREE.Vector3()), R = +P.radius * Us, e = easeO(t / c0), fl = 0.85 + 0.15 * Math.sin(t * 1.3), rr = R * (0.25 + 0.85 * e);
-  this.sphere(nc, M, rr * 2.4 * fl * gk * 0.8, col, 150 / 255 * 0.6, 0); this.sphere(c, M, rr * 1.3 * gk * 1.3, tint, 1, c.toon_ink_m * 0.6);
+  this.pt('charge_orb', M); this.sphere(nc, M, rr * 2.4 * fl * gk * 0.8, col, 150 / 255 * 0.6, 0); this.sphere(c, M, rr * 1.3 * gk * 1.3, tint, 1, c.toon_ink_m * 0.6);
   const d3 = new THREE.Vector3();
-  for (let j = 0; j < Math.max(0, Math.round(12 * dens)); j++) {   // streaks pulled in from all round
+  this.pt('charge_streaks', M); for (let j = 0; j < Math.max(0, Math.round(12 * dens)); j++) {   // streaks pulled in from all round
     const r0 = Lb.rngFor(inst.seed, j, 640), off = r0.uniform(0, Gm.CHARGE_P), cyc = Math.floor((t + off) / Gm.CHARGE_P), p = (((t + off) / Gm.CHARGE_P) % 1 + 1) % 1;
     const r = Lb.rngFor(inst.seed, j, 650 + cyc), th = r.uniform(0, 6.28), ph = Math.acos(r() * 2 - 1), rad = r.uniform(36, 70) * Us;
     d3.set(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th)); const dd = rad * (1 - easeI(p)) + rr * 0.6, d2 = dd + rad * 0.25 * (1 - p);
     this.tube(nc, M.clone().addScaledVector(d3, d2), M.clone().addScaledVector(d3, dd), 0, 0.7 * Us, Lb.mix(col, HOTc, p), 230 / 255 * p, 0);
   }
-  if (t < c0) for (let m = 0; m < 2; m++) { const q = (((t + m * Gm.CHARGE_RING) / (2 * Gm.CHARGE_RING)) % 1 + 1) % 1, rg = 50 * Us * (1 - easeI(q)) + rr * 0.3;
+  this.pt('charge_rings', M); if (t < c0) for (let m = 0; m < 2; m++) { const q = (((t + m * Gm.CHARGE_RING) / (2 * Gm.CHARGE_RING)) % 1 + 1) % 1, rg = 50 * Us * (1 - easeI(q)) + rr * 0.3;
     this.torus(nc, 'ring', M, coneDir(u, m ? 60 : 0, t * 0.2, new THREE.Vector3()), rg, 0.5, 0, col, 180 / 255 * q, 0); }
   else { const a = t - c0; if (a < 5) this.star3(inst, 690, M, _cf, 4, R * 3.2 * (1 - a / 5), R * 0.4, HOTc, 1 - a / 5, Math.PI / 4);
-    if (e > 0.6) for (let j = 0; j < 2; j++) { const ra = Lb.rngFor(inst.seed, j, 680 + Math.floor(t / 2)); d3.set(ra.uniform(-1, 1), ra.uniform(-1, 1), ra.uniform(-1, 1)).normalize();
+    this.pt('lightning', M); if (e > 0.6) for (let j = 0; j < 2; j++) { const ra = Lb.rngFor(inst.seed, j, 680 + Math.floor(t / 2)); d3.set(ra.uniform(-1, 1), ra.uniform(-1, 1), ra.uniform(-1, 1)).normalize();
       this.poly3(nc, jag3(inst, 690 + Math.floor(t / 2) * 2 + j, M, M.clone().addScaledVector(d3, rr * 2.2), 3, 3 * Us), 0.5 * Us, HOTc, 200 / 255); } }
 };
 Runner.prototype.aim3 = function (inst, xf, P, col, t, b, Us, gk) {   // the sniper's laser + a reticle facing the camera
@@ -1889,31 +2105,31 @@ Runner.prototype.aim3 = function (inst, xf, P, col, t, b, Us, gk) {   // the sni
   const Gm = G.GUNFX.geo, Lb = SLib(), nc = noCore(inst._c), HOTc = [255, 255, 255], am = Gm.aim(inst, t), f = am[2], Lp = +P.length;
   const e = easeO(t / Math.max(1, b)), fl = 0.6 + 0.4 * Math.sin(t * 2.1), O = this.w3(inst, xf, am[0], am[1], 0, new THREE.Vector3());
   let ex = am[0] + f[0] * Lp, ey = am[1] + f[1] * Lp;
-  this.tube(nc, O, this.w3(inst, xf, ex, ey, 0, new THREE.Vector3()), 0.5 * Us, 0.5 * Us, col, 120 / 255 * fl, 0);
+  this.pt('laser', O); this.tube(nc, O, this.w3(inst, xf, ex, ey, 0, new THREE.Vector3()), 0.5 * Us, 0.5 * Us, col, 120 / 255 * fl, 0);
   this.tube(nc, O, this.w3(inst, xf, ex, ey, 0, new THREE.Vector3()), 0.22 * Us, 0.22 * Us, HOTc, 150 / 255 * fl, 0);
   if (Gm.tracks(inst)) { const tp = Gm.at(inst.tq_tp, Gm.lockTick(inst, t)); if (Math.hypot(tp[0] - am[0], tp[1] - am[1]) < Lp) { ex = tp[0]; ey = tp[1]; } }
   const E = this.w3(inst, xf, ex, ey, 0, new THREE.Vector3()), rad = (26 - 18 * e) * Us, rt = (1 - e) * Math.PI / 2;
-  this.torus(nc, 'ring', E, _cf, rad, 0.3, 0, col, 210 / 255, 0);
+  this.pt('reticle', E); this.torus(nc, 'ring', E, _cf, rad, 0.3, 0, col, 210 / 255, 0);
   for (let j = 0; j < 4; j++) { const an = rt + j * Math.PI / 2, d3 = _cr.clone().multiplyScalar(Math.cos(an)).addScaledVector(_cu, Math.sin(an));
     this.tube(nc, E.clone().addScaledVector(d3, rad * 0.6), E.clone().addScaledVector(d3, rad * 1.4), 0.6 * Us, 0.6 * Us, HOTc, 230 / 255, 0); }
   if (e > 0.8 && t % 4 < 2) this.sphere(nc, E, 4 * Us * gk * 1.4, HOTc, 1, 0);
-  if (b - t <= 6) { const q = (b - t) / 6; this.star3(inst, 691, O, _cf, 4, (14 * (1 - q) + 2) * Us, 1.2 * Us, HOTc, 1 - q, 0); }
+  this.pt('laser', O); if (b - t <= 6) { const q = (b - t) / 6; this.star3(inst, 691, O, _cf, 4, (14 * (1 - q) + 2) * Us, 1.2 * Us, HOTc, 1 - q, 0); }
 };
 Runner.prototype.rail3 = function (inst, xf, s, P, col, t, dens, Us, gk, gy) {   // the rail: a beam with a true 3D helix, rings, heavy hits
   const Gm = G.GUNFX.geo, Lb = SLib(), nc = noCore(inst._c), HOTc = [255, 255, 255], k = t - s.b, linger = Math.max(1, Gm.hold(P)); if (k < 0) return;
   const ln = Gm.railLine(s), A = this.w3(inst, xf, ln[0], ln[1], 0, new THREE.Vector3()), Bp = this.w3(inst, xf, ln[2], ln[3], 0, new THREE.Vector3()), u = Bp.clone().sub(A), Lr = u.length(); u.normalize();
   if (k < linger) {
     const q = k / linger, W = +P.radius * (k < 2 ? 2.2 : 1.0) * (1 - q) * Us;
-    this.tube(nc, A, Bp, W * 1.3 + 0.01, W * 1.3 + 0.01, col, 200 / 255 * (1 - q), 0); this.tube(nc, A, Bp, W * 0.5 + 0.01, W * 0.5 + 0.01, HOTc, Math.pow(1 - q, 1.5), 0);
+    this.pt('rail', A); this.tube(nc, A, Bp, W * 1.3 + 0.01, W * 1.3 + 0.01, col, 200 / 255 * (1 - q), 0); this.tube(nc, A, Bp, W * 0.5 + 0.01, W * 0.5 + 0.01, HOTc, Math.pow(1 - q, 1.5), 0);
     const amp = +P.radius * (1.8 + 2.4 * easeO(q)) * Us;
-    [0, 1].forEach(sd => { const pts = []; for (let m = 0; m < 41; m++) { const d = Lr * m / 40, an = d / (14 * Us) + sd * Math.PI + k * 0.5;
+    this.pt('helix', A); [0, 1].forEach(sd => { const pts = []; for (let m = 0; m < 41; m++) { const d = Lr * m / 40, an = d / (14 * Us) + sd * Math.PI + k * 0.5;
       pts.push(A.clone().addScaledVector(u, d).addScaledVector(coneDir(u, 90, an, new THREE.Vector3()), amp)); }
       this.line3(nc, pts, 0.65 * Us, xf.az, Lb.mix(col, HOTc, 0.3), 170 / 255 * (1 - q), 0); });
-    [0.15, 0.4, 0.65, 0.9].forEach((fr_, j) => { const aa = k - j; if (aa < 0) return; const qq = Math.min(1, aa / linger), ee = easeO(qq);
+    this.pt('rings', A); const nRr = this.xn('rail_rings', 4); Array.from({length: nRr}, (_, i) => (i + 0.6) / nRr).forEach((fr_, j) => { const aa = k - j; if (aa < 0) return; const qq = Math.min(1, aa / linger), ee = easeO(qq);
       this.torus(nc, 'ring', A.clone().addScaledVector(u, Lr * fr_), u, (6 + 22 * ee) * Us, 0.3, 0, col, 170 / 255 * (1 - qq), 0); });
   }
   inst.tq_imp.forEach((im, n) => { const a = t - im[0] - Gm.RAIL_DELAY, X = this.w3(inst, xf, im[1], im[2], 0, new THREE.Vector3());
-    if (a < 0) { if (t >= im[0]) this.sphere(nc, X, 6 * Us * gk * 1.3, HOTc, 230 / 255, 0); return; }
+    if (a < 0) { this.pt('impact_flash', X); if (t >= im[0]) this.sphere(nc, X, 6 * Us * gk * 1.3, HOTc, 230 / 255, 0); return; }
     this.heavy3(inst, 9000 + n, X, u, a, Gm.IMPACT_LIFE.rail, +P.thickness * Us, dens, col, Us, gk, gy); });
 };
 /* the ki barrage (strikefx drawKi) */
@@ -1925,32 +2141,32 @@ Runner.prototype.drawKi = function (l, inst, xf) {
   for (const s of all) {   // smoke piling up where they went off
     if (s.b > t) break; const bl = K.blastAt(inst, s, fr), a = t - bl[0];
     if (a < 0 || a >= K.SMOKE_LIFE || K.goneSilent(inst, s.i)) continue;
-    this.puffs3(inst, 6000 + s.i, WPp([bl[1], bl[2]]), a, K.SMOKE_LIFE, Math.max(0, Math.round(3 * dens)), +P.thickness * s.size, smoke, 0.55, Us);
+    this.pt('smoke'); this.puffs3(inst, 6000 + s.i, WPp([bl[1], bl[2]]), a, K.SMOKE_LIFE, Math.max(0, Math.round(3 * dens)), +P.thickness * s.size, smoke, 0.55, Us);
   }
   const last = all.length ? all[all.length - 1].b : 0;
   if (t <= last + 4) { const fa = t <= last ? 1 : 1 - (t - last) / 4, fl = 0.8 + 0.2 * Math.sin(t * 2.3);   // the hands glow
-    [1, -1].forEach(side => { const h = fr.f.d(0, side * K.SIDE), X = WPp([inst.x + h[0], inst.y + h[1]]);
+    this.pt('hands'); [1, -1].forEach(side => { const h = fr.f.d(0, side * K.SIDE), X = WPp([inst.x + h[0], inst.y + h[1]]);
       this.sphere(nc, X, 16 * Us * fl * gk * 0.7, col, 150 / 255 * fa, 0); this.sphere(nc, X, 6 * Us * gk * 1.3, HOTc, 220 / 255 * fa, 0); }); }
   for (const s of all) {
     if (s.b > t) break;
     const k = t - s.b, en = s.end(inst), e = en[0], stopped = en[1], tint = Lb.mix(col, HOTc, 0.3 + s.tint), rs = r0 * s.size;
     if (k < K.FLASH) { const qf = k / K.FLASH, M = WPp(s.pos(fr, 0)), u = this.dir3(xf, fr.f.d(Math.cos(s.ang) * fr.h, Math.sin(s.ang) * fr.v));   // muzzle flash
-      this.sphere(nc, M, (10 + 10 * easeO(qf)) * Us * s.size * gk * 0.8, col, 220 / 255 * (1 - qf) * 0.7, 0); this.sphere(nc, M, 6 * Us * s.size * gk * 1.2, HOTc, 1 - qf, 0);
+      this.pt('muzzle', M); this.sphere(nc, M, (10 + 10 * easeO(qf)) * Us * s.size * gk * 0.8, col, 220 / 255 * (1 - qf) * 0.7, 0); this.sphere(nc, M, 6 * Us * s.size * gk * 1.2, HOTc, 1 - qf, 0);
       this.star3(inst, 6100 + s.i, M, u, 4, 16 * Us * s.size * (1 - 0.4 * qf), 1.2 * Us, HOTc, 230 / 255 * (1 - qf), 0); }
     if (t < e) {   // in flight: comet tail, glowing body, white-hot core
       const X = WPp(s.pos(fr, k)), T = WPp(s.pos(fr, Math.max(0, k - 2.5))), fl2 = 0.88 + 0.12 * Math.sin(t * 1.7 + s.i * 2.1);
-      this.tube(nc, T, X, 0, rs * 0.95, col, 140 / 255, 0); this.tube(nc, T, X, 0, rs * 0.4, tint, 200 / 255, 0);
+      this.pt('trail', X); this.tube(nc, T, X, 0, rs * 0.95, col, 140 / 255, 0); this.tube(nc, T, X, 0, rs * 0.4, tint, 200 / 255, 0); this.pt('round', X);
       this.sphere(nc, X, rs * 3.4 * fl2 * gk * 0.6, col, 120 / 255 * 0.7, 0);
       this.sphere(c, X, rs * 1.8 * gk * 1.2, tint, 1, ink * 0.6);
       continue;
     }
     const ad = t - e; if (ad >= K.BLAST_LIFE || K.goneSilent(inst, s.i)) continue;   // detonation
     const bp = K.blastAt(inst, s, fr), X = WPp([bp[1], bp[2]]), qd = ad / K.BLAST_LIFE, ee = easeO(ad / 8), Bd = B0 * s.size * (stopped ? 1 : 0.85);
-    if (ad < 5) this.sphere(nc, X, Bd * (0.7 + 0.9 * easeO(ad / 5)) * gk * 1.3, HOTc, 1 - ad / 5, 0);
-    this.sphere(nc, X, Bd * (0.9 + 1.0 * ee) * gk, col, 210 / 255 * (1 - qd) * 0.6, 0);
+    this.pt('impact_flash', X); if (ad < 5) this.sphere(nc, X, Bd * (0.7 + 0.9 * easeO(ad / 5)) * gk * 1.3, HOTc, 1 - ad / 5, 0);
+    this.pt('fireball', X); this.sphere(nc, X, Bd * (0.9 + 1.0 * ee) * gk, col, 210 / 255 * (1 - qd) * 0.6, 0);
     this.sphere(c, X, Bd * (0.5 + 0.45 * ee) * gk * 1.2, Lb.mix(col, HOTc, 0.6), Math.pow(1 - qd, 2), ink * 0.6);
-    if (s.kind >= 1) this.torus(nc, 'ring', X, s.kind === 2 ? UPV : _cf, Bd * (0.5 + 1.7 * easeO(qd)), 0.5, 0, col, 190 / 255 * (1 - qd), 0);
-    const nsp = Math.max(0, Math.round((4 + 5 * (s.kind === 2 ? 1 : 0)) * dens));
+    this.pt('shock', X); if (s.kind >= 1) this.torus(nc, 'ring', X, s.kind === 2 ? UPV : _cf, Bd * (0.5 + 1.7 * easeO(qd)), 0.5, 0, col, 190 / 255 * (1 - qd), 0);
+    const nsp = Math.max(0, Math.round((4 + 5 * (s.kind === 2 ? 1 : 0)) * dens)); this.pt('sparks', X);
     for (let j = 0; j < nsp; j++) { const rg = Lb.rngFor(inst.seed, s.i, 80 + j), life = 9 + 9 * rg(); if (ad >= life) continue;
       const th = rg.uniform(0, 6.28), ph = Math.acos(rg() * 2 - 1), sp = rg.uniform(2.5, 6.5), fd = Lb.dragDist(0.87, ad), dk = Math.pow(0.87, ad), qq = ad / life;
       d3.set(Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th));
@@ -2014,7 +2230,10 @@ Runner.prototype.draw = function (cam, H, opts) {
   }
   const xs = {P: new THREE.Vector3(), q: new THREE.Quaternion(), Us: U, bill: false};
   for (const [l, inst] of solid) { this.cur = l; this.xform(l, inst, xs); this.axes(l, xs);
+    this._pI = inst; this._pks = {}; inst._wc = this.w3(inst, xs, inst.x, inst.y, 0, inst._wc || new THREE.Vector3()); this.pt('');
     try { if (inst._s3) this.drawStrike(l, inst, xs); else this.draw3d(l, inst, xs); } catch (err) { console.error('fx3d draw3d', err); } }
+  this._pI = null; this._pp = null;
+  try { this.partPass(); } catch (err) { console.error('fx3d parts', err); }
   this.cur = null;
   this.cards.forEach(c => { if (!c.used) c.mesh.visible = false; });
   this.toons.forEach(t => { if (!t.used) t.m.visible = t.h.visible = false; });
@@ -2113,5 +2332,6 @@ function movePlan(cfg, S, T, frames, frameMs, rnd) {
 }
 
 G.FX3D = {hyperKind, U, HURT, ANCHORS, LAYS, PIVOTS, DEF3D, MOVE_DEFAULTS, MOVE_PATHS, START_MODES, MOVE_EASES, RENDERS, CHUNKS, TOON_PRIMS, STRIKE_LIMBS,
+  PART_KEYS, PART_COLORS, PART_INKS, partsOf, extrasOf, partCfg,
   strikeKind, bladeKind, gunKind, cfg3d, is3d, autoLay, layOf, moveCfg, byAction, Runner, movePlan, spotAround, easeU};
 })(window);

@@ -20,7 +20,7 @@ function realKit(R){
   const dur=a=>Math.max(120,Math.round((T[a].frames||1)*(T[a].frame_ms||16)));
   const cfg=a=>AS[a]||{};
   const def=(a,extra)=>Object.assign({n2d:a,name:a.replace(/_/g,' '),dur:dur(a),hits:[],fx:[],fx2d:true,frames:T[a].frames||1,frameMs:T[a].frame_ms||16,
-    mcd:+cfg(a).cooldown_ms||0,move3d:cfg(a).move3d&&cfg(a).move3d.enabled?cfg(a).move3d:null},extra||{});   // move3d: FX Studio 3D movement (fxlive.js)
+    mcd:+cfg(a).cooldown_ms||0,move3d:cfg(a).move3d&&cfg(a).move3d.enabled?cfg(a).move3d:null,tdist:trigDist(cfg(a).trigger_dist)},extra||{});   // move3d: FX Studio 3D movement (fxlive.js); tdist: trigger distance (combat.js inTrigDist)
   const melee=pr.uses_melee!==false;
   const reach=clamp((+st.basic_attack_radius||(melee?120:400))*(melee?1:PX2D*.5),70,melee?260:900);
   const acts=Object.keys(T).filter(a=>!SKIP_ACTIONS[a]);
@@ -59,6 +59,8 @@ function prettyName(F,a){// an action's FX name (first enabled damaging effect),
   const e=(F.effects||[]).find(x=>x.action===a&&x.enabled!==false&&(x.battle||{}).deals_damage&&x.name);
   const n=e?String(e.name).split(/[·:]/).pop().replace(/\s*(copy|\d+)(\s+(copy|\d+))*$/i,'').trim():'';
   const t=s=>s.replace(/\b\w/g,c=>c.toUpperCase());return t(n&&n.length<26?n:a.replace(/_/g,' '));}
+// FX Studio 3D trigger distance (Daniel 2026-11-26): action_settings[a].trigger_dist {enabled, min_m, max_m (0 = no limit)}
+function trigDist(t){if(!t||!t.enabled)return null;const mn=Math.max(0,+t.min_m||0),mx=Math.max(0,+t.max_m||0);return mn||mx?{min:mn,max:mx}:null;}
 function addTrigger(k,slot,d,c){if(d)k[slot]=d;k.triggers.push({slot,logic:c.logic==='all'?'all':'any',cd:+c.cooldown_ms||0,conds:(c.conditions||[]).map(x=>Object.assign({},x))});}
 
 // FX Studio trigger conditions (actions.CONDITION_TYPES) read against the V3 sim. Unknown ones are never true.

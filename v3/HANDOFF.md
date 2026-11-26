@@ -416,6 +416,21 @@ v3-animation skill ("Review questions").
   stage 3 render, no errors.
 - **Next:** Daniel's verdict in FX Studio 3D + game.
 
+## Deeper 3D FX settings + trigger distance (2026-11-26)
+
+- Daniel: "update the settings of all the current 3D FX to get deeper configurative options, the default generic one for
+  all settings is just not cutting it". His picks: a panel per family + style extras; every control (on / amount, size /
+  length / speed / spread, colours + glow, chaos); the cel look stays the base and parts override it; all families at once.
+- Done: `fx3d.js` part engine (`pt`, `partLook`, `partPass`, `partsOf`, `extrasOf`, `xn`), every 3D drawing tagged;
+  FX Studio 3D section "Parts & style extras" with Solo / Reset. "Speed" = per-part Drift out / Rise (m/s). README
+  "Parts & style extras".
+- Then: "add an action trigger distance setting". His picks: min + max metres; AI + auto triggers only (key presses
+  ignore it). Done: `action_settings[a].trigger_dist`, README "Trigger distance".
+- Checked headless: every 3D preset (all families) runs with heavy part settings, all-parts-off and solo, no errors and
+  no untagged pieces; studio opens ronin_copy, edits / solos a part, sets a trigger distance (rings + readout); AI-vs-AI
+  fights with an unreachable range start nothing, with 0-3 m attack as usual. Not seen yet by Daniel in the real studio.
+- **Next:** Daniel's verdict.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,

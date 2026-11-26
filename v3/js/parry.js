@@ -49,7 +49,7 @@ function parryOnHit(a,t,isShot,shot){parryAiHit(t);const w=parryWindow(t);if(!w)
   else if(!isShot&&a&&a!==t&&!a.ko){stun(a,c.staggerMs,'stag');a.lastWhiff=true;a.recoil=Math.min(1.2,a.recoil+.6);
     const dx=a.x-t.x,dy=a.y-t.y,d=Math.hypot(dx,dy)||1;a.vx+=dx/d*260;a.vy+=dy/d*260;
     st.counterOn=a;st.counterUntil=tick+ms2t(c.counterMs);t.tp.mom=1;t.gapUntil=0;
-    if(!playerFig(t))later(70,()=>{if(t.on&&!t.ko&&!a.ko&&!t.act){if(t.k.rhythm!==false)enter(t,'punish');tryAttack(t,a,true);}});}
+    if(!playerFig(t))later(70,()=>{if(t.on&&!t.ko&&!a.ko&&!t.act){if(t.k.rhythm!==false)enter(t,'punish');tryAttack(t,a,'ai');}});}
   if(t.side===0||a&&a.side===0)callout(t.side===0?'PERFECT PARRY':'PARRIED',isShot?(shot?'Sent back':'Turned aside'):t.k.name+' opens a counter',t.side===0?'#ffc857':'#ff8a9a',.6,true);
   return null;}
 

@@ -632,6 +632,38 @@ with no damage; three stages.
 - Put it on the action that transforms, with the action about as long as the charge + burst. Note: V3 still skips a real
   kit's `transform` action (`realkits.js SKIP_ACTIONS`, transformations not ported), so use an action the fighter plays.
 
+**Parts & style extras (Daniel 2026-11-26: "deeper configurative options" for every 3D FX).** FX Studio 3D section
+**Parts & style extras** (shown for any effect drawn as a 3D shape). Every 3D piece an effect draws belongs to a part
+(`fx3d.js` tags each group with `this.pt(id)`); the panel lists the picked effect's parts (`FX3D.partsOf`), one fold each:
+
+| Family | Parts |
+|---|---|
+| beam / laser trail / orb-bolt / glow / particles / impact rings | tube, bulb, flare / trail, head / head, streak / orb / chunks / shell, ring, spikes |
+| punches + kicks | wind-up, air strokes, smear, after-glows, fist / foot, impact flash, pressure, halo, rays, spike star, shock rings, sparks, impact frame, ground rings, dust, ground sparks, vortex, crater, rocks |
+| serious punch | wind-up, clouds, shock cone, vapour rings, speed lines, shock front, sky split, fist, fist flash |
+| slashes / straight slash / crescent wave / six crescents / thrust / arc | bloom glow, aura band, blade, hot edge, dark core, air lines, path glow, pressure, glint, sparks, cross X, flame tongues, afterimages, embers, launch bursts, X glints, shards, drag streaks / contact / chips, moonfall mark / speed lines / slam / rings, charge, pierced line, hit marks (each style shows only its own) |
+| guns + ki | smoke, casings, muzzle flash, prongs, muzzle cone / rings, round trail, round head, round rings, drill grooves, lightning, rocket body, exhaust, gatling barrels, heat, charge orb / streaks / rings, aim laser, reticle, rail beam, helix, impact flash, impact glow / fireball, spike star, impact rings, sparks, shards, hand glows (per gun style) |
+| punching / impact / transformation FX | glows & orbs, streaks / bolts / flames, rings, debris & shards (the aura sheath keeps its own Transformation panel) |
+
+Per part, `fx3d.parts[id]` (missing key = default, missing part = untouched, so old files play the same): **Shown**,
+**Amount** (below 100 % pieces dropped, above extra copies scattered round each piece; blade bands never copy), **Size**,
+**Length** (tubes / chips along themselves), **Spread** (from the FX's centre), **Drift out** / **Rise** (m/s from when the
+piece first shows), **Colour** own / custom / white + mix, **Opacity**, **Glow** (past 100 % toward white), **Additive**,
+**Hot core** (-1 = the cel look), **Ink** as drawn / on / off, **Chaos** (each piece wanders on its own uneven clock),
+**Flicker**. The cel look section stays the base for the whole effect. Colour / glow / cel / flicker apply when a piece is
+painted, position / size / length / spread / drift / chaos / copies in `Runner.partPass` after the frame. **Solo** (preview
+only) shows just that part; **Reset** drops it. **Style extras** (`fx3d.extra`, `FX3D.extrasOf`): counts the drawings build
+from: strokes, impact rays, star spikes, crater cracks (punch / kick); clouds, speed lines (serious punch); air lines
+(slash / straight slash); flame tongues, afterimages (crescents); muzzle prongs, rocket fins, drill grooves, bolt arcs,
+star spikes, rail rings, gatling barrels (guns).
+
+**Trigger distance (Daniel 2026-11-26).** Actions panel row **Trigger distance**: on / closest / farthest (m, 0 = no
+limit), saved as `action_settings[a].trigger_dist {enabled, min_m, max_m}`. The AI and FX Studio condition triggers start
+the action only while the target's body centre is in that range (3D, height included; `realkits.js trigDist` ->
+`def.tdist`, `combat.js inTrigDist`); for a normal attack it replaces the AI's reach check, and the AI's parry counter
+respects it too. Your own key presses ignore it (Daniel's pick). The stage shows the range as two yellow rings round the
+fighter and the panel says whether the dummy is in range.
+
 **Start at = target fix (Daniel 2026-11-26).** FX Studio 3D's "Start at" rides as `3d:<id>`; `anchor2d` checked
 `figure` / `target` before stripping the prefix, so `3d:target` found no bone and fell back to the body centre. Fixed, and
 an effect started on the target now also lies at the target's own side offset (`lane.tgtLat`, followed while attached)
