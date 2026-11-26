@@ -9,6 +9,7 @@ const W=520,H=560;
 const R=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});R.setSize(W,H);R.setClearColor(0xffffff);document.body.appendChild(R.domElement);
 const S=new THREE.Scene();S.add(new THREE.HemisphereLight(0xffffff,0x886644,0.9));const dl=new THREE.DirectionalLight(0xffffff,0.7);dl.position.set(-2,4,3);S.add(dl);
 const grid=new THREE.GridHelper(8,16,0x999999,0xdddddd);S.add(grid);
+const SIL=new THREE.MeshBasicMaterial({color:0x111111,skinning:true,side:THREE.DoubleSide});   // blocking: does the key read in solid black?
 const tgt=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,1.8,12),new THREE.MeshLambertMaterial({color:0xcc2222}));tgt.position.set(0,.9,3.2);S.add(tgt);
 const cam=new THREE.PerspectiveCamera(30,W/H,.1,50);
 let mixer,action,hips;
@@ -24,8 +25,8 @@ new THREE.GLTFLoader().parse(bin,'',g=>{ktExpandAll(g);const m=g.scene;
 window.hideSide=(side,on)=>pbwShow(S,side,on);
 window.shot=(t,view,cx,cz,hide)=>{pbwShow(S,'R',!(hide&&hide.R));pbwShow(S,'L',!(hide&&hide.L));action.time=t;mixer.update(0);S.updateMatrixWorld(true);
   const tx=cx||0, tz=cz||0, ty=0.85;
-  tgt.visible=view!=='front';
-  if(view==='side'){cam.position.set(tx-5.2,ty+0.3,tz);}
+  const sil=view==='sil';S.overrideMaterial=sil?SIL:null;grid.visible=!sil;tgt.visible=!sil&&view!=='front';R.setClearColor(0xffffff);
+  if(view==='side'||sil){cam.position.set(tx-5.2,ty+0.3,tz);}
   else if(view==='q34'){cam.position.set(tx-3.4,ty+1.4,tz+3.7);}
   else if(view==='front'){cam.position.set(tx+0.5,ty+0.5,tz+5.2);}
   else if(view==='top'){cam.position.set(tx,ty+8,tz+0.01);}
