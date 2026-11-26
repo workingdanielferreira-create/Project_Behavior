@@ -23,6 +23,9 @@ function fireTrigger(f,tr,e){const slot=tr.slot;const def=f.k[slot];if(!def)retu
   tr.conds.forEach(c=>{if(c[0]==='hp_below'&&f.hp/f.max*100<c[1])f.thr[c[1]]=1;});
   if(slot==='defend'){if(f.act)endAct(f);f.block=ms2t(def.dur);startAct(f,def,'react','defend');return true;}
   startAct(f,def,slot,slot);stats.used[f.side][slot==='ult'?'ult':slot]++;if(slot==='ult'&&f.on)callout(def.name,f.k.name,cssc(f.k.fx),.9);return true;}
+// An action's trigger distance (FX Studio 3D, Daniel 2026-11-26): the AI / auto triggers start it only while the target's
+// body centre is between min and max metres away (3D, height included; max 0 = no limit). Key presses ignore it.
+function inTrigDist(f,e,def){const t=def&&def.tdist;if(!t||!e)return true;const d=Math.hypot(f.x-e.x,f.y-e.y,(f.z||0)-(e.z||0))*K;return d>=t.min&&(!t.max||d<=t.max);}
 function realTriggers(f,e){// 2D: a triggered action fires the tick its conditions hold (logic any); gate_triggered gates it by intent
   if(f.k.gate&&!allows(f))return false;
   const mine=f.side===0&&level==='commander';
@@ -33,7 +36,7 @@ function realTriggers(f,e){// 2D: a triggered action fires the tick its conditio
     if(tr.slot==='defend'&&(f.block>0||f.stun>0))continue;
     // real kits: FX Studio conditions (realkits.js realCond), logic any / all; with no conditions = never on its own
     const ok=f.k.fx2d?(tr.conds.length&&(tr.logic==='all'?tr.conds.every(c=>realCond(f,e,c,st)):tr.conds.some(c=>realCond(f,e,c,st)))):tr.conds.some(c=>condTrue(f,e,c,st));
-    if(ok){if(f.k.fx2d&&f.k[tr.slot]&&f.k[tr.slot].mcd&&tick<(st.cdUntil||0))continue;st.last=tick;st.fired=tick;if(f.k.fx2d&&f.k[tr.slot])st.cdUntil=tick+ms2t(f.k[tr.slot].mcd||0);return fireTrigger(f,tr,e);}}
+    if(ok){if(f.k.fx2d&&f.k[tr.slot]&&f.k[tr.slot].mcd&&tick<(st.cdUntil||0))continue;if(!inTrigDist(f,e,f.k[tr.slot]))continue;st.last=tick;st.fired=tick;if(f.k.fx2d&&f.k[tr.slot])st.cdUntil=tick+ms2t(f.k[tr.slot].mcd||0);return fireTrigger(f,tr,e);}}
   return false;}
 function tryAttack(f,e,forced){
   if(f.k.real&&!forced&&realTriggers(f,e))return true;
@@ -51,8 +54,10 @@ function tryAttack(f,e,forced){
   }
   if(!forced&&(!allows(f)||tick<f.gapUntil))return false;
   if(f.k.rhythm===false&&!forced)f.gapUntil=tick+ms2t(rnd(150,450));
-  if(d>f.k.reach*(forced?1.9:(f.k.melee?1.7:1)))return false;
-  if(f.k.melee&&Math.abs(f.z-e.z)>f.k.reach*(forced?1.9:1.3)+60)return false;
+  const nd=f.k.normals[f.ni%f.k.normals.length];
+  if(forced!==true&&nd&&nd.tdist){if(!inTrigDist(f,e,nd))return false;}   // its own trigger distance replaces the reach check (forced true = your key press; 'ai' = the AI's parry counter)
+  else{if(d>f.k.reach*(forced?1.9:(f.k.melee?1.7:1)))return false;
+  if(f.k.melee&&Math.abs(f.z-e.z)>f.k.reach*(forced?1.9:1.3)+60)return false;}
   if(tick-f.lastNormal>ms2t(900))f.ni=0;
   const def=f.k.normals[f.ni%f.k.normals.length];f.ni++;f.lastNormal=tick;startAct(f,def,'normal','N'+f.ni);stats.used[f.side].normal++;return true;}
 function useSkill(f,which){if(!f||f.ko||f.stun>0||f.gone>0||!f.k[which]||f.k[which].none)return false;const e=enemyOf(f);
