@@ -303,7 +303,9 @@ const view = {planes: true, anchors: false, path: true};
 const GLB_DROP = /^(idle|run|walk|sprint|attack_normal(_\d+)?|attack_special(_\d+)?|ultimate(_\d+)?|transform|switch_in|switch_out|defend|parry)$/;
 const GLB_FALLBACK = {idle_ultimate: 'idle', defend_reflect: 'defend', defend_recovery: 'stagger', parry: 'defend', switch_in: 'dash', switch_out: 'dodge_back',
   transform: 'ultimate', dodge_back: 'dodge', dodge_left: 'dodge', dodge_right: 'dodge', walk: 'run', sprint: 'run', dash: 'dodge', jump: 'idle', air: 'idle',
-  air_move: 'air', fall: 'air', land: 'idle', hit_heavy: 'hit_light', hit_air: 'hit_heavy', stagger: 'hit_heavy', knockdown: 'hit_heavy', getup: 'idle'};
+  air_move: 'air', fall: 'air', land: 'idle', hit_heavy: 'hit_light', hit_air: 'hit_heavy', stagger: 'hit_heavy', knockdown: 'hit_heavy', getup: 'idle',
+  run_back: 'run', run_left: 'run', run_right: 'run', run_stop: 'idle', jump_start: 'jump', jump_air: 'fall', jump_land: 'land',
+  fly_forward: 'air_move', fly_back: 'air_move', fly_left: 'air_move', fly_right: 'air_move', fly_incline: 'air_move', fly_decline: 'air_move'};
 function parseGlb(buf) { return new Promise((res, rej) => new THREE.GLTFLoader().parse(buf.slice(0), '', g => { try { ktExpandAll(g); } catch (e) {} res(g); }, rej)); }
 function skinned(g) { let m = false; g.scene.traverse(o => { if (o.isSkinnedMesh) m = true; }); return m; }
 // one fighter / dummy: the body scene, its clips, toon + ink look, weapons

@@ -91,11 +91,24 @@ function glbBuild(k,g){const body=glbBodyOf(k);const model=glbClone(body.scene);
 const GLB_FALLBACK={attack_normal:null,attack_special:null,ultimate:null,idle_ultimate:'idle',defend_reflect:'defend',defend_recovery:'stagger',
   parry:'defend',switch_in:'dash',switch_out:'dodge_back',transform:'ultimate',dodge_back:'dodge',dodge_left:'dodge',dodge_right:'dodge',
   walk:'run',sprint:'run',dash:'dodge',jump:'idle',air:'idle',air_move:'air',fall:'air',land:'idle',hit_heavy:'hit_light',hit_air:'hit_heavy',
-  stagger:'hit_heavy',knockdown:'hit_heavy',getup:'idle'};
+  stagger:'hit_heavy',knockdown:'hit_heavy',getup:'idle',
+  /* directional locomotion (Daniel 2026-11-26): runs, run stop, jump phases, flight directions */
+  run_back:'run',run_left:'run',run_right:'run',run_stop:'idle',jump_start:'jump',jump_air:'fall',jump_land:'land',
+  fly_forward:'air_move',fly_back:'air_move',fly_left:'air_move',fly_right:'air_move',fly_incline:'air_move',fly_decline:'air_move'};
 function glbClip(body,name){const C=body.clips;let n=name,guard=0;
   while(n&&!C[n]&&guard++<8){const m=n.match(/^(attack_normal|attack_special|ultimate)_\d+$/);n=m?m[1]:GLB_FALLBACK[n];}
   return n&&C[n]?n:'idle';}
-const GLB_LOOPS={idle:1,run:1,walk:1,sprint:1,air:1,air_move:1,fall:1,idle_ultimate:1};
+const GLB_LOOPS={idle:1,run:1,walk:1,sprint:1,air:1,air_move:1,fall:1,idle_ultimate:1,
+  run_back:1,run_left:1,run_right:1,jump_air:1,fly_forward:1,fly_back:1,fly_left:1,fly_right:1,fly_incline:1,fly_decline:1};
+const GLB_STOP_MS=250;          // run_stop: plays this long when a running fighter comes to a stop on the ground
+const GLB_FLY_VZ=120;           // flyers: vertical speed (2D px/s) needed before incline / decline can win
+/* which way the fighter moves compared to where it faces: 'forward' | 'back' | 'left' | 'right'
+   (sim y = world +z, so a positive angle from the facing = the fighter's right). 12 deg of hysteresis
+   at each sector edge keeps the clip from flickering at 45 / 135 deg. */
+function glbDir(f){const G=f.glb,vx=f.gvx||0,vy=f.gvy||0;if(Math.hypot(vx,vy)<1)return G.dir||'forward';
+  const r=((Math.atan2(vy,vx)-f.face+Math.PI)%TAU+TAU)%TAU-Math.PI,a=Math.abs(r)*180/Math.PI,h=G.dir?12:0;
+  const keep=G.dir==='forward'?a<45+h:G.dir==='back'?a>135-h:G.dir==='right'?r>0&&a>45-h&&a<135+h:G.dir==='left'?r<0&&a>45-h&&a<135+h:false;
+  if(!keep)G.dir=a<45?'forward':a>135?'back':r>0?'right':'left';return G.dir;}
 /* state -> [clip, id that restarts it when it changes, length to fit in s (0 = natural speed)] */
 function glbPick(f,body){
   if(f.ko)return ['ko','ko',0];
@@ -113,13 +126,31 @@ function glbPick(f,body){
     return [c,a,(a.def&&a.def.dur||0)/1000];}
   if(f.parry>0)return ['parry','parry',0];
   if(f.block>0)return ['defend','block',0];
-  if(f.snap)return [Math.cos(Math.atan2(f.snap.ty-f.y,f.snap.tx-f.x)-f.face)<-.3?'dodge_back':'sprint','snap',0];
-  if(!canFly(f)&&f.z>8)return f.vz>120?['jump','jump'+(f.jumps||0),0]:['fall','fall',0];   // jumps (gravity.js)
-  if(f.landT>tick&&f.z<=0&&f.lean<=.15)return ['land','land',0];
-  const air=f.z*K>1.2;
-  if(f.lean>.15)return [air?'air_move':(f.spdLv||1)>=2?'sprint':'run','move'+(air?'':(f.spdLv||1)>=2?'S':''),0];   // sprint.js: Lv2 / Lv3 = the sprint clip
+  if(f.snap){if(Math.cos(Math.atan2(f.snap.ty-f.y,f.snap.tx-f.x)-f.face)<-.3)return ['dodge_back','snap',0];
+    return [body.clips.dash?'dash':'sprint','snap',0];}   // forward snap = the body's own dash clip; without one, the sprint as before
+  if(!canFly(f)&&f.z>8){   // jumps (gravity.js): start while rising fast, then airborne; fast fall keeps `fall`
+    if(f.vz>120)return ['jump_start','jump'+(f.jumps||0),0];
+    return f.ffall?['fall','fall',0]:['jump_air','fall',0];}
+  if(f.landT>tick&&f.z<=0&&f.lean<=.15)return ['jump_land','land',0];
+  const air=f.z*K>1.2,G=f.glb;
+  if(air&&canFly(f)){   // flight: the strongest of vertical speed and ground speed picks the clip
+    const gs=Math.hypot(f.gvx||0,f.gvy||0),vz=f.vz||0;
+    if(Math.abs(vz)>GLB_FLY_VZ&&Math.abs(vz)>gs)return glbId(body,vz>0?'fly_incline':'fly_decline');
+    if(f.lean>.15)return glbId(body,'fly_'+glbDir(f));
+    return ['air','still',0];}
+  if(f.lean>.15){if(air)return ['air_move','move',0];
+    const d=glbDir(f),sp=(f.spdLv||1)>=2;   // sprint.js: Lv2 / Lv3 = the sprint clip when going forward
+    return glbId(body,d==='forward'||(sp&&!body.clips['run_'+d])?(sp?'sprint':'run'):'run_'+d);}   // no own run_<dir> while sprinting: keep the sprint clip
+  if(!air&&G&&G.stopT>tick)return glbId(body,'run_stop');
   return [air?'air':'idle','still',0];}
+/* a looping move's restart id = the clip it really plays, so swapping between names that fall back to the same clip
+   (e.g. run_left -> run on a body without run_left) does not restart it */
+function glbId(body,name){return [name,'mv:'+glbClip(body,name),0];}
 function glbAnim(f,rdt){const G=f.glb,B=G.body;const p=glbPick(f,B);const name=glbClip(B,p[0]);
+  /* run_stop: armed when a ground run ends with no move / hit taking over, only on bodies that have the clip */
+  const moving=typeof p[1]==='string'&&p[1].indexOf('mv:')===0&&p[0].indexOf('fly_')<0;
+  if(G.wasRun&&!moving&&p[1]==='still'&&B.clips.run_stop&&f.z<=0){G.stopT=tick+ms2t(GLB_STOP_MS);G.wasRun=false;return glbAnim(f,rdt);}
+  G.wasRun=moving&&p[0]!=='run_stop';
   if(name!==G.cur||p[1]!==G.curId){const clip=B.clips[name];const act=G.mixer.clipAction(clip);
     const loop=!!GLB_LOOPS[name];act.reset();act.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce,Infinity);act.clampWhenFinished=!loop;
     act.timeScale=p[2]>0&&!loop?clip.duration/p[2]:1;
