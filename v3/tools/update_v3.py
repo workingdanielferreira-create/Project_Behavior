@@ -60,7 +60,7 @@ RIGFORGE3D = ("v3/tools/rigforge3d.html", "v3/lib/", "Rig Forge 3D.bat")
 FXSTUDIO3D = ("v3/tools/fxstudio3d.html", "v3/js/fx3d.js", "v3/lib/", "FX Studio 3D.bat")
 WORLDSTUDIO3D = ("v3/tools/worldstudio3d.html", "v3/js/world3d.js", "World Studio 3D.bat")
 # Never written: local-only files (also gitignored, listed here to be safe).
-GENERATED = re.compile(r"characters/ual_swordsman/ual_moves(_drafts)?\.glb$")
+GENERATED = re.compile(r"characters/ual_swordsman/(ual_moves(_drafts)?|paragon/[^/]+)\.glb$")
 SKIP = ("v3/.window-profile/", "v3/data/kits.gen.js", "v3/data/world.gen.js", "characters/live_view.json",
         "characters/_baked/")
 

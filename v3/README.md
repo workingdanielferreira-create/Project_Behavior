@@ -226,6 +226,20 @@ audit clean) and join the pack only once Daniel approved their stills (`"approve
 `python v3/tools/move_library.py -`). Weapon editor shape **pistol** (weapons3d.js: len = barrel, w = slide height,
 handle = grip, guard = trigger guard, curve = grip rake; barrel along the edge side, roll turns it).
 
+**Hero move packs + library preview (Daniel 2026-11-26).** Daniel's export of Epic's Paragon animations retargeted to
+UE5 Manny (FBX, ~5,400 clips over 32 heroes; licence checked by Daniel) = one pack per hero,
+`characters/ual_swordsman/paragon/<Hero>.glb` (same format as `ual_moves.glb`, plus scene extras `pb_pack` {hero, set};
+every clip except the `*_MSA` duplicates; category = the export's sub folder: Attack, Ability, Jog, Sprint, Emote, Aim
+offset ...). Built by `v3/tools/blender/paragon_moves.py <hero folder> bake.glb [--check]` (bpy; Manny has another
+rest (A-pose, 5 spine bones, cm) so each body bone takes the source bone's WORLD rotation after a rest alignment of its
+direction (head -> mapped child); Hips follows the pelvis path scaled by hip height, so root motion is kept; `--check`
+= worst bone-direction gap vs the source: 0 deg on limbs / neck, ~12 deg on the lower Spine chord (5 -> 3 spine
+bones, chest exact)) then `v3/tools/paragon_library.py bake.glb <Hero>` (key poses). Rig Forge 3D: **Move pack**
+dropdown in Pose + move library lists every pack found in the characters folder (Weapon moves + Paragon · <Hero>; one
+loaded at a time, last pick remembered); **Preview on click** (on by default): a click on a ▶ move plays it on the body
+from its own clip, looping, without touching the action (↑ ↓ step through the list, Enter = Apply, Esc / Stop preview /
+Play / a frame step / another action = back to the action). Update V3 always overwrites the hero packs (generated).
+
 **Root motion (2026-11-23).** V3 clips were all in place; travelling moves are now allowed. `glbody.js glbPrepRM`
 (at load): a clip whose hips end >= 0.25 m (ground plane) from where they started, and whose name is not a sim-driven
 clip (`GLB_RM_SKIP`: idle / run / ko / getup / hit_* / dodge / switch_* / jump / defend ...), has its hips' ground path
