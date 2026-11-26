@@ -260,11 +260,13 @@ details.adv[open] > summary { margin-bottom: 6px; }
       <h2 id="h-lib">Pose + move library</h2>
       <div class="row"><select id="libCat" class="grow" aria-label="Category"></select><input type="text" id="libQ" class="grow" placeholder="search…" aria-label="Search the library"></div>
       <div class="acts" id="libList" role="listbox" aria-label="Library"></div>
-      <div class="row"><button id="libApply" class="primary" disabled>Apply</button><button id="libApplyM" disabled>Apply mirrored</button></div>
+      <div class="row"><button id="libApply" class="primary" disabled>Apply</button><button id="libApplyM" disabled>Apply mirrored</button><button id="libPrevStop" hidden title="Stop the preview and show the action again (Esc)">Stop preview</button></div>
+      <label class="check"><input type="checkbox" id="libPrevOn" checked> Preview on click (plays the move on the body without changing the action; ↑ ↓ step through the list, Enter = Apply)</label>
       <label class="check"><input type="checkbox" id="libKeepLen" checked> Keep this action's length</label>
       <div class="row"><button id="libSavePose">+ Save pose</button><button id="libSaveMove">+ Save action as move</button><button id="libDel" class="danger" disabled>Delete</button></div>
       <div class="row"><button id="libExport">Export…</button><button id="libImport">Import…</button><input type="file" id="libFile" accept=".json,application/json" hidden></div>
-      <div class="row"><button id="libPack" title="characters/ual_swordsman/ual_moves.glb or ual_moves_drafts.glb (read from the characters folder by itself once it is connected; the drafts pack wins)">Load move pack…</button><span class="readout" id="libPackOut">Move pack: not loaded</span><input type="file" id="libPackFile" accept=".glb,model/gltf-binary" hidden></div>
+      <div class="row"><label for="libPackSel">Move pack</label><select id="libPackSel" class="grow" aria-label="Move pack" disabled><option value="">— connect the characters folder —</option></select></div>
+      <div class="row"><button id="libPack" title="characters/ual_swordsman/ual_moves.glb (weapon moves) or characters/ual_swordsman/paragon/&lt;Hero&gt;.glb (one Paragon hero's moves). Read from the characters folder by itself once it is connected; pick one in the list above">Load move pack…</button><span class="readout" id="libPackOut">Move pack: not loaded</span><input type="file" id="libPackFile" accept=".glb,model/gltf-binary" hidden></div>
     </section>
 
     <section aria-labelledby="h-wpn">
@@ -865,6 +867,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
   }
   function setClip(name, frame) {
     if (!S.mixer) return;
+    if (PREV) libPreviewEnd(true);
     S.mixer.stopAllAction();
     S.clip = name; $("clip").value = name;
     var a = S.mixer.clipAction(S.clips[name]);
@@ -875,6 +878,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
   }
   function setFrame(f) {
     if (!S.action) return;
+    if (PREV) { libPreviewEnd(true); var a1 = S.clips[S.clip] && S.mixer.clipAction(S.clips[S.clip]); if (a1) { a1.setLoop(THREE.LoopRepeat); a1.enabled = true; a1.setEffectiveWeight(1); a1.play(); S.action = a1; } }
     var n = frameCount(S.clips[S.clip]);
     S.frame = Math.max(0, Math.min(n, Math.round(f)));
     S.action.time = S.frame / FPS; S.action.paused = false;
@@ -883,6 +887,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     syncGizmo(); updateFrames(); updatePivotOut();
   }
   function setPlaying(p) {
+    if (PREV) libPreviewEnd();
     S.playing = p; $("play").textContent = p ? "Pause" : "Play"; $("play").setAttribute("aria-pressed", String(p));
     if (S.action) S.action.paused = !p;
     if (p) { tc.detach(); back.visible = false; } else syncGizmo();
@@ -2470,7 +2475,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     else if (k === " ") { e.preventDefault(); setPlaying(!S.playing); }
     else if (k === ",") { setPlaying(false); setFrame(S.frame - 1); }
     else if (k === ".") { setPlaying(false); setFrame(S.frame + 1); }
-    else if (k === "escape") select(null, null);
+    else if (k === "escape") { if (PREV) libPreviewEnd(); else select(null, null); }
     else if (k === "k" && S.root) { if (e.shiftKey) addPoseKey(); else addKey(); }
     else if ((k === "delete" || k === "backspace") && S.root) { e.preventDefault(); delKey(e.shiftKey); }
   });
@@ -2621,15 +2626,14 @@ details.adv[open] > summary { margin-bottom: 6px; }
   function chFill(list, folderName) {
     // move packs are never characters: ual_moves.glb and ual_moves_drafts.glb (the same moves + the authored moves
     // still waiting for approval) are hidden from the dropdown; the drafts pack is loaded when present (it has both)
-    var packs = list.filter(function (c) { return /(^|\/)ual_moves(_drafts)?\.glb$/i.test(c.rel); });
+    var packs = list.filter(function (c) { return /(^|\/)ual_moves(_drafts)?\.glb$/i.test(c.rel) || /(^|\/)ual_swordsman\/paragon\/[^\/]+\.glb$/i.test(c.rel); });
     list = list.filter(function (c) { return packs.indexOf(c) < 0; });
     // modelled weapons (characters/weapons3d/<id>.glb, weapons3d.js shape "mesh") are not characters either: they
     // feed the weapon editor's "Modelled" list and are read from here when a character holds one
     CH.weapons = list.filter(function (c) { return /(^|\/)weapons3d\/[^\/]+\.glb$/i.test(c.rel); });
     list = list.filter(function (c) { return CH.weapons.indexOf(c) < 0; });
     wpMeshList(); if (S.root) wpApply();
-    packs.sort(function (a, b) { return /_drafts/i.test(b.rel) - /_drafts/i.test(a.rel); });
-    if (packs.length) packFromEntry(packs[0]);
+    packList(packs);
     list.sort(function (a, b) { var x = chLabel(a.rel).toLowerCase(), y = chLabel(b.rel).toLowerCase(); return x < y ? -1 : x > y ? 1 : 0; });
     CH.list = list;
     var sel = $("charSel");
@@ -3444,6 +3448,93 @@ details.adv[open] > summary { margin-bottom: 6px; }
       .then(function (f) { return f.arrayBuffer().then(function (b) { packFromBuf(b, f.name, true); }); }).catch(function () {});
   }
   chDb("readonly", function (st) { return st.get("movepack"); }).then(function (v) { if (v && v.buf && !PACK.anims.length) packFromBuf(v.buf, v.name, false); }).catch(function () {});
+  /* every move pack in the characters folder (Daniel 2026-11-26): the weapon moves (ual_moves.glb; the drafts pack wins
+     when present) + one Paragon hero per pack (characters/ual_swordsman/paragon/<Hero>.glb, v3/tools/paragon_library.py).
+     One pack is loaded at a time (the hero packs are big); the last pick is remembered. */
+  var PACKS = [];
+  function packLabel(rel) {
+    var m = /paragon\/([^\/]+)\.glb$/i.exec(rel);
+    return m ? "Paragon · " + m[1].replace(/_/g, " ") : /_drafts/i.test(rel) ? "Weapon moves (with drafts)" : "Weapon moves";
+  }
+  function packList(packs) {
+    var drafts = packs.some(function (c) { return /ual_moves_drafts\.glb$/i.test(c.rel); });
+    PACKS = packs.filter(function (c) { return !(drafts && /ual_moves\.glb$/i.test(c.rel)); });
+    PACKS.sort(function (a, b) {
+      var x = /paragon\//i.test(a.rel), y = /paragon\//i.test(b.rel);
+      if (x !== y) return x - y;
+      var u = packLabel(a.rel).toLowerCase(), v = packLabel(b.rel).toLowerCase(); return u < v ? -1 : u > v ? 1 : 0;
+    });
+    var sel = $("libPackSel"), last = null;
+    try { last = localStorage.getItem("rf3d_pack"); } catch (e) {}
+    sel.innerHTML = PACKS.length ? PACKS.map(function (c, i) { return '<option value="' + i + '" title="' + esc(c.rel) + '">' + esc(packLabel(c.rel)) + "</option>"; }).join("")
+      : '<option value="">No move packs in this folder</option>';
+    sel.disabled = !PACKS.length;
+    if (!PACKS.length) return;
+    var i = 0; PACKS.forEach(function (c, j) { if (c.rel === last) i = j; });
+    sel.value = String(i); packFromEntry(PACKS[i]);
+  }
+  $("libPackSel").onchange = function () {
+    var c = PACKS[+this.value]; if (!c) return;
+    try { localStorage.setItem("rf3d_pack", c.rel); } catch (e) {}
+    libPreviewEnd(); LIB.sel = null;
+    $("libPackOut").textContent = "Move pack: loading " + packLabel(c.rel) + "…";
+    packFromEntry(c);
+  };
+  /* preview (Daniel 2026-11-26): a click on a ▶ move plays it on the body straight from its clip, looping, without
+     touching the action; Apply / Stop preview / Esc / Play / a frame step / another action ends it */
+  var PREV = null;
+  function stockClip(it) {
+    var st = it.pack ? PACK : BODY.stock, name = it.clip || it.name, c = null; if (!st) return null;
+    st.anims.forEach(function (a) { if (a.name === name) c = a; });
+    return c;
+  }
+  function libPreview(it) {
+    if (!S.mixer || !S.root || !it || it.kind !== "move" || !$("libPrevOn").checked) return;
+    var c = it.stock ? stockClip(it) : null;
+    if (it.stock && !c) return;
+    if (!c) {                                                   /* a saved move: key poses -> a temporary clip */
+      var tr = [], ms = Math.max(100, it.ms || 1000);
+      Object.keys(it.keys || {}).forEach(function (bn) {
+        var b = S.bones[bn], k = it.keys[bn]; if (!b) return;
+        if (k.rot && k.rot.length) tr.push(new THREE.QuaternionKeyframeTrack(b.name + ".quaternion", k.rot.map(function (x) { return x.t * ms / 1000; }), [].concat.apply([], k.rot.map(function (x) { return x.q; }))));
+        if (k.pos && k.pos.length) tr.push(new THREE.VectorKeyframeTrack(b.name + ".position", k.pos.map(function (x) { return x.t * ms / 1000; }), [].concat.apply([], k.pos.map(function (x) { return x.v; }))));
+      });
+      if (!tr.length) return;
+      c = new THREE.AnimationClip("__libprev", ms / 1000, tr);
+    }
+    if (PREV && PREV.clip === c) return;
+    libPreviewEnd(true);
+    S.mixer.stopAllAction();
+    tc.detach(); back.visible = false;
+    var a = S.mixer.clipAction(c); a.setLoop(THREE.LoopRepeat); a.enabled = true; a.setEffectiveWeight(1); a.play();
+    PREV = {clip: c, action: a, temp: c.name === "__libprev"};
+    $("libPrevStop").hidden = false;
+    status("Preview: " + it.name + " (" + it.cat + ", " + c.duration.toFixed(2) + " s). The action is unchanged; Apply to use it, Esc to stop.");
+  }
+  function libPreviewEnd(quiet) {
+    if (!PREV) return;
+    var p = PREV; PREV = null;
+    p.action.stop();
+    if (p.temp) { S.mixer.uncacheAction(p.clip); S.mixer.uncacheClip(p.clip); }
+    $("libPrevStop").hidden = true;
+    if (!quiet && S.clip && S.clips[S.clip]) {                  /* back to the action, where it was */
+      var a = S.mixer.clipAction(S.clips[S.clip]); a.setLoop(THREE.LoopRepeat); a.enabled = true; a.setEffectiveWeight(1); a.play();
+      S.action = a; setFrame(S.frame); if (!S.playing) syncGizmo();
+    }
+  }
+  $("libPrevStop").onclick = function () { libPreviewEnd(); };
+  $("libPrevOn").onchange = function () { if (!this.checked) libPreviewEnd(); };
+  $("libList").addEventListener("keydown", function (e) {
+    var rows = Array.prototype.slice.call($("libList").querySelectorAll("[role=option]")); if (!rows.length) return;
+    var i = -1; rows.forEach(function (r, j) { if (r.dataset.id === LIB.sel) i = j; });
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault(); e.stopPropagation();
+      i = Math.max(0, Math.min(rows.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)));
+      LIB.sel = rows[i].dataset.id; libMark(); rows[i].focus(); rows[i].scrollIntoView({block: "nearest"});
+      libPreview(libFind(LIB.sel));
+    } else if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); libApply(false); }
+    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); libPreviewEnd(); }
+  });
   function libAll() { return LIB.items.concat(stockItems()); }
   function libBuild() {
     var cats = {}; libAll().forEach(function (it) { cats[it.cat] = 1; });
@@ -3460,7 +3551,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
         '</span><span class="ms">' + esc(it.cat) + (it.kind === "move" ? " · " + (it.ms / 1000).toFixed(2) + " s" : "") + "</span></div>";
     }).join("") : '<div class="note" style="padding:6px 8px">Nothing here yet.</div>';
     Array.prototype.forEach.call($("libList").querySelectorAll("[role=option]"), function (r) {
-      r.onclick = function () { LIB.sel = r.dataset.id; libMark(); };
+      r.onclick = function () { LIB.sel = r.dataset.id; libMark(); r.focus(); libPreview(libFind(LIB.sel)); };
       r.ondblclick = function () { LIB.sel = r.dataset.id; libApply(false); };
     });
     lb.scrollTop = lsc;
@@ -3536,6 +3627,8 @@ details.adv[open] > summary { margin-bottom: 6px; }
   }
   function libApply(mirror) {
     var it = libFind(LIB.sel); if (!it || !S.root || !S.clip) return;
+    libPreviewEnd(true);
+    if (S.clips[S.clip]) { var a0 = S.mixer.clipAction(S.clips[S.clip]); a0.setLoop(THREE.LoopRepeat); a0.enabled = true; a0.setEffectiveWeight(1); a0.play(); S.action = a0; }
     setPlaying(false);
     if (it.kind === "pose") {
       var keep = S.board; S.board = {items: it.items, whole: true, what: "pose “" + it.name + "”", from: "library"};
@@ -3725,7 +3818,8 @@ details.adv[open] > summary { margin-bottom: 6px; }
     requestAnimationFrame(loop);
     resize();
     var dt = Math.min(clock.getDelta(), 0.05);
-    if (S.mixer && S.playing) {
+    if (S.mixer && PREV) S.mixer.update(dt * S.speed);
+    else if (S.mixer && S.playing) {
       S.mixer.update(dt * S.speed);
       var f = Math.round(S.action.time * FPS);
       if (f !== S.frame) { S.frame = f; updateFrames(); }

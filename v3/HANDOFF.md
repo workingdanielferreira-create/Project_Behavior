@@ -199,6 +199,11 @@ heavy combo / block as library copies, Shield 4, Unarmed 3 (hook, throw), Moveme
 Reactions 2 (knockback, get up)); `fbx_moves.py <fbx> <out> UAL2`. Checked vs the body's UAL2 clips: 0.9 - 2.8 cm.
 Pack = 76 mocap moves. Skipped: T-pose, chest, consume, farm, fold-arms / lantern / rail / phone idles, yes / no,
 tree chopping, carry walk, zombie.
+Paragon upload (Daniel 2026-11-26, Google Drive zip of FBX exported from UE: `ParagonAnimationsRetargetedToManny/<Hero>Manny/<kind>/*.FBX`,
+5,385 files, 32 heroes; his first zip was the whole UE project = .uasset only, unusable): Daniel chose one pack per hero
+with EVERY clip (no picks) + a library preview to browse them; he checked the licence. Done: `blender/paragon_moves.py`
++ `paragon_library.py` -> `characters/ual_swordsman/paragon/<Hero>.glb`; Rig Forge 3D Move pack dropdown + Preview on
+click (README "Hero move packs + library preview"). The zip is NOT in the repo (re-share it to rebuild).
 Move classes (Daniel 2026-11-23): he likes the body's attack_normal / attack_normal_2 / attack_special / ultimate
 (Quaternius UAL2 mocap: urgency, decisiveness, fluidity) and wants many more at that level in classes Aggressive,
 Stylish, Defensive, Counter. Free capture is exhausted (UAL2 Standard's sword clips are all already used; UAL PRO is
