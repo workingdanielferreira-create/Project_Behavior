@@ -197,6 +197,13 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
       <div id="toonForm"></div>
     </section>
 
+    <section id="secTfx" hidden><h2>Transformation <small id="tfxOut"></small></h2>
+      <p class="note">This effect's own settings: the aura's shape, flames, colours, lightning, charge, burst and ground, each live. Hover a label for what it does.</p>
+      <div class="row"><label for="tfxPrev" title="Aura only = the preview skips the charge and burst so the aura burns the whole action (for tuning its look); nothing is saved from this">Preview plays</label>
+        <select id="tfxPrev"><option value="all">the whole transformation</option><option value="aura">the aura only (hold it to tune)</option></select></div>
+      <div id="tfxForm"></div>
+    </section>
+
     <section id="secLook"><h2>Look &amp; timing</h2><div id="lookForm"></div></section>
     <section id="secMotion" class="folded"><h2>FX movement</h2><div id="motionForm"></div></section>
     <section id="secHit"><h2>Damage</h2><div id="hitForm"></div></section>
@@ -403,7 +410,7 @@ async function openChar(i) {
     S.fighter = await makeBody(own, new THREE.Color(pal.body || '#8a8fb0').getHex(), melee, meta.weapons || null);
     S.dummy = await makeBody(null, 0x6a7088, false, null);
     stripRootMotion(S.fighter);
-    S.runner = new FX3D.Runner({fx: F, palette: pal, anchors3d: S.anchors3d, scene,
+    S.runner = new FX3D.Runner({fx: previewF(F), palette: pal, anchors3d: S.anchors3d, scene,
       onHit: (ref, dmg, kb, inst) => onHit(dmg, kb, inst), onHitstop: () => {}, onShake: () => {}});
     try { localStorage.setItem('pbFx3dChar', c.name); } catch (e) {}
     $('drop').hidden = true; $('save').disabled = false;
@@ -425,11 +432,11 @@ function pushUndo() { if (!S.F) return; S.undo.push(snapshot()); if (S.undo.leng
 function beginEdit() { if (!S.editing) { pushUndo(); S.editing = true; } clearTimeout(beginEdit.t); beginEdit.t = setTimeout(() => { S.editing = false; }, 700); }
 function syncUndo() { $('undo').disabled = !S.undo.length; $('redo').disabled = !S.redo.length; $('save').textContent = S.dirty ? 'Save •' : 'Save'; }
 function changed(structural) {
-  S.dirty = true; syncUndo(); if (S.runner) S.runner.reload(S.F); S.simK = -1; S.plan = null; S.tailMs = null;
+  S.dirty = true; syncUndo(); if (S.runner) S.runner.reload(previewF(S.F)); S.simK = -1; S.plan = null; S.tailMs = null;
   if (structural) { buildActs(); buildFxList(); buildForms(); } else { buildBars(); syncJson(); updateCounts(); }
 }
 function restore(js) { const cur = curFx(), id = cur && cur.id; S.F = JSON.parse(js); syncSprint(); $('flight').checked = !!(S.F.flight && S.F.flight.enabled);
-  S.sel = (S.F.effects || []).findIndex(e => id && e.id === id); if (S.sel < 0) { const l = fxOf(S.act); S.sel = l.length ? l[l.length - 1][1] : -1; } S.dirty = true; if (S.runner) S.runner.reload(S.F); S.simK = -1; S.plan = null; S.tailMs = null; buildActs(); buildFxList(); buildForms(); syncUndo(); }
+  S.sel = (S.F.effects || []).findIndex(e => id && e.id === id); if (S.sel < 0) { const l = fxOf(S.act); S.sel = l.length ? l[l.length - 1][1] : -1; } S.dirty = true; if (S.runner) S.runner.reload(previewF(S.F)); S.simK = -1; S.plan = null; S.tailMs = null; buildActs(); buildFxList(); buildForms(); syncUndo(); }
 $('undo').onclick = () => { if (!S.undo.length) return; S.redo.push(snapshot()); restore(S.undo.pop()); };
 $('redo').onclick = () => { if (!S.redo.length) return; S.undo.push(snapshot()); restore(S.redo.pop()); };
 async function save() {
@@ -726,8 +733,31 @@ function buildForms() {
   form($('lookForm'), LOOK, v, writeFx, (r) => { if (r.s) { buildFxList(); } }, keyedFx);
   form($('motionForm'), MOTION, v, writeFx, null, keyedFx);
   form($('hitForm'), HIT, v, writeFx, null, keyedFx);
+  buildTfx(v);
   buildParams(); syncJson(); buildBars(); updateCounts(); syncGizmo();
 }
+/* FX-specific settings panel (HYPERFX.UI[style], hyperfx.js): labelled groups for the picked effect's style. Missing
+   settings show their defaults (older effects), a write stores the value on the effect's params. */
+function buildTfx(v) {
+  const st = (v.params || {}).style, H = window.HYPERFX, ui = H && H.UI && H.UI[st];
+  $('secTfx').hidden = !ui; if (!ui) { $('tfxForm').innerHTML = ''; return; }
+  const vv = clone(v); vv.params = Object.assign({}, H.DEFAULTS[st] || {}, v.params);
+  const spec = [];
+  ui.forEach(([g, rows]) => { spec.push({l: g, t: 'h'});
+    rows.forEach(([k, l, t, o, h]) => { const r = {l, p: 'params.' + k, t, h: h || undefined};
+      if (t === 'rng') { r.min = o[0]; r.max = o[1]; r.step = o[2]; } if (t === 'sel') r.o = o.map(x => [String(x[0]), x[1]]); spec.push(r); }); });
+  form($('tfxForm'), spec, vv, (p, val) => writeFx(p, p === 'params.stage' ? +val : val), null, keyedFx);
+  $('tfxOut').textContent = (H.NAMES && H.NAMES[st]) || st;
+}
+// Preview "aura only": the runner plays a copy with the transformations' charge + burst off (never saved)
+function previewF(F) {
+  if (S.tfxPrev !== 'aura' || !F || !window.HYPERFX) return F;
+  const C = JSON.parse(JSON.stringify(F));
+  (C.effects || []).forEach(e => { if (e && e.params && HYPERFX.isTransform(e.params.style)) { e.params.charge = false; e.params.burst = false; } });
+  return C;
+}
+$('tfxPrev').onchange = function () { S.tfxPrev = this.value; if (S.runner) S.runner.reload(previewF(S.F)); S.simK = -1; S.tailMs = null; buildBars();
+  status(this.value === 'aura' ? 'Preview: the aura burns the whole action (charge and burst skipped, nothing saved).' : 'Preview: the whole transformation.'); };
 function updateCounts() { const e = curFx(); if (!e) return; const c = FX3D.cfg3d(e); $('placeOut').textContent = FX3D.layOf(FXK.normalize(clone(e)), c) + (c.anchor ? ' · ' + c.anchor : ' · ' + (e.anchor || 'figure')); }
 function buildParams() {
   const e = curFx(); if (!e) return; const v = FXK.normalize(clone(e)), q = $('pFilter').value.trim().toLowerCase();
@@ -879,7 +909,7 @@ tc.addEventListener('objectChange', () => {
   if (g === 'dummy') { const p = gizmoObj.position; DUM.dist = Math.max(0.3, Math.hypot(p.x, p.z)); DUM.ang = Math.round(Math.atan2(-p.z, p.x) * 180 / Math.PI); DUM.h = Math.max(0, p.y); syncDummyUi(); S.simK = -1; S.plan = null; S.tailMs = null; return; }
   const e = curFx(); if (!e) return; const b = fxBase(e); if (!b) return; const A = laneAxes(), d = gizmoObj.position.clone().sub(b);
   const off = [d.dot(A.X), d.dot(A.Y), d.dot(A.L)].map(v => Math.round(v * 1000) / 1000);
-  e.fx3d = Object.assign({}, e.fx3d || {}, {offset: off}); S.dirty = true; syncUndo(); if (S.runner) S.runner.reload(S.F); S.simK = -1;
+  e.fx3d = Object.assign({}, e.fx3d || {}, {offset: off}); S.dirty = true; syncUndo(); if (S.runner) S.runner.reload(previewF(S.F)); S.simK = -1;
 });
 tc.addEventListener('mouseUp', () => { if ($('gizmo').value === 'fx') { buildForms(); } });
 

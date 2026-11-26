@@ -225,6 +225,86 @@ function makeToon(scene, kind, sides) {
   m.renderOrder = 4; h.renderOrder = 5; m.frustumCulled = h.frustumCulled = false; scene.add(m); scene.add(h);
   return {key: kind + sides, m, h, used: false};
 }
+/* ---- the transformation's flame sheath (Daniel 2026-11-26: "make it look like an actual aura", hyperfx.js shape "aura")
+   One open unit cylinder (y 0 feet .. 1 top) shaped in the vertex shader into a teardrop shell hugging the body
+   (uBaseW width at the feet, uTop how far the top closes), its top torn up into flame tongues by noise rising over time
+   (uFlames round it, uTongue length, uSpeed, uChaos), leaning with the fighter's move (uLean, world m at the top). The
+   fragment shader cuts gaps between the tongues (uGaps) with a crisp cel edge (uSharp), bands the colour from deep to hot
+   by how much the surface turns away from the camera (a bright rim, a see-through middle: uRim / uInner, uBands), and
+   fades near the camera like every 3D FX. The noise is sampled on (cos, sin) of the angle, so there is no seam. */
+const AURA_NOISE = [
+  'float hh( vec3 p ) { p = fract( p * 0.3183099 + 0.1 ); p *= 17.0; return fract( p.x * p.y * p.z * ( p.x + p.y + p.z ) ); }',
+  'float vn( vec3 x ) { vec3 i = floor( x ), f = fract( x ); f = f * f * ( 3.0 - 2.0 * f );',
+  '  return mix( mix( mix( hh( i ), hh( i + vec3( 1, 0, 0 ) ), f.x ), mix( hh( i + vec3( 0, 1, 0 ) ), hh( i + vec3( 1, 1, 0 ) ), f.x ), f.y ),',
+  '             mix( mix( hh( i + vec3( 0, 0, 1 ) ), hh( i + vec3( 1, 0, 1 ) ), f.x ), mix( hh( i + vec3( 0, 1, 1 ) ), hh( i + vec3( 1, 1, 1 ) ), f.x ), f.y ), f.z ); }',
+  'float fbm( vec3 p, float ch ) { return 0.6 * vn( p ) + 0.28 * ch * vn( p * 2.07 + 5.3 ) + 0.12 * ch * vn( p * 4.3 + 1.7 ); }',
+  'vec3 fp( float a, float y, float k, float tsp ) { return vec3( cos( a ) * k, sin( a ) * k, y * 2.2 - tsp ); }'].join('\n');
+const AURA_VS = [
+  'uniform float uR; uniform float uH; uniform float uBaseW; uniform float uTop; uniform float uFlames; uniform float uTongue;',
+  'uniform float uT; uniform float uSpeed; uniform float uChaos; uniform float uSeed; uniform vec3 uLean; uniform vec4 uBend;',
+  'varying float vY; varying float vAng; varying vec3 vN; varying vec3 vV; varying float vD; varying float vTip;',
+  AURA_NOISE,
+  'vec3 bendP( vec3 p ) {',
+  '  if ( uBend.w <= 0.0 ) return p;',
+  '  vec2 d = p.xz - uBend.xz; float r = length( d ); if ( r < 1e-5 ) return p;',
+  '  float th = r / uBend.w, rr = uBend.w + p.y; vec2 dir = d / r;',
+  '  return vec3( uBend.x + dir.x * sin( th ) * rr, cos( th ) * rr - uBend.w, uBend.z + dir.y * sin( th ) * rr );',
+  '}',
+  'float prof( float y ) {',   // the teardrop: from the feet out to the widest just below the chest, then closing over the head
+  '  float w = mix( uBaseW, 1.0, smoothstep( 0.0, 0.32, y ) );',
+  '  return w * ( 1.0 - uTop * pow( clamp( ( y - 0.38 ) / 0.62, 0.0, 1.0 ), 1.7 ) );',
+  '}',
+  'void main() {',
+  '  float y = position.y + 0.5, a = atan( position.z, position.x );',
+  '  float tsp = uT * 0.045 * uSpeed;',
+  '  float k = uFlames / 6.2832 * 1.6;',
+  '  float n = fbm( fp( a, y, k, tsp ) + uSeed, uChaos );',
+  '  float tongue = pow( max( 0.0, n - 0.3 ) / 0.7, 1.3 ) * uTongue * 1.7 * smoothstep( 0.3, 1.0, y );',   // tongues shoot up near the top
+  '  float wob = 1.0 + uChaos * 0.16 * ( fbm( fp( a, y * 1.3, k * 0.7, tsp * 1.3 ) + uSeed + 9.1, uChaos ) - 0.5 );',
+  '  float r = prof( y ) * wob * ( 1.0 - 0.55 * clamp( tongue, 0.0, 1.0 ) );',   // a tongue narrows as it rises
+  '  float yy = y + tongue * 0.6;',
+  '  vec3 p = vec3( cos( a ) * r * uR, yy * uH, sin( a ) * r * uR ) + uLean * yy * yy;',
+  '  vec4 wp = modelMatrix * vec4( p, 1.0 );',
+  '  vec3 nw = normalize( vec3( cos( a ), 0.35 * ( 0.5 - y ) + 0.4 * tongue, sin( a ) ) );',
+  '  vec3 bp = bendP( wp.xyz );',
+  '  vec4 mv = viewMatrix * vec4( bp, 1.0 );',
+  '  vN = normalize( ( viewMatrix * vec4( nw, 0.0 ) ).xyz ); vV = normalize( -mv.xyz ); vD = -mv.z;',
+  '  vY = yy; vAng = a; vTip = tongue;',
+  '  gl_Position = projectionMatrix * mv;',
+  '}'].join('\n');
+const AURA_FS = [
+  'uniform vec3 uCol; uniform vec3 uHot; uniform vec3 uEdge; uniform float uAlpha; uniform float uRim; uniform float uInner; uniform float uBands;',
+  'uniform float uGaps; uniform float uSharp; uniform float uFlames; uniform float uT; uniform float uSpeed; uniform float uChaos; uniform float uSeed;',
+  'varying float vY; varying float vAng; varying vec3 vN; varying vec3 vV; varying float vD; varying float vTip;',
+  AURA_NOISE,
+  'void main() {',
+  '  float nf = smoothstep( 0.35, 1.8, vD ); if ( nf <= 0.0 ) discard;',
+  '  float tsp = uT * 0.045 * uSpeed, k = uFlames / 6.2832 * 1.6;',
+  // flame density: noise rising with time, denser at the roots, thinning out toward the tips
+  '  float n = fbm( fp( vAng, vY, k * 1.4, tsp * 1.15 ) + uSeed + 3.7, uChaos );',
+  '  float dens = n + ( 1.0 - clamp( vY, 0.0, 1.4 ) ) * 0.55 - uGaps * 0.55 + 0.12;',
+  '  float soft = mix( 0.22, 0.015, uSharp );',
+  '  float m = smoothstep( 0.5 - soft, 0.5 + soft, dens );',
+  '  m *= 1.0 - smoothstep( 1.05, 1.5, vY );',   // the very tips burn off
+  '  if ( m <= 0.01 ) discard;',
+  '  float f = 1.0 - abs( dot( normalize( vN ), normalize( vV ) ) );',   // 0 facing the camera .. 1 at the silhouette
+  '  float i = clamp( mix( uInner, 1.0, pow( f, 1.6 ) ) * uRim + ( dens - 0.5 ) * 0.6 + smoothstep( 0.6, 1.3, vY ) * 0.45, 0.0, 1.0 );',   // tips burn hot
+  '  float b = uBands > 1.0 ? floor( i * uBands ) / ( uBands - 1.0 ) : 1.0; b = clamp( b, 0.0, 1.0 );',
+  '  vec3 c = b < 0.5 ? mix( uEdge, uCol, b * 2.0 ) : mix( uCol, uHot, ( b - 0.5 ) * 2.0 );',
+  '  float al = uAlpha * m * nf * mix( uInner, 1.0, pow( f, 1.2 ) );',
+  '  gl_FragColor = vec4( c, clamp( al, 0.0, 1.0 ) );',
+  '}'].join('\n');
+let AURA_GEO = null;
+function makeAura(scene) {
+  if (!AURA_GEO) AURA_GEO = new THREE.CylinderGeometry(1, 1, 1, 72, 48, true);
+  const U0 = () => ({uR: {value: 1}, uH: {value: 1}, uBaseW: {value: 0.6}, uTop: {value: 0.75}, uFlames: {value: 7}, uTongue: {value: 1},
+    uT: {value: 0}, uSpeed: {value: 1}, uChaos: {value: 1}, uSeed: {value: 0}, uLean: {value: new THREE.Vector3()}, uBend: {value: bendRef()},
+    uCol: {value: new THREE.Color()}, uHot: {value: new THREE.Color()}, uEdge: {value: new THREE.Color()}, uAlpha: {value: 1}, uRim: {value: 1},
+    uInner: {value: 0.2}, uBands: {value: 3}, uGaps: {value: 0.4}, uSharp: {value: 0.8}});
+  const mat = new THREE.ShaderMaterial({uniforms: U0(), vertexShader: AURA_VS, fragmentShader: AURA_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide});
+  const m = new THREE.Mesh(AURA_GEO, mat); m.frustumCulled = false; m.renderOrder = 3; scene.add(m);
+  return {m, used: false};
+}
 const _col = new THREE.Color(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _d = new THREE.Vector3(), _bx = new THREE.Matrix4();
 function rgb01(c, out) { return out.setRGB(Math.max(0, Math.min(255, c[0])) / 255, Math.max(0, Math.min(255, c[1])) / 255, Math.max(0, Math.min(255, c[2])) / 255); }
 // nearest point to (x, y) on the polyline pts [[x, y] ...]
@@ -252,7 +332,7 @@ const UPV = new THREE.Vector3(0, 1, 0);
 /* o = {fx: fxkit json, palette {body, accent}, anchors3d: pb_rig3d anchors or null, scene,
         onHit(enemyRef, damage, knockback, inst), onHitstop(ticks), onShake(px)} */
 function Runner(o) {
-  this.o = o; this.by = byAction(o.fx); this.lanes = []; this.cards = []; this.toons = []; this.ctx = null; this.cur = null;
+  this.o = o; this.by = byAction(o.fx); this.lanes = []; this.cards = []; this.toons = []; this.auras = []; this.ctx = null; this.cur = null;
   this.hurtNow = null; this.curEnemy = null; this.laneId = 0;
   const F = o.fx || {}, pal = o.palette || {}, rgb = h => FXK.hexRgb(h || '#ffffff', [255, 255, 255]), sp = F.space || {};
   this.lut = FXK.buildLut([rgb(pal.body), rgb(pal.accent)]);
@@ -272,12 +352,13 @@ function Runner(o) {
     onHit(inst, dmg, dx, dy, kb) { const e = R.curEnemy; if (e && o.onHit) o.onHit(e.ref, dmg, kb, inst); }};
 }
 Runner.prototype.reload = function (fx) { this.o.fx = fx; this.by = byAction(fx); };
-Runner.prototype.reset = function () { this.lanes = []; this.cards.forEach(c => { c.mesh.visible = false; }); this.toons.forEach(t => { t.m.visible = t.h.visible = false; }); };
+Runner.prototype.reset = function () { this.lanes = []; this.cards.forEach(c => { c.mesh.visible = false; }); this.toons.forEach(t => { t.m.visible = t.h.visible = false; }); this.auras.forEach(a => { a.m.visible = false; }); };
 Runner.prototype.clear = function () {
   this.lanes = [];
   this.toons.forEach(t => { [t.m, t.h].forEach(x => { if (x.parent) x.parent.remove(x); x.material.dispose(); }); if (t.key === 'band0') t.m.geometry.dispose(); }); this.toons = [];
   this.cards.forEach(c => { if (c.mesh.parent) c.mesh.parent.remove(c.mesh); c.tex.dispose(); c.mat.dispose(); c.mesh.geometry.dispose(); });
   this.cards = [];
+  this.auras.forEach(a => { if (a.m.parent) a.m.parent.remove(a.m); a.m.material.dispose(); }); this.auras = [];
 };
 Runner.prototype.liveCount = function () { let n = 0; this.lanes.forEach(l => { n += l.player.insts.length; }); return n; };
 // world point -> a lane's 2D frame (px, y down)
@@ -937,10 +1018,28 @@ Runner.prototype.drawHyper = function (l, inst, xf) {
       this.sphere(cc, P0, e.r * Us, e.c, e.a, ink, st);
     } else if (e.k === 'tube') this.tube(cc, P0, w(e.q, new THREE.Vector3()), e.r * Us, e.r1 * Us, e.c, e.a, ink);
     else if (e.k === 'ring') this.torus(cc, 'ring', P0, dirW(e.n, new THREE.Vector3()), e.r * Us, 1, 0, e.c, e.a, ink);
+    else if (e.k === 'aura') this.aura3(c, P0, e, Us, inst.age, w);
     else {   // a chunk (shard / cube / ball)
       const t = this.paint(this.toon(e.k, 0), cc, e.c, e.a, ink), rt = e.rot || [0, 0, 0];
       [t.m, t.h].forEach(x => { x.position.copy(P0); x.rotation.set(rt[0], rt[1], rt[2]); x.scale.setScalar(e.r * Us); x.material.uniforms.uTaper.value = 0; });
     }
+  }
+};
+// the flame sheath (+ its inner hot layer): e = hyperfx.js shape {p feet, r, h, lean (px), c main, hot, edge, a, look}
+Runner.prototype.aura3 = function (c, P0, e, Us, age, w) {
+  const L = e.look || {}, lean = w(e.lean || [0, 0, 0], new THREE.Vector3()).sub(w([0, 0, 0], new THREE.Vector3()));
+  const layers = L.layer2 ? [[1, e.c, e.edge || e.c, e.hot || e.c, 1, 0], [0.72, e.hot || e.c, e.c, [255, 255, 255], 0.75, 4.3]] : [[1, e.c, e.edge || e.c, e.hot || e.c, 1, 0]];
+  for (const [k, cm, ce, ch, ak, sd] of layers) {
+    let A = this.auras.find(x => !x.used); if (!A) { A = makeAura(this.o.scene); this.auras.push(A); }
+    A.used = true; const m = A.m, u = m.material.uniforms; m.visible = true;
+    m.position.copy(P0); m.quaternion.identity(); m.scale.set(1, 1, 1);
+    m.material.blending = L.additive ? THREE.AdditiveBlending : THREE.NormalBlending;
+    u.uR.value = e.r * Us * k; u.uH.value = e.h * Us * (0.55 + 0.45 * k); u.uBaseW.value = num(L.base, 0.6); u.uTop.value = Math.min(1, num(L.top, 0.75));
+    u.uFlames.value = num(L.flames, 7); u.uTongue.value = num(L.tongue, 1); u.uT.value = age; u.uSpeed.value = num(L.speed, 1) * (k < 1 ? 1.25 : 1);
+    u.uChaos.value = num(L.chaos, 1); u.uSeed.value = num(L.seed, 0) + sd; u.uLean.value.copy(lean).multiplyScalar(k < 1 ? 0.8 : 1); u.uBend.value = bendRef();
+    rgb01(cm, u.uCol.value); rgb01(ch, u.uHot.value); rgb01(ce, u.uEdge.value);
+    u.uAlpha.value = Math.max(0, Math.min(1, e.a * num(L.opacity, 0.75) * ak * c.toon_alpha_pct / 100)); u.uRim.value = num(L.rim, 1);
+    u.uInner.value = Math.min(1, num(L.inner, 0.18)); u.uBands.value = Math.max(1, num(L.bands, 3)); u.uGaps.value = Math.min(1, num(L.gaps, 0.4)); u.uSharp.value = Math.min(1, num(L.sharp, 0.8));
   }
 };
 Runner.prototype.drawSerious = function (l, inst, xf, c0, gk) {
@@ -1859,8 +1958,8 @@ Runner.prototype.drawKi = function (l, inst, xf) {
 /* Paint every live effect onto its card(s) and place them. cam = the THREE camera, H = drawing buffer height (px).
    opts.hidden: hide body-bound FX (blinked out). */
 Runner.prototype.draw = function (cam, H, opts) {
-  const ctx = this.ctx; this.cards.forEach(c => { c.used = false; }); this.toons.forEach(t => { t.used = false; });
-  if (!ctx) { this.cards.forEach(c => { c.mesh.visible = false; }); this.toons.forEach(t => { t.m.visible = t.h.visible = false; }); return; }
+  const ctx = this.ctx; this.cards.forEach(c => { c.used = false; }); this.toons.forEach(t => { t.used = false; }); this.auras.forEach(a => { a.used = false; });
+  if (!ctx) { this.cards.forEach(c => { c.mesh.visible = false; }); this.toons.forEach(t => { t.m.visible = t.h.visible = false; }); this.auras.forEach(a => { a.m.visible = false; }); return; }
   const hidden = !!(opts && opts.hidden), tanH = Math.tan(cam.fov * Math.PI / 360); this._camPos = cam.position;
   _cr.set(1, 0, 0).applyQuaternion(cam.quaternion); _cu.set(0, 1, 0).applyQuaternion(cam.quaternion); _cf.set(0, 0, 1).applyQuaternion(cam.quaternion);
   const groups = new Map(), solid = [];
@@ -1916,6 +2015,7 @@ Runner.prototype.draw = function (cam, H, opts) {
   this.cur = null;
   this.cards.forEach(c => { if (!c.used) c.mesh.visible = false; });
   this.toons.forEach(t => { if (!t.used) t.m.visible = t.h.visible = false; });
+  this.auras.forEach(a => { if (!a.used) a.m.visible = false; });
 };
 /* Debug outline of where each live effect lies (FX Studio 3D): [{P (pivot), ax, ay, w, h, lay}] */
 Runner.prototype.planes = function () {

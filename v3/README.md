@@ -594,14 +594,25 @@ with no damage; three stages.
   streaks, radiating bolts (stage 2 / 3), rocks flung and dust rolling out, the camera kick. Enemies within `radius` are
   pushed away ONCE with no damage, no hit flash: `battle.damage` 0 + `knockback` (40, stage 3 55) -> `fxlive.js fxShove`
   (velocity away + a 280 ms stagger). With damage > 0 it is an ordinary hit. FX Studio 3D's dummy shows PUSH.
-- **Flame aura** (`aura`, `aura_s` = seconds it stays after the burst, 20): a see-through egg, flame licks born round the
-  body at a new spot every cycle (rising, bellying out, curling in, flickering every 2 ticks), a crown of tall points over
-  the head, motes, the air swirling round the feet; it fades out over ~0.6 s. It stands on the fighter's LIVE body
-  centre whatever it does next (other actions, running, jumping) and the flames stream behind it when it moves. Its lane
-  is never the one dropped when a fighter has more than 8 FX lanes. K.O. / tag-out clears it.
+- **Flame aura** (`aura`, `aura_s` = seconds it stays after the burst, 20). Rebuilt 2026-11-26 (Daniel: the first one, solid
+  cones, looked "like a bunch of bananas"): ONE flame sheath (`fx3d.js` `makeAura` / `aura3`, hyperfx shape `aura`) = a
+  teardrop shell hugging the body, its top torn into rising flame tongues by noise moving over time (vertex shader), gaps cut
+  between tongues with a crisp cel edge, colour banded deep -> main -> hot from the middle to a bright rim, see-through over
+  the body, tips burning hot, an optional tighter inner hot layer, additive glow by default; + rising sparks, the air
+  swirling round the feet, arcs. It stands on the fighter's LIVE body centre whatever it does next and trails behind it when
+  it moves; fades out over ~0.6 s; its lane is never the one dropped when a fighter has more than 8 FX lanes; K.O. / tag-out
+  clears it. No seam (noise sampled on cos / sin of the angle); follows the planet's bend like the other 3D FX.
+- **Transformation panel** (FX Studio 3D, section "Transformation", shown for this style; built from `HYPERFX.UI[style]`, so
+  other FX can get their own panel the same way): Phases (stage, charge on / length, burst, aura on / seconds), Aura shape
+  (size, width, height, width at the feet, top closes, trails when moving, breathing), Flames (tongues round it, tongue length,
+  rise speed, chaos, gaps, hard edges), Colour & glow (main / hot / deep colours, opacity, rim glow, see-through middle, cel
+  bands, additive, inner layer, rising sparks), Lightning (amount, colour, thickness), Charge & burst (energy pulled in, core
+  glow, push reach, pillar height / width, dome + rings, streaks, camera shake), Ground (on / off, cracks, rocks, dust,
+  overall amount). All are `params` keys (`DEFAULTS.tfx_golden_ascension`; a missing key = its default). **Preview plays: the
+  aura only** skips the charge and burst in the preview so the aura burns the whole action while you tune it (not saved).
 - **Stages** (`stage`): 1 = gold flame aura; 2 = tighter, brighter, faster flicker + blue-white arcs crackling over the
   body the whole time; 3 = biggest (x1.4, taller crown, many more flames), heavy lightning, the ground breaking up and
-  floating round the feet the whole time. `aura_size_pct` and `lightning_pct` scale the stage's look, `density` the counts.
+  floating round the feet the whole time. A stage multiplies the panel's settings (size, height, flame length, speed, chaos).
 - The cracks and burst debris stay where it went off (on the ground) even if the fighter moves on; they fade ~2.5 s after.
 - Colour: gold by default; Colour = palette tints it with the fighter's palette.
 - Put it on the action that transforms, with the action about as long as the charge + burst. Note: V3 still skips a real
