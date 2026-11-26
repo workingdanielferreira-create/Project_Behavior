@@ -860,5 +860,10 @@ function draw(pen, inst, host, ps) {
 }
 
 G.GUNFX = {STYLES: STYLES, GUNS: GUNS, draw: draw, hit: hit, onHit: onHit, activeTicks: activeTicks, totalTicks: totalTicks,
-           launches: launches, livePoints: livePoints, railLines: railLines, shotIds: shotIds, shotAt: shotAt, place: place, trackStep: trackStep, dragTouch: dragTouch};
+           launches: launches, livePoints: livePoints, railLines: railLines, shotIds: shotIds, shotAt: shotAt, place: place, trackStep: trackStep, dragTouch: dragTouch,
+           // the rounds' geometry, for FX Studio 3D (v3/js/fx3d.js)
+           geo: {rounds: rounds, blastAt: blastAt, aim: aim, tracks: tracks, lockTick: lockTick, at: at, railLine: railLine, gatPhi: gatPhi, cad: cad, hold: hold,
+                 IMPACT_LIFE: IMPACT_LIFE, TRACER_TAIL: TRACER_TAIL, FADE_TAIL: FADE_TAIL, CASING_LIFE: CASING_LIFE, CASING_G: CASING_G, SMOKE_LIFE: SMOKE_LIFE,
+                 GAT_SPIN_DOWN: GAT_SPIN_DOWN, GAT_BARREL: GAT_BARREL, RAIL_DELAY: RAIL_DELAY, CHARGE_P: CHARGE_P, CHARGE_RING: CHARGE_RING, ROCKET_PUFF: ROCKET_PUFF,
+                 DRILL_SPIN: DRILL_SPIN, BOLT_SEG: BOLT_SEG, BRASS: BRASS, HULL: HULL, SMOKE: SMOKE, STEEL: STEEL}};
 })(window);

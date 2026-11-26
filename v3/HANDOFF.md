@@ -354,7 +354,11 @@ v3-animation skill ("Review questions").
   inner keys 25 ms early, the fist lands on the approved frames. Kamehameha "bake it" (10 -> 13 keys for the settle).
   Audit: no hard faults (a 170 deg forearm flip from the fist spring was fixed: directions spring on the sphere, Rfist
   1.75 frames). New moves get `overlap` from blocking.
-- **Next, in order:** ultimate (Big Bang Kamehameha), attack_normal_2 (double axe handle
+- **ultimate approved** ("bake it", 2026-11-26) and baked: aerial two-handed kamehameha. Daniel's picks: jump from
+  the ground; arms pulled back like a bird's wings on the backstroke only (replaced "cupped at the hip"); both palms
+  flat side by side (not one-handed); thrust at 2D f10-f11 and the beam at frame 13 as drawn; ends tucked in the
+  air; an anime hang at the apex. Review cameras now follow the hips' height on jumps.
+- **Next, in order:** attack_normal_2 (double axe handle
   overhead), attack_normal_3 (shoryuken uppercut jump), attack_normal_4 (180 spin > backhand), attack_special_2 (hands
   pumping forward and back). Puck's other clips are still the 2D-guessed ones (the audit's hard faults are theirs).
 
@@ -376,6 +380,10 @@ v3-animation skill ("Review questions").
 - **Batch 2 done: sword slashes + crescents** (`fx3d.js drawBlade` + band mesh, `blade_thick_pct`, README "3D sword FX").
   Checked headless: every style from FX Studio's presets renders, a Ronin (ronin_copy) battle runs with no errors.
   **Next batch: gunfire + ki barrage.**
+- 2026-11-26: Daniel asked for a "3D" category -> FX Studio 3D's preset list starts with "3D · <family>" groups (copies).
+- **Batch 3 done: gunfire + ki barrage** (`fx3d.js drawGun` / `drawKi`, README "3D gunfire + ki barrage"). Checked
+  headless: every gun style + ki from the presets renders; a Pewpew / Rapid / Sniper vs Sueko battle runs with no errors.
+  **Next batch: ethereal blades** (Hooded Blades' blade sprites), then auras + power techniques.
 
 ## Next steps (agreed direction, not started)
 
