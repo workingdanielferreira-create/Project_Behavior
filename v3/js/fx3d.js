@@ -369,7 +369,9 @@ Runner.prototype.tick = function (ctx) {
   }
   this.cur = null;
   this.lanes = this.lanes.filter(l => l.active || l.player.insts.length);
-  while (this.lanes.length > 8) { const i = this.lanes.findIndex(l => !l.active); if (i < 0) break; this.lanes.splice(i, 1); }
+  // too many lanes: drop the oldest finished one, but never one holding a lasting transformation aura (hyperfx.js)
+  const keep = l => G.HYPERFX && G.HYPERFX.isTransform && l.player.insts.some(i => G.HYPERFX.isTransform((i.fx.params || {}).style));
+  while (this.lanes.length > 8) { let i = this.lanes.findIndex(l => !l.active && !keep(l)); if (i < 0) i = this.lanes.findIndex(l => !l.active); if (i < 0) break; this.lanes.splice(i, 1); }
 };
 Runner.prototype.initInst = function (l, inst) {
   if (inst._c) return;
@@ -886,7 +888,7 @@ Runner.prototype.strikeEnv = function (l, inst, xf, ev, col, gk) {
 const _hF = new THREE.Vector3(), _hV = new THREE.Vector3(), _hS = new THREE.Vector3(), _hO = new THREE.Vector3(), _hA = new THREE.Vector3(), _hB = new THREE.Vector3();
 Runner.prototype.drawHyper = function (l, inst, xf) {
   const H = G.HYPERFX, ctx = this.ctx; if (!H || !ctx) return;
-  const P = inst.fx.params || {}, c = inst._c, Us = xf.Us, punch = H.isPunch(P.style);
+  const P = inst.fx.params || {}, c = inst._c, Us = xf.Us, punch = H.isPunch(P.style), tf = !!(H.isTransform && H.isTransform(P.style));
   const an = typeof inst.fx.anchor === 'string' ? inst.fx.anchor.replace(/^3d:/, '') : '';
   const O = _hO;
   let id = null;
@@ -894,10 +896,12 @@ Runner.prototype.drawHyper = function (l, inst, xf) {
     id = an && an !== 'figure' && an !== 'target' && this.anchorWorld(an, _hA) ? an : 'haR';
     this.boneRec(inst, [id]);
     if (!this.boneAt(inst, id, inst.age, O)) this.w3(inst, xf, inst.x, inst.y, 0, O);
-  } else this.w3(inst, xf, inst.x, inst.y, 0, O);
+  } else if (tf) O.copy(ctx.centre);   // a transformation stands on the fighter's live body centre, long after its action
+  else this.w3(inst, xf, inst.x, inst.y, 0, O);
   // forward
   const F = _hF.set(0, 0, 0);
-  if (punch) {
+  if (tf) { if (ctx.target) F.copy(ctx.target.centre).sub(O); F.y = 0; if (F.lengthSq() < 1e-6) F.copy(ctx.facing).setY(0); }
+  else if (punch) {
     if (ctx.target) { F.copy(ctx.target.centre).sub(O); if (F.dot(l.X) < 0.05 * F.length()) F.set(0, 0, 0); }
     if (F.lengthSq() < 1e-6 && this.boneAt(inst, id, inst.age - 2, _hA)) F.copy(O).sub(_hA);
   } else { F.copy(O).sub(ctx.centre); F.y *= 0.35; }
@@ -912,7 +916,17 @@ Runner.prototype.drawHyper = function (l, inst, xf) {
     const n = path.length; if (n > 1) sp = Math.hypot(path[n - 1][0] - path[n - 2][0], path[n - 1][1] - path[n - 2][1], path[n - 1][2] - path[n - 2][2]);
   }
   const gy = (num(l.groundY, 0) + 0.03 - O.y) / Us / Math.max(0.3, V.y);
-  const shapes = H.parts(inst, this.host, {t: inst.age, ps: 1, path, sp, gy, solo: !ctx.target});
+  let fy = null, vel = null, spot = null;
+  if (tf) {   // the feet, and the body's move per tick (eased) so the flames stream behind a moving fighter
+    fy = (ctx.feet.y - O.y) / Us;
+    const h = inst._tv || (inst._tv = {age: -1, p: O.clone(), v: new THREE.Vector3()});
+    if (h.age !== inst.age) { if (h.age >= 0) { _hA.copy(O).sub(h.p).divideScalar(Math.max(1, inst.age - h.age)); if (_hA.lengthSq() > 4) _hA.set(0, 0, 0); h.v.lerp(_hA, 0.35); } h.p.copy(O); h.age = inst.age; }
+    vel = [h.v.dot(F) / Us, h.v.dot(V) / Us, h.v.dot(S) / Us];
+    // where the burst went off (followed until then): cracks / burst debris stay there
+    if (!inst._tO || inst.age <= H.tfx(P).c + 1) inst._tO = (inst._tO || new THREE.Vector3()).copy(O);
+    _hA.copy(inst._tO).sub(O); spot = [_hA.dot(F) / Us, 0, _hA.dot(S) / Us];   // level only: ground parts already sit on the floor (gy)
+  }
+  const shapes = H.parts(inst, this.host, {t: inst.age, ps: 1, path, sp, gy, fy, vel, spot, solo: !ctx.target});
   const w = (p, out) => out.copy(O).addScaledVector(F, p[0] * Us).addScaledVector(V, p[1] * Us).addScaledVector(S, p[2] * Us);
   const dirW = (d, out) => out.set(0, 0, 0).addScaledVector(F, d[0]).addScaledVector(V, d[1]).addScaledVector(S, d[2]).normalize();
   for (const e of shapes) {

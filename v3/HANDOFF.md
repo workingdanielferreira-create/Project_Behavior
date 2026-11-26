@@ -390,6 +390,20 @@ v3-animation skill ("Review questions").
   headless: every gun style + ki from the presets renders; a Pewpew / Rapid / Sniper vs Sueko battle runs with no errors.
   **Next batch: ethereal blades** (Hooded Blades' blade sprites), then auras + power techniques.
 
+## Super Saiyan transformation 3D FX (2026-11-26)
+
+- Daniel: "create the super saiyan transformation 3d fx". His picks: FX + a lasting aura (visual, no stats); phases
+  charge / scream, burst, flame aura (no hair spikes); the burst = knockback with no damage; stages 1 / 2 / 3.
+- Done: hyperfx.js style `tfx_golden_ascension` + presets "Golden ascension · Stage 1/2/3" (group Transformation FX),
+  fx3d.js drawHyper stands it on the live body centre (flames lean with movement, ground marks stay at the burst spot,
+  its lane is kept), fxlive.js `fxShove` (damage 0 + knockback = pure push), FX Studio 3D family + PUSH readout. README
+  "Transformation FX: Golden ascension".
+- Checked headless (Playwright + SwiftShader, stand-in body, no bones): all three stages through charge / burst / aura,
+  one push per burst (damage 0, knockback 40 / 55), the aura ends on time, no errors. Not yet seen in the real game /
+  studio on a character.
+- Not done: a transformation STATE (stats), the `transform` action in V3 (still skipped for real kits), golden hair.
+- **Next:** Daniel's verdict in FX Studio 3D + game.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,

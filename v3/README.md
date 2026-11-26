@@ -581,6 +581,32 @@ FX** / **3D · Impact FX** (and "Punching FX" / "Impact FX").
 - Settings: `radius`, `length`, `swing_ticks`, `hold_ticks`, `density` (count x), `hitstop_ticks`, `shake_px`. Elemental
   styles keep their element colours unless Colour = palette (then tinted by the fighter's palette). Toon keys apply.
 
+**Transformation FX: Golden ascension (Daniel 2026-11-26, "the super saiyan transformation 3D FX").** Technique style
+`tfx_golden_ascension` in `hyperfx.js` (`HYPERFX.TRANSFORM`, drawn by `fx3d.js drawHyper` as 3D cel shapes). Presets
+**Golden ascension · Stage 1 / 2 / 3** in FX Studio 3D (group **Transformation FX**, also at the top as **3D · Transformation
+FX**). His picks: FX + a lasting aura (visual only, no stat change); phases charge / burst / flame aura; the burst pushes
+with no damage; three stages.
+
+- **Charge / scream** (`charge`, `swing_ticks` = its length, 70 = 1.1 s): energy streaks pulled in from all round, a core
+  glowing up to white, rumble rings on the floor, cracks growing from the feet, pebbles lifting, arcs (more each stage;
+  stage 2 / 3 bolts ground into the floor), the camera rumbling (`shake_px`).
+- **Burst** (`burst`, 30 ticks): white flash, a light pillar shooting up (`length`), a see-through dome + shock rings,
+  streaks, radiating bolts (stage 2 / 3), rocks flung and dust rolling out, the camera kick. Enemies within `radius` are
+  pushed away ONCE with no damage, no hit flash: `battle.damage` 0 + `knockback` (40, stage 3 55) -> `fxlive.js fxShove`
+  (velocity away + a 280 ms stagger). With damage > 0 it is an ordinary hit. FX Studio 3D's dummy shows PUSH.
+- **Flame aura** (`aura`, `aura_s` = seconds it stays after the burst, 20): a see-through egg, flame licks born round the
+  body at a new spot every cycle (rising, bellying out, curling in, flickering every 2 ticks), a crown of tall points over
+  the head, motes, the air swirling round the feet; it fades out over ~0.6 s. It stands on the fighter's LIVE body
+  centre whatever it does next (other actions, running, jumping) and the flames stream behind it when it moves. Its lane
+  is never the one dropped when a fighter has more than 8 FX lanes. K.O. / tag-out clears it.
+- **Stages** (`stage`): 1 = gold flame aura; 2 = tighter, brighter, faster flicker + blue-white arcs crackling over the
+  body the whole time; 3 = biggest (x1.4, taller crown, many more flames), heavy lightning, the ground breaking up and
+  floating round the feet the whole time. `aura_size_pct` and `lightning_pct` scale the stage's look, `density` the counts.
+- The cracks and burst debris stay where it went off (on the ground) even if the fighter moves on; they fade ~2.5 s after.
+- Colour: gold by default; Colour = palette tints it with the fighter's palette.
+- Put it on the action that transforms, with the action about as long as the charge + burst. Note: V3 still skips a real
+  kit's `transform` action (`realkits.js SKIP_ACTIONS`, transformations not ported), so use an action the fighter plays.
+
 **Start at = target fix (Daniel 2026-11-26).** FX Studio 3D's "Start at" rides as `3d:<id>`; `anchor2d` checked
 `figure` / `target` before stripping the prefix, so `3d:target` found no bone and fell back to the body centre. Fixed, and
 an effect started on the target now also lies at the target's own side offset (`lane.tgtLat`, followed while attached)
