@@ -698,6 +698,22 @@ closes in or chases (engage / pressure / punish / feint / reset / movement style
 plays its `sprint` clip at Lv2 / Lv3 (falls back to `run`). Perfect parry: a parried melee attacker is staggered
 **0.5 s** (`PARRY_DEFAULTS.staggerMs` 500, Daniel 2026-11-24; shots keep their reflect / deflect).
 
+### Directional locomotion clips (Daniel 2026-11-26)
+
+`js/glbody.js glbPick` / `glbDir`, names + fallbacks in `RIG_SPEC.md` section 4 / `rig_spec.json`. `js/anim.js sync`
+keeps a smoothed ground velocity (`f.gvx` / `f.gvy`, 2D px/s); its angle from the facing (fighters face their target
+while moving) picks the run: within 45 deg `run` (`sprint` at Lv2 / Lv3), past 135 deg `run_back`, else `run_left` /
+`run_right` (12 deg hysteresis at each edge). Sprinting sideways / backward uses the `run_<dir>` clip when the body has
+it, else keeps `sprint`. `run_stop` plays `GLB_STOP_MS` (250 ms) when a ground run ends in a still stand (only on
+bodies with that clip). Jumps: rising fast = `jump_start`, then `jump_air` (fast fall = `fall`), touch-down =
+`jump_land`. A forward snap plays `dash` when the body has its own clip, else `sprint`. Flyers (kit `flight`): hover =
+`air`; moving = the bigger of |vz| (over `GLB_FLY_VZ` 120 px/s) and ground speed picks `fly_incline` / `fly_decline`
+or `fly_forward` / `fly_back` / `fly_left` / `fly_right`. Every new clip falls back to an old one (`run`, `idle`,
+`jump`, `fall`, `land`, `air_move`), so characters without them look as before. A looping move's restart id is the clip
+it really plays, so swapping between names that share a fallback doesn't restart it. Rig Forge 3D's Actions panel lists
+each spec action the open character is missing (**Spec** dropdown + **Create**: a copy of the clip it falls back to, or
+a still pose; no FX timing written, the game plays these at their own length); its `SPEC_ACTS` table mirrors the spec.
+
 ## The little planet + World Studio 3D (Daniel 2026-11-24)
 
 Fights run on a little planet you can run all the way round (like v1's tiny planet, now a real globe). Settings are made in

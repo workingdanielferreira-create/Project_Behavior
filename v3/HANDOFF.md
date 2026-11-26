@@ -431,6 +431,21 @@ v3-animation skill ("Review questions").
   fights with an unreachable range start nothing, with 0-3 m attack as usual. Not seen yet by Daniel in the real studio.
 - **Next:** Daniel's verdict.
 
+## Directional locomotion actions (2026-11-26)
+
+- Daniel: "add new animation assign actions for each character: run backwards, left, right, stop running; jump start,
+  jump air, jump land; dash; flying incline, decline, forward, backward, left, right".
+- His picks: new names with the old `jump` / `fall` / `land` kept as fallbacks; spec + game + Rig Forge 3D slots (no
+  placeholder clips written into character files); run_stop when a run ends standing; forward snaps play `dash`;
+  directional runs while sprinting too; flight = the strongest of vertical / ground speed wins.
+- Done: `run_back` / `run_left` / `run_right` / `run_stop`, `jump_start` / `jump_air` / `jump_land`, `fly_forward` /
+  `fly_back` / `fly_left` / `fly_right` / `fly_incline` / `fly_decline` in RIG_SPEC + rig_spec.json, glbody.js picking,
+  FX Studio 3D fallbacks, Rig Forge 3D Spec dropdown + Create. README "Directional locomotion clips".
+- Checked headless: Watch battles (hooded_blades vs tough) pick run_back / left / right (falling back to run), no errors;
+  with stand-in clips injected, dash / jump_start / jump_air / run_* play; a driven fighter goes run > run_stop > idle >
+  jump_land. No character has these clips yet, and no kit has flight on, so the fly_* clips are untested in a fight.
+- **Next:** author the clips per character (v3-animation skill), Daniel's verdict in game.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,

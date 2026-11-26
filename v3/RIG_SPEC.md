@@ -137,6 +137,30 @@ bone; the importer lets you point each one at any bone.
 | `fall` | yes | | `air` |
 | `land` | | | `idle` |
 | `turn` (180° on the spot) | | | none = instant turn |
+| `run_back` (moving away from where it faces) | yes | | `run` |
+| `run_left` / `run_right` (sideways while facing the target) | yes | | `run` |
+| `run_stop` (a ground run comes to a stop, 0.25 s) | | | `idle` |
+| `jump_start` (take-off + rising fast) | | | `jump` |
+| `jump_air` (airborne part of a jump: apex + coming down) | yes | | `fall` |
+| `jump_land` (touch-down) | | | `land` |
+
+Directional locomotion (Daniel 2026-11-26). V3 fighters keep facing their target while they move, so the game
+compares the movement direction with the facing: within 45° = forward (`run`, or `sprint` at sprint Lv2 / Lv3),
+past 135° = `run_back`, else `run_left` / `run_right` (sprinting sideways or backward uses these too). A forward
+snap plays `dash` when the body has its own `dash` clip (else `sprint`, as before). Fast fall keeps `fall`.
+The old `jump` / `fall` / `land` clips still play through the fallbacks, so existing characters look the same until
+they get the new clips.
+
+### Flight (kit flight on only)
+
+| Clip | Loop | Required | Fallback |
+|---|---|---|---|
+| `fly_forward`, `fly_back`, `fly_left`, `fly_right` | yes | | `air_move` |
+| `fly_incline` (climbing) | yes | | `air_move` |
+| `fly_decline` (descending) | yes | | `air_move` |
+
+A flyer hovering still plays `air`. When it moves, the bigger of its vertical speed and its ground speed picks the
+clip: incline / decline, or the ground direction (same sectors as the runs).
 
 ### Hit reactions
 

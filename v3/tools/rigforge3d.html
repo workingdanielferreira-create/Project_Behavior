@@ -236,6 +236,8 @@ details.adv[open] > summary { margin-bottom: 6px; }
       <div class="row"><label for="actTrig">Trigger</label><input type="text" id="actTrig" class="grow" spellcheck="false"></div>
       <div class="row"><label for="actCool">Cooldown</label><input type="number" id="actCool" min="0" step="50"><span class="readout">ms</span></div>
       <div class="row"><button id="actAdd">+ Action</button><button id="actDup">Duplicate</button><button id="actDel" class="danger">Remove</button></div>
+      <div class="row"><label for="specMiss">Spec</label><select id="specMiss" class="grow" aria-label="Missing spec actions" disabled></select><button id="specMake" disabled>Create</button></div>
+      <div class="readout" id="specMissOut"></div>
       <div class="row"><label for="speed">Play speed</label><input id="speed" type="range" min="0.1" max="2" step="0.05" value="1"><output id="speedOut">1.00×</output></div>
       <div class="readout" id="charFilesOut">Character files: connect the characters folder to edit length / trigger / cooldown in the game.</div>
     </section>
@@ -2884,7 +2886,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
       r.onclick = function () { setClip(r.dataset.n, 0); };
       if (r.dataset.n === S.clip) scrollInBox(box, r);
     });
-    syncActFields();
+    syncActFields(); fillSpecMiss();
   }
   function syncActFields() {
     var n = S.clip; if (!n) return;
@@ -3046,6 +3048,42 @@ details.adv[open] > summary { margin-bottom: 6px; }
     var src = S.clip, nm = window.prompt(dup ? "Name of the copy:" : "Name of the new action (letters, digits, _):", newActName(dup ? src + "_copy" : "new_action"));
     if (nm == null) return; nm = nm.trim();
     if (!validName(nm)) { status("Name: letters, digits and _ only, not used by another action.", true); return; }
+    makeAct(src, nm, dup, true);
+  }
+  /* v3/rig_spec.json "clips.actions" (name -> fallback; null = none). Keep in step with the spec and glbody.js GLB_FALLBACK.
+     The _N chain steps are left out: they are added by hand (+ Action / Duplicate). */
+  var SPEC_ACTS = [["idle", null], ["run", null], ["attack_normal", null], ["attack_special", null], ["ultimate", null],
+    ["idle_ultimate", "idle"], ["defend", null], ["defend_reflect", "defend"], ["defend_recovery", "stagger"], ["parry", "defend"],
+    ["dodge", null], ["dodge_back", "dodge"], ["dodge_left", "dodge"], ["dodge_right", "dodge"], ["walk", "run"], ["sprint", "run"],
+    ["dash", "dodge"], ["jump", "idle"], ["air", "idle"], ["air_move", "air"], ["fall", "air"], ["land", "idle"], ["turn", null],
+    ["run_back", "run"], ["run_left", "run"], ["run_right", "run"], ["run_stop", "idle"],
+    ["jump_start", "jump"], ["jump_air", "fall"], ["jump_land", "land"],
+    ["fly_forward", "air_move"], ["fly_back", "air_move"], ["fly_left", "air_move"], ["fly_right", "air_move"],
+    ["fly_incline", "air_move"], ["fly_decline", "air_move"],
+    ["switch_in", "dash"], ["switch_out", "dodge_back"], ["transform", "ultimate"], ["impact", "hit_light"],
+    ["hit_light", null], ["hit_heavy", "hit_light"], ["hit_air", "hit_heavy"], ["stagger", "hit_heavy"],
+    ["knockdown", "hit_heavy"], ["getup", "idle"], ["ko", null]];
+  var SPEC_FB = {}; SPEC_ACTS.forEach(function (a) { SPEC_FB[a[0]] = a[1]; });
+  /* the clip a missing spec action plays in the game today (its fallback chain, as glbody.js glbClip) */
+  function specSource(nm) { var n = SPEC_FB[nm], g = 0; while (n && S.order.indexOf(n) < 0 && g++ < 8) n = SPEC_FB[n]; return n && S.order.indexOf(n) >= 0 ? n : null; }
+  function fillSpecMiss() {
+    var sel = $("specMiss"); if (!sel || !SPEC_ACTS) return;
+    var miss = S.root ? SPEC_ACTS.filter(function (a) { return S.order.indexOf(a[0]) < 0; }) : [];
+    sel.innerHTML = miss.map(function (a) { var s = specSource(a[0]);
+      return '<option value="' + esc(a[0]) + '">' + esc(a[0]) + (s ? "  (from " + esc(s) + ")" : "  (new still pose)") + "</option>"; }).join("");
+    sel.disabled = $("specMake").disabled = !miss.length;
+    $("specMissOut").textContent = !S.root ? "" : miss.length ? miss.length + " spec action" + (miss.length > 1 ? "s" : "") +
+      " missing in this character (the game plays each one's fallback until it has its own clip)." : "Every spec action has a clip.";
+  }
+  function makeSpecAct() {
+    var nm = $("specMiss").value; if (!S.root || !nm || S.order.indexOf(nm) >= 0) return;
+    var src = specSource(nm);
+    if (src) makeAct(src, nm, true, false);
+    else { if (!S.clip) return; makeAct(S.clip, nm, false, false); }
+  }
+  /* src = clip to copy (dup) or to take the still pose's tracks from; timing = also write FX timing for it
+     (spec locomotion / reaction clips are played by the game at their own length, so they get none) */
+  function makeAct(src, nm, dup, timing) {
     var N = dup ? frameCount(S.clips[src]) : Math.round(0.5 * FPS);
     var keySrc = Object.keys(S.keyMode).filter(function (k) { return S.keyMode[k]; })[0];
     if (dup) {
@@ -3068,13 +3106,14 @@ details.adv[open] > summary { margin-bottom: 6px; }
       S.keyMode[nm] = true; S.data.edits[nm] = ed;
     }
     S.order.push(nm);
-    if (CF.fx) {
+    if (CF.fx && timing) {
       CF.fx.timing = CF.fx.timing || {};
       CF.fx.timing[nm] = dup && CF.fx.timing[src] ? JSON.parse(JSON.stringify(CF.fx.timing[src])) : {frames: N, frame_ms: Math.round(1000 / FPS * 1000) / 1000};
       CF.dirty = true;
     }
     rebake(nm, false); fillClipSelect(); setClip(nm, 0);
-    forgetUndo((dup ? "Duplicated " + src + " as " : "Added the action ") + nm);
+    forgetUndo(SPEC_FB.hasOwnProperty(nm) && !timing ? "Added the spec action " + nm + (dup ? " (a copy of " + src + ")" : " (a still pose)") :
+      (dup ? "Duplicated " + src + " as " : "Added the action ") + nm);
   }
   function removeAct() {
     var n = S.clip; if (!n || S.order.length < 2) return;
@@ -3088,6 +3127,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
   $("actLen").addEventListener("keydown", function (e) { if (e.key === "Enter") setLength(); });
   $("actRename").onclick = renameAct;
   $("actName").addEventListener("keydown", function (e) { if (e.key === "Enter") renameAct(); });
+  $("specMake").onclick = makeSpecAct;
   $("actAdd").onclick = function () { addAct(false); };
   $("actDup").onclick = function () { addAct(true); };
   $("actDel").onclick = removeAct;
