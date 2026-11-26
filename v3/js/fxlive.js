@@ -13,8 +13,14 @@ function fxRunner(f){if(f.fx3)return f.fx3;if(!f.k.fx2d||!window.FX3D||!window.F
   const bones={};const bone=n=>{if(!f.glb)return null;if(!(n in bones))bones[n]=f.glb.model.getObjectByName(n)||null;return bones[n];};
   f.fx3={run,bone};return f.fx3;}
 function fxHit(f,e,dmg,kb,inst){if(!e||e.ko||!e.on)return;const fx=inst.fx||{};
+  // a transformation burst with no damage (hyperfx.js, Daniel 2026-11-26 "knockback, no damage"): a pure push
+  if(!(dmg>0)&&window.HYPERFX&&HYPERFX.isTransform((fx.params||{}).style)){fxShove(f,e,kb);return;}
   const w=kb>=20?'B':kb>=13?'H':kb>=7?'M':'L';const shot=fx.motion&&fx.motion.kind!=='attached'&&fx.motion.kind!=='orbit';
   damage(f,e,dmg,w,shot,null,kb>0?kb*PX2D*.35:0);}
+// Pushed away from the fighter (kb = FX Studio knockback px): no damage, no hit flash, a short stagger so it reads.
+function fxShove(f,e,kb){if(!(kb>0)||e.gone>0)return;const dx=e.x-f.x,dy=e.y-f.y,d=Math.hypot(dx,dy)||1,v=kb*PX2D*6;
+  const kvx=e.vx,kvy=e.vy;e.vx+=dx/d*v;e.vy+=dy/d*v;if(!e.dummy||e.dummy.beh!=='stand')stun(e,280,'stag');
+  fx_dust(e.x,e.y,4);if(typeof camKnock==='function')camKnock(e,e.vx-kvx,e.vy-kvy);}
 // Sim tick (main.js / training.js), each fielded fighter: advance its FX one 16 ms tick.
 function fxTick(f){const S=fxRunner(f);if(!S)return;
   if(!f.on||f.ko){S.run.reset();fxHeldBlades(f,null);return;}

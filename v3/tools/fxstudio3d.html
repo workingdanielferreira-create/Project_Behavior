@@ -500,7 +500,7 @@ function addEffects(list) { pushUndo(); S.F.effects = S.F.effects || []; let las
   // "3D" (Daniel 2026-11-26: "place all 3D enhanced FX into a 3D category so I can see what's been added"): every preset
   // with an effect that draws as a 3D shape, copied to the top by family (they stay in their own groups too).
   // "· part 3D" = some of it stays on a card (another effect, or a punch / kick's ink / gritty look).
-  const fam = e => FX3D.hyperKind(e) ? (window.HYPERFX.isPunch((e.params || {}).style) ? 'Punching FX' : 'Impact FX') : FX3D.strikeKind(e) ? 'Punches & kicks' : FX3D.bladeKind(e) ? 'Sword slashes & crescents' : FX3D.gunKind(e) ? 'Gunfire & ki barrage' : 'Lasers, beams, orbs, particles & impacts';
+  const fam = e => FX3D.hyperKind(e) ? (window.HYPERFX.isTransform((e.params || {}).style) ? 'Transformation FX' : window.HYPERFX.isPunch((e.params || {}).style) ? 'Punching FX' : 'Impact FX') : FX3D.strikeKind(e) ? 'Punches & kicks' : FX3D.bladeKind(e) ? 'Sword slashes & crescents' : FX3D.gunKind(e) ? 'Gunfire & ki barrage' : 'Lasers, beams, orbs, particles & impacts';
   const energyOnly = e => !['punch', 'kick'].includes(FX3D.strikeKind(e)) || ['fx_motion', 'fx_impact', 'fx_env'].every(k => { const v = (e.params || {})[k]; return v === 'energy' || v === 'off'; });
   const g3 = {};
   (window.FX_PRESETS || []).forEach((p, i) => {
@@ -508,7 +508,7 @@ function addEffects(list) { pushUndo(); S.F.effects = S.F.effects || []; let las
     const part = d3.length < ef.length || !d3.every(energyOnly), f = fam(d3[0]);
     (g3[f] || (g3[f] = [])).push([p, i, part]);
   });
-  ['Punching FX', 'Impact FX', 'Punches & kicks', 'Sword slashes & crescents', 'Gunfire & ki barrage', 'Lasers, beams, orbs, particles & impacts'].forEach(f => { if (!g3[f]) return;
+  ['Transformation FX', 'Punching FX', 'Impact FX', 'Punches & kicks', 'Sword slashes & crescents', 'Gunfire & ki barrage', 'Lasers, beams, orbs, particles & impacts'].forEach(f => { if (!g3[f]) return;
     sel.insertAdjacentHTML('beforeend', '<optgroup label="3D · ' + esc(f) + '">' + g3[f].map(([p, i, part]) => '<option value="' + i + '" title="' + esc(p.desc || '') + '">' + esc(p.name) + (part ? ' · part 3D' : '') + '</option>').join('') + '</optgroup>'); });
   for (const g in groups) sel.insertAdjacentHTML('beforeend', '<optgroup label="' + esc(g) + '">' + groups[g].map(([p, i]) => '<option value="' + i + '" title="' + esc(p.desc || '') + '">' + esc(p.name) + '</option>').join('') + '</optgroup>');
   sel.onchange = function () { const p = (window.FX_PRESETS || [])[+this.value]; this.value = ''; if (!p || !S.F) return;
@@ -825,7 +825,7 @@ function seek(k) { setPlaying(false); simTo(Math.max(0, Math.min(k, Math.ceil(to
 function onHit(dmg, kb, inst) {
   S.hits.push({k: S.simK, dmg, kb, name: (inst.src || inst.fx).name}); S.dmg += dmg;
   S.flash = 0.18;
-  if (!S.fast && !S.measuring) { const n = document.createElement('div'); n.className = 'num'; n.textContent = Math.round(dmg * 10) / 10; n.dataset.t0 = performance.now(); $('over').appendChild(n); }
+  if (!S.fast && !S.measuring) { const n = document.createElement('div'); n.className = 'num'; n.textContent = dmg > 0 || !(kb > 0) ? Math.round(dmg * 10) / 10 : 'PUSH'; n.dataset.t0 = performance.now(); $('over').appendChild(n); }
 }
 
 /* ---------------------------------------------------------------- playback controls */
