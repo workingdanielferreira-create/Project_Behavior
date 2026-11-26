@@ -66,9 +66,14 @@ DEFAULTS.tfx_golden_ascension = {stage: 1, charge: true, burst: true, aura: true
   charge_streaks_pct: 100, charge_glow_pct: 100, pillar_width_pct: 100, burst_rings: true, burst_streaks_pct: 100,
   ground_fx: true, cracks_pct: 100, rocks_pct: 100, dust_pct: 100,
   // outer flames (Daniel 2026-11-26 sketch): strands bursting out of the sheath's sides, flaring out, curling up
-  outer_flames: true, outer_count: 8, outer_shape: "mixed", outer_spread_pct: 100, outer_from_pct: 5, outer_to_pct: 70,
+  outer_flames: false, outer_count: 8, outer_shape: "mixed", outer_spread_pct: 100, outer_from_pct: 5, outer_to_pct: 70,
   outer_length_pct: 100, outer_curl_pct: 100, outer_width_pct: 100, outer_speed_pct: 100, outer_jag_pct: 100,
-  outer_color: "hot", outer_opacity_pct: 90};
+  outer_color: "hot", outer_opacity_pct: 90,
+  // flame layers (Daniel 2026-11-26 sketch): rings stacked from the feet to the top, each a crown of rising spiky flames
+  // (the rings themselves are invisible: only their flames show)
+  layers: true, layer_count: 6, layer_from_pct: 0, layer_to_pct: 85, layer_height_pct: 100, layer_spread_pct: 108,
+  layer_tongues: 12, layer_tongue_pct: 100, layer_flare_pct: 60, layer_spike_pct: 70, layer_speed_pct: 100,
+  layer_chaos_pct: 100, layer_color: "main", layer_opacity_pct: 55};
 // a setting of a transformation, its default when the effect predates it
 function pv(P, k) { var v = P[k]; return v == null || v === "" ? DEFAULTS.tfx_golden_ascension[k] : v; }
 function pc(P, k) { return Math.max(0, +pv(P, k) || 0) / 100; }   // a _pct setting as a fraction
@@ -559,7 +564,8 @@ function auraBody(sh, inst, C, P, K, Sg, z, A, fy, d, boltK, grounded) {
     gaps: pc(P, "flame_gaps_pct"), sharp: pc(P, "flame_sharp_pct"), opacity: pc(P, "aura_opacity_pct"), rim: pc(P, "rim_pct"),
     inner: pc(P, "inner_pct"), bands: Math.max(1, Math.round(+pv(P, "bands") || 1)), additive: pv(P, "additive") !== false,
     layer2: pv(P, "inner_layer") !== false, seed: ((inst.seed || 1) % 997) / 97}});
-  if (pv(P, "outer_flames") !== false) outerFlames(sh, inst, t, P, K, Sg, rw, H, fy, z, A, lean);
+  if (pv(P, "layers") !== false) flameLayers(sh, inst, P, K, Sg, rw * breathe, H * breathe, fy, z, A, lean);
+  if (pv(P, "outer_flames") === true) outerFlames(sh, inst, t, P, K, Sg, rw, H, fy, z, A, lean);
   var i, rnd, nm = Math.round(Sg.motes * d * pc(P, "sparks_pct"));
   for (i = 0; i < nm; i++) {   // sparks streaking up through it
     rnd = R(inst, 65, i); var x2 = t * (0.025 + rnd() * 0.03) + rnd(), p2 = frac(x2), q3 = R(inst, 66, i * 71 + Math.floor(x2));
@@ -608,6 +614,28 @@ function outerFlames(sh, inst, t, P, K, Sg, rw, H, fy, z, A, lean) {
       sh.tube(A0, B0, r0 * 1.9, r1 * 1.9, K.m, al0 * fade * 0.45, {core: false, ink: 0});   // glow round it
       sh.tube(A0, B0, r0, r1, col, al0 * fade, {ink: 0});   // the bright strand (white-hot core)
     }
+  }
+}
+// Flame layers: layer_count rings spread between layer_from and layer_to % of the aura's height, each sitting on the
+// sheath's own outline at its height (layer_spread_pct of it), each a short band of the same shader flame whose top edge is
+// torn into spiky tongues (layer_tongues round it, layer_spike_pct sharpness) rising and flickering on its own clock; lower
+// rings flare out wider (layer_flare_pct), like a stacked skirt of flames. The ring line is never drawn (bottom faded out).
+function flameLayers(sh, inst, P, K, Sg, rw, H, fy, z, A, lean) {
+  var n = Math.max(0, Math.round(+pv(P, "layer_count") || 0)); if (!n) return;
+  var lf = cl(pc(P, "layer_from_pct")), lt = Math.max(lf, cl(pc(P, "layer_to_pct"))), gap = n > 1 ? (lt - lf) / (n - 1) : 0.3;
+  var base = pc(P, "aura_base_pct"), top = Math.min(1, pc(P, "aura_top_pct")), sm = function (a, b, x) { x = cl((x - a) / (b - a)); return x * x * (3 - 2 * x); };
+  var lc = String(pv(P, "layer_color")), col = lc === "hot" ? K.h : lc === "deep" ? K.d : lc === "white" ? WHITE : K.m;
+  for (var i = 0; i < n; i++) {
+    var hk = n > 1 ? lf + (lt - lf) * i / (n - 1) : lf;
+    var w = (base + (1 - base) * sm(0, 0.32, hk)) * (1 - top * Math.pow(cl((hk - 0.38) / 0.62), 1.7));
+    var r = Math.max(0.6 * z, rw * w * pc(P, "layer_spread_pct")), bh = Math.max(2 * z, H * Math.max(0.1, gap) * 1.5 * pc(P, "layer_height_pct"));
+    var lk = hk * hk, p0 = [lean[0] * lk, fy - 1.5 * z + H * hk, lean[2] * lk];
+    sh.aura(p0, r, bh, scl(lean, 0.35), col, A, {hot: K.h, edge: K.d, look: {ring: 1, flare: pc(P, "layer_flare_pct") * (1.3 - hk),
+      spike: pc(P, "layer_spike_pct"), flames: Math.max(1, +pv(P, "layer_tongues") || 1), tongue: pc(P, "layer_tongue_pct") * Sg.flame * 1.4,
+      speed: pc(P, "layer_speed_pct") * Sg.speed * (0.85 + 0.3 * R(inst, 90, i)()), chaos: pc(P, "layer_chaos_pct") * Sg.chaos,
+      gaps: pc(P, "flame_gaps_pct") * 0.6, sharp: Math.max(0.6, pc(P, "flame_sharp_pct")), opacity: pc(P, "layer_opacity_pct"), rim: pc(P, "rim_pct"),
+      inner: pc(P, "inner_pct"), bands: Math.max(1, Math.round(+pv(P, "bands") || 1)), additive: pv(P, "additive") !== false,
+      layer2: false, seed: ((inst.seed || 1) % 997) / 97 + i * 7.31}});
   }
 }
 // the charge / scream: energy pulled in from all round, a core glowing white, rumble rings, pebbles lifting, arcs
@@ -805,6 +833,21 @@ var UI = {tfx_golden_ascension: [
     ["lightning_pct", "Lightning (%)", "rng", [0, 400, 1], "Arcs on the body: stage 1 only while charging, stage 2 / 3 the whole time"],
     ["bolt_color", "Bolt colour", "col", null, ""],
     ["bolt_width_pct", "Bolt thickness (%)", "rng", [10, 400, 1], ""]]],
+  ["Flame layers", [
+    ["layers", "Flame layers", "chk", null, "Rings stacked from the feet to the top of the aura, each a crown of rising spiky flames (the rings are invisible)"],
+    ["layer_count", "Layers", "rng", [1, 16, 1], "How many rings, spread evenly between the two heights below"],
+    ["layer_from_pct", "Lowest layer at (%)", "rng", [0, 100, 1], "0 = at the feet"],
+    ["layer_to_pct", "Highest layer at (%)", "rng", [0, 100, 1], "100 = the top of the aura"],
+    ["layer_tongues", "Flames per layer", "rng", [2, 40, 1], "Spikes round each ring"],
+    ["layer_tongue_pct", "Flame length (%)", "rng", [0, 400, 1], "How far each ring's flames rise"],
+    ["layer_height_pct", "Layer depth (%)", "rng", [10, 400, 1], "How tall each ring's band is (more = layers overlap)"],
+    ["layer_spread_pct", "Layer width (%)", "rng", [20, 300, 1], "Ring size against the aura's outline at that height"],
+    ["layer_flare_pct", "Flare out (%)", "rng", [-100, 300, 1], "How much the flames lean outward as they rise (lower layers flare more)"],
+    ["layer_spike_pct", "Spikiness (%)", "rng", [0, 100, 1], "0 = rounded licks, 100 = sharp spikes"],
+    ["layer_speed_pct", "Rise speed (%)", "rng", [0, 400, 1], "Each layer flickers on its own clock"],
+    ["layer_chaos_pct", "Chaos (%)", "rng", [0, 300, 1], ""],
+    ["layer_color", "Colour", "sel", [["main", "main colour"], ["hot", "hot colour"], ["deep", "deep colour"], ["white", "white"]], ""],
+    ["layer_opacity_pct", "Opacity (%)", "rng", [0, 100, 1], "Per layer: they add up where they overlap"]]],
   ["Outer flames", [
     ["outer_flames", "Outer flames", "chk", null, "Flame strands bursting out of the aura's sides, flaring out and curling up"],
     ["outer_count", "How many", "rng", [0, 40, 1], "Strands alive at once (each is born at a new random spot)"],
