@@ -32,7 +32,7 @@ function mkPhantom(key){const f=mkFighter(key,1);f.phantom=true;f.dummy={beh:'st
 function trainDummies(){return sides[1].team.filter(d=>!d.phantom);}
 function trainPlayer(){return sides[0].team[0];}
 
-function newTraining(){clearAll();planetReset();trackReset();training=true;
+function newTraining(){clearAll();planetReset();trackReset();lockRelease();training=true;
   const pk=trainFighterKey();sides[0].team=[mkFighter(pk,0)];
   buildDummies(pk);
   const p=trainPlayer();setOn(p,true);p.x=TRAIN_START[0];p.y=TRAIN_START[1];p.face=0;enter(p,'neutral');
@@ -56,7 +56,8 @@ function trainApply(){if(!training||!running)return;
   buildDummies();trainPickTarget();sides[1].team.forEach(f=>sync(f,0));hudFor=-1;}
 
 // Your target: the nearest dummy (3D distance).
-function trainPickTarget(){const p=trainPlayer();if(!p)return;let bi=0,bd=1e18;
+function trainPickTarget(){const p=trainPlayer();if(!p)return;if(lockPinTraining())return;   // combo.js lock-on keeps its dummy
+  let bi=0,bd=1e18;
   sides[1].team.forEach((d,i)=>{if(d.phantom)return;const dd=Math.hypot(d.x-p.x,d.y-p.y,d.z-p.z);if(dd<bd){bd=dd;bi=i;}});sides[1].on=bi;}
 // Who a side's shots / melee hits can reach this tick.
 function foesOf(side){if(training&&side===0)return trainDummies();const s=sides[1-side];const t=s.team[s.on];return t?[t]:[];}

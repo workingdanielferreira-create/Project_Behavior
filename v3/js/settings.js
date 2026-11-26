@@ -26,6 +26,17 @@ const DEFAULT_SETTINGS={
   trackOutMs:520,             // the glide back
   trackMaxS:2.5,              // longest track (s)
   trackCdS:4,                 // cooldown between two tracking shots (s)
+  // knockback combos + lock-on (combo.js, Daniel 2026-11-26)
+  comboOn:true,               // a fighter still stunned by a hit can be hit again: each hit redirects its flight
+  comboChase:false,           // auto chase: a melee attacker snaps after the fighter it knocked back (off = snap yourself)
+  comboChaseMs:120,           // auto chase: delay after the hit
+  comboCap:6,                 // the hit that reaches this count still lands, then the target breaks free
+  comboDecayPct:12,           // each hit already in the combo: this % less damage and stun
+  comboBreakMs:400,           // break free: invulnerable until the stun ends + this
+  comboReachPct:60,           // melee reach on a juggled target, % more
+  comboLift:350,              // air juggle: upward speed each combo hit gives an airborne target (px/s, decays)
+  lockTrack:false,            // locked on: the knockback tracking shot may still take the camera
+  lockHomePx:900,             // locked on: attack keys snap in to the target from up to this far
   teams:[['blades','sueko','puck'],['ronin','tough','gunner']]
 };
 function loadSettings(){
