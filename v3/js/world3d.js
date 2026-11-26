@@ -110,8 +110,13 @@ const SECTIONS = [
     ['impact_size_pct', 'Impact crater size (%)', 'num', 100, 10, 400, 5, '']]},
   {id: 'scenery', title: 'Destructible: scenery', help: 'Trees, crystal clusters and old columns. They break when hit, thrown into or blasted.', fields: [
     ['enabled', 'Breakable scenery on', 'bool', true],
-    ['trees', 'Trees per 1,000 m²', 'num', 1.5, 0, 20, 0.1, ''],
+    ['trees', 'Trees per 1,000 m²', 'num', 1.5, 0, 40, 0.1, 'Scattered trees, outside the forest groves.'],
     ['tree_kinds', 'Tree kinds to pick from', 'list', ['pine', 'round', 'dead'], ['pine', 'round', 'dead'], 0, 0, ''],
+    ['forest', 'Forest groves', 'bool', true, 0, 0, 0, 'Trees also grow in dense groves with open clearings between them (the fight starts in a clearing). Off = scattered trees only.'],
+    ['groves', 'Groves', 'num', 10, 1, 60, 1, ''],
+    ['grove_radius_m', 'Grove radius (m)', 'num', 10, 3, 60, 1, ''],
+    ['grove_density', 'Trees per 100 m² in a grove', 'num', 6, 0.5, 30, 0.5, 'Thick in the middle, thinning out at the edge. At most 700 grove trees per world.'],
+    ['grove_gap_m', 'Least gap between grove trees (m)', 'num', 0.8, 0, 5, 0.1, ''],
     ['crystals', 'Crystal clusters per 1,000 m²', 'num', 0.5, 0, 10, 0.1, ''],
     ['columns', 'Old columns per 1,000 m²', 'num', 0.4, 0, 10, 0.1, ''],
     ['size_pct', 'Size (%)', 'num', 100, 30, 300, 5, ''],
@@ -358,7 +363,36 @@ class World {
   _addItem(kind, group, u, mesh, cols, o) {
     const it = Object.assign({kind, group, u, mesh, hp: 1, maxHp: 1, dead: false, regrowAt: 0, solid: true, breakable: true, color: 0x888888, height: 2}, o || {});
     it.cols = cols.map(c => ({item: it, u: c.u || u, r: c.r, h: c.h})); it.cols.forEach(c => this.solids.push(c));
+    it.sight = this._sightShapes(kind, mesh);
     this.items.push(it); this.root.add(mesh); return it; }
+  /* Sight shapes (camera, Daniel 2026-11-26): upright cylinders {r, y0, y1} in the item's own frame (y = along its up),
+     measured from the mesh. Trees = a thin trunk + the crown above it, so a low camera can see under the leaves. */
+  _sightShapes(kind, mesh) {
+    const p = mesh.position.clone(), q = mesh.quaternion.clone(), s = mesh.scale.clone();
+    mesh.position.set(0, 0, 0); mesh.quaternion.identity(); mesh.scale.set(1, 1, 1); mesh.updateMatrixWorld(true);
+    const box = o => { const b = new THREE.Box3().setFromObject(o); return {r: Math.max(.2, Math.abs(b.min.x), Math.abs(b.max.x), Math.abs(b.min.z), Math.abs(b.max.z)), y0: Math.max(0, b.min.y), y1: b.max.y}; };
+    let out;
+    if (kind === 'tree' && mesh.children.length > 1) { const tr = box(mesh.children[0]), rest = mesh.children.slice(1);
+      const b = new THREE.Box3(); rest.forEach(c => b.expandByObject(c)); tr.r = Math.min(tr.r, .45);
+      out = [tr, {r: Math.max(Math.abs(b.min.x), Math.abs(b.max.x), Math.abs(b.min.z), Math.abs(b.max.z)), y0: Math.max(0, b.min.y), y1: b.max.y}]; }
+    else out = [box(mesh)];
+    mesh.position.copy(p); mesh.quaternion.copy(q); mesh.scale.copy(s); mesh.updateMatrixWorld(true); return out; }
+  /* See-through fade (camera, Daniel 2026-11-26): k = 1 solid .. 0 gone. Below 1 the item's meshes swap to their own
+     copies of its materials that drop pixels in a 4x4 ordered (Bayer) pattern (screen-door dither, the cel look stays
+     crisp), drawn after the solid scene (transparent queue), so whatever stands behind shows through the holes. Back to 1 =
+     the shared materials again and the copies are freed. */
+  setFade(it, k) {
+    k = Math.max(0, Math.min(1, k));
+    if (k >= .999) { if (!it.fadeU) return; it.mesh.traverse(o => { if (o.userData.pbMat) { o.material = o.userData.pbMat; delete o.userData.pbMat; } });
+      it.fadeMats.forEach(m => m.dispose()); it.fadeMats = null; it.fadeU = null; return; }
+    if (!it.fadeU) { const U = it.fadeU = {value: 1}; const made = new Map(); it.fadeMats = [];
+      it.mesh.traverse(o => { if (!o.isMesh || !o.material || Array.isArray(o.material)) return; const m = o.material; let c = made.get(m);
+        if (!c) { c = m.clone(); c.defines = Object.assign({}, m.defines || {}); c.transparent = true;
+          c.onBeforeCompile = sh => { sh.uniforms.pbFade = U; sh.fragmentShader = 'uniform float pbFade;\n' + sh.fragmentShader.replace('#include <dithering_fragment>',
+            '#include <dithering_fragment>\n{ vec2 pbA = floor(gl_FragCoord.xy), pbH = floor(pbA * .5);\n  float pbB = fract(dot(pbH, vec2(.5, pbH.y * .75))) * .25 + fract(dot(pbA, vec2(.5, pbA.y * .75)));\n  if (pbB >= pbFade) discard; }'); };
+          made.set(m, c); it.fadeMats.push(c); }
+        o.userData.pbMat = m; o.material = c; }); }
+    it.fadeU.value = k; }
   _buildLandmarks() {
     const L = this.cfg.landmarks; if (!L.enabled || !L.count || !L.kinds.length) return; const s = L.size_pct / 100, pal = this.pal;
     for (let i = 0; i < L.count; i++) { const kind = this.pick(L.kinds); const u = this.freeU(6 * s, 60); if (!u) continue;
@@ -407,7 +441,9 @@ class World {
     const S = this.cfg.scenery; if (!S.enabled) return; const s = S.size_pct / 100, per = this.area / 1000, pal = this.pal;
     const add = (kind, n, make) => { for (let i = 0; i < Math.min(500, Math.round(n * per)); i++) { const m = make(); const u = this.freeU(m.r + .5); if (!u) continue; this.orient(m.g, u, -.05);
       this._addItem(kind, 'scenery', u, m.g, S.solid ? [{r: m.r, h: m.h}] : [], {hp: S.hp, maxHp: S.hp, solid: !!S.solid, color: m.col, height: m.h}); } };
-    if (S.tree_kinds.length) add('tree', S.trees, () => { const k = this.pick(S.tree_kinds); const m = this._treeMesh(k, s); m.col = pal.leaf[0]; return m; });
+    const tree = () => { const k = this.pick(S.tree_kinds); const m = this._treeMesh(k, s); m.col = pal.leaf[0]; return m; };
+    if (S.tree_kinds.length && S.forest) this._buildGroves(S, tree);
+    if (S.tree_kinds.length) add('tree', S.trees, tree);
     add('crystal', S.crystals, () => { const g = new THREE.Group(); const c = this.pick(pal.crystal); const cm = this.basic(c); let h = 0;
       for (let k = 0; k < 4; k++) { const q = this.inked(new THREE.OctahedronGeometry(1, 0), cm, 1.1); const hh = this.r(1, 2.6) * s; q.scale.set(.35 * s, hh, .35 * s); const a = k * 1.7; q.position.set(Math.cos(a) * .4 * s, hh * .6, Math.sin(a) * .4 * s); q.rotation.set(Math.sin(a) * .35, 0, -Math.cos(a) * .35); g.add(q); h = Math.max(h, hh * 1.6); }
       return {g, h, r: .8 * s, col: c}; });
@@ -415,6 +451,24 @@ class World {
       const c = this.inked(new THREE.CylinderGeometry(.5 * s, .55 * s, h, 10), m); c.position.y = h / 2; g.add(c); const b = this.inked(new THREE.BoxGeometry(1.4 * s, .35 * s, 1.4 * s), this.toon(pal.rock[1])); b.position.y = .17 * s; g.add(b);
       if (this.rnd() < .5) { const t = this.inked(new THREE.BoxGeometry(1.3 * s, .3 * s, 1.3 * s), this.toon(pal.rock[1])); t.position.y = h; g.add(t); } else c.rotation.z = this.r(-.05, .05);
       return {g, h, r: .6 * s, col: pal.rock[0]}; });
+  }
+  /* Forest groves (Daniel 2026-11-26: "fighting in very condensed areas like forests"): S.groves centres round the globe
+     (never over the start clearing), each filled with trees thick in the middle and thinning out to grove_radius_m
+     (uniform disk + a falloff), at least grove_gap_m apart, at most 700 grove trees per world. */
+  _buildGroves(S, make) {
+    const R = this.R, rad = Math.max(1, S.grove_radius_m), clear = this.cfg.planet.start_clear_m / R, placed = [];
+    const want = Math.min(700, Math.round(Math.max(1, S.groves) * Math.PI * rad * rad / 100 * S.grove_density)); const per = Math.max(1, Math.ceil(want / Math.max(1, S.groves)));
+    const centres = []; for (let i = 0; i < Math.max(1, Math.round(S.groves)); i++) { for (let k = 0; k < 20; k++) { const c = this.randU(); if (Math.acos(Math.min(1, c.y)) < clear + rad * .6 / R) continue; centres.push(c); break; } }
+    const near = (c, d) => { const t = new THREE.Vector3(this.r(-1, 1), this.r(-1, 1), this.r(-1, 1)); t.addScaledVector(c, -t.dot(c)); if (t.lengthSq() < 1e-6) return null; t.normalize();
+      return c.clone().applyAxisAngle(new THREE.Vector3().crossVectors(c, t).normalize(), d / R).normalize(); };
+    let made = 0;
+    for (const c of centres) { for (let i = 0; i < per && made < want; i++) { const m = make();
+      let u = null; for (let k = 0; k < 14 && !u; k++) { const d = rad * Math.sqrt(this.rnd()) * (this.rnd() < .7 ? 1 : this.r(.3, .7)); const q = near(c, d); if (!q) continue;
+        if (Math.acos(Math.min(1, q.y)) < clear + (m.r + .5) / R) continue;
+        if (placed.some(p => p.u.angleTo(q) * R < p.r + m.r + S.grove_gap_m)) continue;
+        if (this.solids.some(s => s.item.kind !== 'tree' && s.u.angleTo(q) * R < s.r + m.r + .6)) continue; u = q; }
+      if (!u) continue; placed.push({u, r: m.r}); made++; this.orient(m.g, u, -.05);
+      this._addItem('tree', 'scenery', u, m.g, S.solid ? [{r: m.r, h: m.h}] : [], {hp: S.hp, maxHp: S.hp, solid: !!S.solid, color: m.col, height: m.h, grove: true}); } }
   }
   // ---------------------------------------------------------------- hits on items
   cfgOf(it) { return it.group === 'pillars' ? this.cfg.pillars : it.group === 'scenery' ? this.cfg.scenery : null; }
@@ -428,7 +482,8 @@ class World {
     // wobble on a chip
     it.wob = 1; return 'chip'; }
   breakItem(it, dir, power) {
-    if (it.dead) return; it.dead = true; it.mesh.visible = false; const C = this.cfgOf(it);
+    if (it.dead) return; it.dead = true; it.mesh.visible = false; this.setFade(it, 1); const C = this.cfgOf(it);
+    if (this.onBreak) { try { this.onBreak(it, dir, power); } catch (e) { console.error(e); } }   // the game's camera (destruction shot)
     it.regrowAt = C && C.regrow_s > 0 ? this.time + C.regrow_s : 0;
     // debris: chunks of the item fly off (planet gravity pulls them back), dust
     const n = it.kind === 'pillar' ? 12 : it.kind === 'tree' ? 8 : 7; const base = it.u.clone().multiplyScalar(this.R);
@@ -591,7 +646,7 @@ class World {
         if (mk.fadeGeos) mk.fadeGeos.forEach(f => { const p = f.geo.attributes.position; for (let j = 0; j < p.count; j++) p.setY(j, f.yb[j] + f.yo[j] * k); p.needsUpdate = true; }); }
       if (left <= 0) { this._dropMark(mk); this.marks.splice(i, 1); } }
   }
-  dispose() { this.marks.forEach(x => this._dropMark(x)); this.marks = [];
+  dispose() { this.marks.forEach(x => this._dropMark(x)); this.marks = []; this.items.forEach(it => this.setFade(it, 1));
     this.scene.remove(this.root); this.scene.remove(this.sky); this.geos.forEach(g => g.dispose && g.dispose());
     for (const k in this.mats) this.mats[k].dispose(); this.inkMat.dispose(); this.grad.dispose(); BEND.w = 0; }
 }

@@ -40,7 +40,7 @@ function frame(now){requestAnimationFrame(frame);const rdt=Math.min(.05,(now-las
       stepFx(rdt*Math.max(.4,sp));stepNums(rdt);sides.forEach(s=>s.team.forEach(f=>sync(f,rdt)));planetFrame(rdt*Math.max(.4,sp));camStep(rdt);fxDraw();lockDraw();hud(rdt);
     }else if(!running){planetFrame(rdt,true);camStep(rdt,true);}
   }catch(err){console.error(err);}
-  renderer.render(scene,cam);}
+  renderer.render(scene,cam);try{xrayRender();}catch(err){console.error(err);}}   // cinecam.js: hidden fighters as silhouettes
 
 /* ================= flow ================= */
 // Game flow: new fight, end of fight, pause, back to the title. The screens

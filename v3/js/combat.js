@@ -3,7 +3,7 @@
 /* ================= combat ================= */
 function onField(){return [sides[0].team[sides[0].on],sides[1].team[sides[1].on]];}
 function enemyOf(f){return sides[1-f.side].team[sides[1-f.side].on];}
-function startAct(f,def,kind,name){if(kind==='ult')camEvent('ult');const a={def,kind,name,t:0,hi:0,fi:0,li:0};if(def.n2d){f.lastAct2d=def.n2d;f.lastActTick=tick;}
+function startAct(f,def,kind,name){if(kind==='ult')camEvent('ult',f);const a={def,kind,name,t:0,hi:0,fi:0,li:0};if(def.n2d){f.lastAct2d=def.n2d;f.lastActTick=tick;}
   if(f.stateUntil>tick&&['normal','special','special2'].includes(kind)){const e=enemyOf(f);[0,180,360].forEach(ms=>later(ms,()=>{if(f.on&&!f.ko&&!e.ko)heavenBlade(f,e);}));}f.act=a;mv3Start(f,def);f.armor=def.armor||0;f.landedThisAct=false;stats.starts[f.side]++;metr.starts.push(tick);
   if(f.on&&f.side===0)stats.actions++;return a;}
 function endAct(f){if(!f.act)return;f.mv3=null;f.lastEnd=tick;f.lastWhiff=!f.landedThisAct&&f.act.kind!=='react';f.act=null;f.armor=0;f.justEnded=true;}
@@ -93,15 +93,16 @@ function damage(a,t,dmg,w,isShot,shot,kbpx,unblock,fx3){
   FXF=t;const HS=[0,55,95,145,190][wv];hitstopMs=Math.max(hitstopMs,HS*(k<1?.6:1));t.flashT=.11;t.jitT=HS/1000+.05;t.recoil=Math.min(1.2,t.recoil+.22*wv);
   fx_sparks(t.x,t.y,a.k.fx,10+wv*9,6+wv*2.5);fx_sparks(t.x,t.y,0xffffff,6+wv*3,9+wv*2);fx_ring(t.x,t.y,a.k.core,1.4+wv*.9,.26,1);fx_star(t,a,wv);
   if(wv>=3&&k===1){flash(.1*wv);fx_crack(t.x,t.y,wv);}
+  if(wv>=3)camEvent('heavy',t,a);   // cinecam.js: crash zoom
   {const ddx=t.x-a.x,ddy=t.y-a.y,l=Math.hypot(ddx,ddy)||1;shakeDir=[ddx/l,ddy/l];}shake=Math.max(shake,.16*wv+.08);camPunch=Math.max(camPunch,.035*wv);
   dmgNum(t,Math.round(dm),a.k.fx,wv);a.vx+=Math.cos(a.face)*40;a.vy+=Math.sin(a.face)*40;
   // 2D-style trading: light hits never interrupt, medium only an idle target, heavy / blowback always (unless armoured)
   const dx=t.x-a.x,dy=t.y-a.y,dd=Math.hypot(dx,dy)||1;const kvx=t.vx,kvy=t.vy;const st0=t.stun,vz0=t.vz;
   if(k===1&&wv>t.armor&&(wv>=3||(wv===2&&!t.act))){if(t.act)endAct(t);const kb=[0,160,420,800,1600][wv];t.vx+=dx/dd*kb;t.vy+=dy/dd*kb;
     stun(t,[0,150,260,600,850][wv],wv>=3?'down':'stag');if(wv>=3&&t.z<10)fx_dust(t.x,t.y,6);
-    if(wv>=3&&a.z>t.z+60&&t.z>90){t.vz=-2900;t.stunKind='air';callout('SPIKE','','#ffc857',.5,true);camEvent('launch');}
+    if(wv>=3&&a.z>t.z+60&&t.z>90){t.vz=-2900;t.stunKind='air';callout('SPIKE','','#ffc857',.5,true);camEvent('launch',t);}
     else if(wv===4){t.vz=(t.z-a.z)*1.4+rnd(350,800);t.stunKind='air';t.vx*=GRAV.launchPower;t.vy*=GRAV.launchPower;}
-    else if(wv===3&&(t.z<40?Math.random()<.4:Math.random()<.25)){t.vz=rnd(1250,1650);t.stunKind='air';t.stun=Math.max(t.stun,ms2t(1000));t.vx*=GRAV.launchPower;t.vy*=GRAV.launchPower;callout('LAUNCH','','#8fd3ff',.5,true);camEvent('launch');
+    else if(wv===3&&(t.z<40?Math.random()<.4:Math.random()<.25)){t.vz=rnd(1250,1650);t.stunKind='air';t.stun=Math.max(t.stun,ms2t(1000));t.vx*=GRAV.launchPower;t.vy*=GRAV.launchPower;callout('LAUNCH','','#8fd3ff',.5,true);camEvent('launch',t);
       if(a.k.melee&&!(a.side===0&&level==='handson'))later(200,()=>{if(a.ko||!a.on||t.ko)return;a.snapCd=0;a.gapUntil=0;snapTo(a,t.x-Math.cos(a.face)*60,t.y-Math.sin(a.face)*60,Math.random()<a.k.blink,true,t.z+40);if(!canFly(a))a.jumpAfterSnap=true;if(a.k.rhythm!==false)enter(a,'punish');});}}
   if(kbpx&&k===1){t.vx+=dx/dd*kbpx*2.2;t.vy+=dy/dd*kbpx*2.2;}
   else{t.vx+=dx/dd*(wv>=2?220:110)*pkb;t.vy+=dy/dd*(wv>=2?220:110)*pkb;}
@@ -112,7 +113,7 @@ function damage(a,t,dmg,w,isShot,shot,kbpx,unblock,fx3){
 function stun(f,ms,kind){f.stun=Math.max(f.stun,ms2t(ms));f.stunKind=kind;f.stunId=(f.stunId||0)+1;f.snap=null;if(f.act)endAct(f);}
 function perfect(t,a){slowmo=ms2t(320);stats.perfect++;callout('PERFECT SNAP','Dodged on the frame · counter ready','#ffc857',.7);flash(.25);t.tp.mom=1;t.gapUntil=0;stun(a,300,'stag');a.lastWhiff=true;director.cnt++;}
 function ko(f){if(training){f.hp=0;return;}   // training.js: nobody is K.O.'d, HP refills
-  f.ko=true;camEvent('ko');if(f.act)endAct(f);director.ko++;const s=sides[f.side];stats.kos[f.side]++;
+  f.ko=true;camEvent('ko',f);if(f.act)endAct(f);director.ko++;const s=sides[f.side];stats.kos[f.side]++;
   callout('K.O.',f.k.name,'#ff3b55',.9);fx_dome(f.x,f.y,0xffffff,5);planetCrater(f.x,f.y,2.6);planetBlast(f.x,f.y,f.z,220,80);flash(.3);shake=1;slowmo=ms2t(400);
   later(450,()=>{const alive=s.team.map((g,i)=>i).filter(i=>!s.team[i].ko);if(!alive.length){endGame(f.side===1);return;}tagIn(f.side,alive[0],'rescue');});}
 

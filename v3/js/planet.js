@@ -21,6 +21,7 @@ function unbendP(q){const B=World3D.BEND;if(!PLANET||!(B.w>0))return q.clone();c
   return h<1e-6?new THREE.Vector3(B.x,r-R,B.z):new THREE.Vector3(B.x+cx/h*th*R,r-R,B.z+cz/h*th*R);}
 function planetReset(){if(!PLANET)return;if(world)world.dispose();
   world=new World3D.World(scene,WORLD_CFG,{});world.setAnchor(0,0,true);
+  world.onBreak=it=>{if(typeof camBreak==='function')camBreak(it);};   // cinecam.js: destruction shot
   scene.background=new THREE.Color(world.pal.sky[1]);const fr=world.fogRange();
   scene.fog=new THREE.Fog(world.pal.fog,fr?fr[0]:1e5,fr?fr[1]:2e5);
   planetFog=[scene.fog.near,scene.fog.far];cam.far=Math.max(400,world.R*3.2+320);cam.updateProjectionMatrix();planetSolids=null;}
@@ -43,6 +44,16 @@ function planetIdleCam(){const t=performance.now()/1000*.08,R=world.R,D=R*1.25+2
   cam.position.set(A.x+Math.sin(t)*D,D*.5,A.z+Math.cos(t)*D);cam.lookAt(A.x,-R*.28,A.z);}
 // camera: the shot is framed on the flat plane, then bent like everything else
 function planetCam(look){const p=bendP(cam.position),l=bendP(look);cam.position.copy(p);cam.lookAt(l);}
+/* Sight lines (cinecam.js, Daniel 2026-11-26): the standing items near the fight as the camera sees them, in DRAWN
+   (bent) space: base B, up n, side axes e1 / e2, sight shapes (upright cylinders, item.sight, x the regrow scale).
+   Cached per frame. */
+let planetSightC=null;
+function planetSight(maxM,fr){if(!PLANET||!world)return [];const f=fr;if(planetSightC&&planetSightC.t===f&&planetSightC.w===world)return planetSightC.l;
+  const l=[],O=new THREE.Vector3(world.A.x,-world.R,world.A.z),X=new THREE.Vector3(1,0,0),Z=new THREE.Vector3(0,0,1);
+  for(const it of world.items){if(it.dead||!it.mesh.visible||!it.sight)continue;const p=world.flatOf(it.u);if(p.th*world.R>(maxM||80))continue;
+    const B=bendP(new THREE.Vector3(p.x,0,p.z)),n=B.clone().sub(O).normalize(),e1=new THREE.Vector3().crossVectors(n,Math.abs(n.x)<.9?X:Z).normalize(),e2=new THREE.Vector3().crossVectors(n,e1);
+    l.push({it,B,n,e1,e2,s:it.mesh.scale.y||1,fx:p.x,fz:p.z});}
+  planetSightC={t:f,w:world,l};return l;}
 function allFighters(){const out=[];sides.forEach(s=>s.team.forEach(f=>{if(f&&f.on&&!f.ko&&!f.phantom)out.push(f);}));return out;}
 
 /* ---------------- sim side */

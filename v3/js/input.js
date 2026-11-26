@@ -15,7 +15,7 @@ window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false;sprintKeyU
 function command(code,retry){const f=sides[0].team[sides[0].on];if(!f||f.ko)return;const e=enemyOf(f);
   const busy=()=>!!(f.act||f.stun>0||f.gone>0||f.snap||f.leap>0);
   const fail=c=>{if(!retry&&busy()){f.buf={code:c,until:tick+ms2t(400)};return;}if(!retry||tick>=(f.buf&&f.buf.until||0))deny(c);};
-  if(code==='KeyC'){const M=['shoulder','dynamic','wide'];setCam(M[(M.indexOf(camMode)+1)%3]);return;}
+  if(code==='KeyC'){const M=['shoulder','dynamic','wide','cinematic'];setCam(M[(M.indexOf(camMode)+1)%M.length]);return;}
   if(code==='Tab'){const L=['watch','commander','handson'];setLevel(L[(L.indexOf(level)+1)%3]);return;}
   if(code==='KeyT'&&level!=='watch'){lockToggle();return;}   // lock-on (combo.js); middle mouse too
   if(level==='watch'){callout('Watch mode','Press Tab to take command','#9aa1bd',.6,true);return;}
