@@ -345,7 +345,11 @@ v3-animation skill ("Review questions").
   inner keys 25 ms early, the fist lands on the approved frames. Kamehameha "bake it" (10 -> 13 keys for the settle).
   Audit: no hard faults (a 170 deg forearm flip from the fist spring was fixed: directions spring on the sphere, Rfist
   1.75 frames). New moves get `overlap` from blocking.
-- **Next, in order:** ultimate (Big Bang Kamehameha), attack_normal_2 (double axe handle
+- **ultimate approved** ("bake it", 2026-11-26) and baked: aerial two-handed kamehameha. Daniel's picks: jump from
+  the ground; arms pulled back like a bird's wings on the backstroke only (replaced "cupped at the hip"); both palms
+  flat side by side (not one-handed); thrust at 2D f10-f11 and the beam at frame 13 as drawn; ends tucked in the
+  air; an anime hang at the apex. Review cameras now follow the hips' height on jumps.
+- **Next, in order:** attack_normal_2 (double axe handle
   overhead), attack_normal_3 (shoryuken uppercut jump), attack_normal_4 (180 spin > backhand), attack_special_2 (hands
   pumping forward and back). Puck's other clips are still the 2D-guessed ones (the audit's hard faults are theirs).
 
