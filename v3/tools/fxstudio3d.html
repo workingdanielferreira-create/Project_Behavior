@@ -496,6 +496,19 @@ function addEffects(list) { pushUndo(); S.F.effects = S.F.effects || []; let las
   S.sel = last; changed(true); }
 { const sel = $('preset'), groups = {};
   (window.FX_PRESETS || []).forEach((p, i) => { const g = typeof p.group === 'string' ? p.group : 'Other'; (groups[g] || (groups[g] = [])).push([p, i]); });
+  // "3D" (Daniel 2026-11-26: "place all 3D enhanced FX into a 3D category so I can see what's been added"): every preset
+  // with an effect that draws as a 3D shape, copied to the top by family (they stay in their own groups too).
+  // "· part 3D" = some of it stays on a card (another effect, or a punch / kick's ink / gritty look).
+  const fam = e => FX3D.strikeKind(e) ? 'Punches & kicks' : FX3D.bladeKind(e) ? 'Sword slashes & crescents' : 'Lasers, beams, orbs, particles & impacts';
+  const energyOnly = e => !['punch', 'kick'].includes(FX3D.strikeKind(e)) || ['fx_motion', 'fx_impact', 'fx_env'].every(k => { const v = (e.params || {})[k]; return v === 'energy' || v === 'off'; });
+  const g3 = {};
+  (window.FX_PRESETS || []).forEach((p, i) => {
+    const ef = (p.effects || []).filter(e => e && e.enabled !== false), d3 = ef.filter(e => FX3D.is3d(e, e.fx3d)); if (!d3.length) return;
+    const part = d3.length < ef.length || !d3.every(energyOnly), f = fam(d3[0]);
+    (g3[f] || (g3[f] = [])).push([p, i, part]);
+  });
+  ['Punches & kicks', 'Sword slashes & crescents', 'Lasers, beams, orbs, particles & impacts'].forEach(f => { if (!g3[f]) return;
+    sel.insertAdjacentHTML('beforeend', '<optgroup label="3D · ' + esc(f) + '">' + g3[f].map(([p, i, part]) => '<option value="' + i + '" title="' + esc(p.desc || '') + '">' + esc(p.name) + (part ? ' · part 3D' : '') + '</option>').join('') + '</optgroup>'); });
   for (const g in groups) sel.insertAdjacentHTML('beforeend', '<optgroup label="' + esc(g) + '">' + groups[g].map(([p, i]) => '<option value="' + i + '" title="' + esc(p.desc || '') + '">' + esc(p.name) + '</option>').join('') + '</optgroup>');
   sel.onchange = function () { const p = (window.FX_PRESETS || [])[+this.value]; this.value = ''; if (!p || !S.F) return;
     addEffects(p.effects.map(e => Object.assign({name: p.name}, e))); status('Added preset “' + p.name + '” to ' + S.act + '.'); };
