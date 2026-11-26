@@ -147,7 +147,16 @@ Zenless Zone Zero showcase on skowt.cc (e.g. Ellen: https://skowt.cc/a/C7sbRpSCm
   loose one cut a straight corner into the recovery). Chest + head layers clean. Left on purpose: the chop's 4-frame
   over-the-top snap (FX lands it at 0.423), the stick on the hit, Oblivion's rip-out reversal, the anticipation
   reversal at the coil (chest wound left, whips right).
-- **Next:** Daniel's verdict on the six drafts' stills, one move at a time (attack_normal_3 first, after its arcs pass).
+- Blocking pass on attack_normal_3 (Daniel 2026-11-26, /pose-to-pose-blocking-supervisor, "fix keys + stepped
+  stills"): 8 -> 7 keys. The coil read the same as ready (now sits back on the loaded leg, low, wound left, Oblivion
+  chambered); the pierce committed to one long diagonal; the chop was bunched / end-on (now folded over in a C-curve,
+  Oblivion flung back as the counterweight: wide silhouette); the follow-through duplicated the chop (now the blade
+  carried down past the knee, hips held back over the front foot); "recover" duplicated the final ready (dropped).
+  The raise breakdown re-sat between the new keys (chest on the line, Oblivion swings OUT on its way back: no flip);
+  the front foot pivots on the ball with the hips' whip (thigh twist). Audit: no hard fault, off balance only during
+  the lunge step; arcs re-checked. Stills: `view.html` view `sil` (solid black side silhouette), stepped GIF = each key
+  held to the next (out/attack_normal_3_blocking_*).
+- **Next:** Daniel's verdict on attack_normal_3's blocking, then the other five drafts one at a time.
 
 ## Key poses + tweening (2026-11-22, later)
 

@@ -20,7 +20,7 @@ for i, t in enumerate(T['times']):
     lab = T['labels'][i] if T.get('labels') else ''
     dr.text((10, 8), '%s   t=%.3fs   2D frame %d   %s' % (clip, t, fi + 1, lab), fill='black', font=F)
     for k, v in enumerate(T['views']):
-        dr.text((418 + 520 * k, 575), {'side': 'side (target ->)', 'q34': '3/4 front', 'front': 'front', 'top': 'top'}[v], fill='#555', font=F)
+        dr.text((418 + 520 * k, 575), {'side': 'side (target ->)', 'q34': '3/4 front', 'front': 'front', 'top': 'top', 'sil': 'silhouette (side)'}[v], fill='#555', font=F)
     ims.append(panel)
 dur = T.get('ms', 900)
 ims[0].save(out, save_all=True, append_images=ims[1:], duration=dur, loop=0)
