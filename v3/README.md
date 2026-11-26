@@ -610,6 +610,13 @@ with no damage; three stages.
   glow, push reach, pillar height / width, dome + rings, streaks, camera shake), Ground (on / off, cracks, rocks, dust,
   overall amount). All are `params` keys (`DEFAULTS.tfx_golden_ascension`; a missing key = its default). **Preview plays: the
   aura only** skips the charge and burst in the preview so the aura burns the whole action while you tune it (not saved).
+- **Outer flames** (Daniel 2026-11-26 sketch: flames spreading out of the aura's sides; panel group "Outer flames"):
+  strands born on the sheath's side at a new random spot each cycle, shooting out sideways, curling up, burning off from
+  the root (`hyperfx.js outerFlames`): a gold glow tube + a white-hot core, thin at the root, pointed at the tip, trailing
+  with the lean. Settings `outer_flames`, `outer_count`, `outer_shape` curved / jagged / mixed, `outer_spread_pct`,
+  `outer_length_pct`, `outer_curl_pct` (0 = straight out, 100 = flare out then sweep up, 200 = shoot up), `outer_from_pct` /
+  `outer_to_pct` (heights on the aura they are born between), `outer_width_pct`, `outer_jag_pct`, `outer_speed_pct`,
+  `outer_color` hot / main / deep / white, `outer_opacity_pct`.
 - **Stages** (`stage`): 1 = gold flame aura; 2 = tighter, brighter, faster flicker + blue-white arcs crackling over the
   body the whole time; 3 = biggest (x1.4, taller crown, many more flames), heavy lightning, the ground breaking up and
   floating round the feet the whole time. A stage multiplies the panel's settings (size, height, flame length, speed, chaos).

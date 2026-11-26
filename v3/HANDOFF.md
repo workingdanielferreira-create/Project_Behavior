@@ -407,6 +407,9 @@ v3-animation skill ("Review questions").
   the aura is one noise-torn shader sheath (`fx3d.js makeAura / aura3`); 45 settings in 7 groups (`HYPERFX.UI`), every look
   choice a param; FX Studio 3D section "Transformation" + "Preview plays: the aura only". Checked headless: the sheath renders
   per stage, four setting variants change it as expected, the panel builds and writes the effect, no errors.
+- Round 3 (same day): Daniel sketched flames spreading out of the aura's sides. His pick: outer licks with the shape as a
+  setting. Done: panel group "Outer flames" (13 settings, README). Checked headless: default / curved / jagged / low-wide
+  variants render, no errors.
 - **Next:** Daniel's verdict in FX Studio 3D + game.
 
 ## Next steps (agreed direction, not started)

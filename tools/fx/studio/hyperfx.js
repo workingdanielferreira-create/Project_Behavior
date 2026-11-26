@@ -64,7 +64,11 @@ DEFAULTS.tfx_golden_ascension = {stage: 1, charge: true, burst: true, aura: true
   lightning_pct: 100, bolt_color: "#a0d4ff", bolt_width_pct: 100,
   // charge / burst / ground
   charge_streaks_pct: 100, charge_glow_pct: 100, pillar_width_pct: 100, burst_rings: true, burst_streaks_pct: 100,
-  ground_fx: true, cracks_pct: 100, rocks_pct: 100, dust_pct: 100};
+  ground_fx: true, cracks_pct: 100, rocks_pct: 100, dust_pct: 100,
+  // outer flames (Daniel 2026-11-26 sketch): strands bursting out of the sheath's sides, flaring out, curling up
+  outer_flames: true, outer_count: 8, outer_shape: "mixed", outer_spread_pct: 100, outer_from_pct: 5, outer_to_pct: 70,
+  outer_length_pct: 100, outer_curl_pct: 100, outer_width_pct: 100, outer_speed_pct: 100, outer_jag_pct: 100,
+  outer_color: "hot", outer_opacity_pct: 90};
 // a setting of a transformation, its default when the effect predates it
 function pv(P, k) { var v = P[k]; return v == null || v === "" ? DEFAULTS.tfx_golden_ascension[k] : v; }
 function pc(P, k) { return Math.max(0, +pv(P, k) || 0) / 100; }   // a _pct setting as a fraction
@@ -555,6 +559,7 @@ function auraBody(sh, inst, C, P, K, Sg, z, A, fy, d, boltK, grounded) {
     gaps: pc(P, "flame_gaps_pct"), sharp: pc(P, "flame_sharp_pct"), opacity: pc(P, "aura_opacity_pct"), rim: pc(P, "rim_pct"),
     inner: pc(P, "inner_pct"), bands: Math.max(1, Math.round(+pv(P, "bands") || 1)), additive: pv(P, "additive") !== false,
     layer2: pv(P, "inner_layer") !== false, seed: ((inst.seed || 1) % 997) / 97}});
+  if (pv(P, "outer_flames") !== false) outerFlames(sh, inst, t, P, K, Sg, rw, H, fy, z, A, lean);
   var i, rnd, nm = Math.round(Sg.motes * d * pc(P, "sparks_pct"));
   for (i = 0; i < nm; i++) {   // sparks streaking up through it
     rnd = R(inst, 65, i); var x2 = t * (0.025 + rnd() * 0.03) + rnd(), p2 = frac(x2), q3 = R(inst, 66, i * 71 + Math.floor(x2));
@@ -569,6 +574,41 @@ function auraBody(sh, inst, C, P, K, Sg, z, A, fy, d, boltK, grounded) {
     if (Sg.quake) pebbles(sh, inst, C, Math.round(Sg.rocks * 0.6 * d * pc(P, "rocks_pct")), rw, z, A, 68);
   }
   arcs(sh, inst, t, Sg.bolts * boltK, rw, fy, H, z, A, 69, hexRgb(pv(P, "bolt_color"), BOLT), pc(P, "bolt_width_pct"));
+}
+// Outer flames: strands born on the sheath's side at a new random spot each cycle (height between outer_from / to % of the
+// aura), shooting out sideways (spread), curling up (curl), then burning off from the root. Shape curved = a smooth swoosh,
+// jagged = a zigzag spike, mixed = each strand rolls one. Thick at the root, a point at the tip; they trail with the lean.
+function outerFlames(sh, inst, t, P, K, Sg, rw, H, fy, z, A, lean) {
+  var n = Math.round(Math.max(0, +pv(P, "outer_count") || 0) * Sg.flame), shape = String(pv(P, "outer_shape"));
+  var spread = 11 * z * pc(P, "outer_spread_pct"), len = 15 * z * pc(P, "outer_length_pct") * Sg.flame, curl = pc(P, "outer_curl_pct");
+  var w0 = 0.9 * z * pc(P, "outer_width_pct"), spd = pc(P, "outer_speed_pct") * Sg.speed, jag = pc(P, "outer_jag_pct");
+  var h0 = cl(pc(P, "outer_from_pct")), h1 = Math.max(h0, cl(pc(P, "outer_to_pct"))), al0 = A * pc(P, "outer_opacity_pct");
+  var oc = String(pv(P, "outer_color")), col = oc === "main" ? K.m : oc === "deep" ? K.d : oc === "white" ? WHITE : K.h;
+  for (var i = 0; i < n; i++) {
+    var rnd = R(inst, 81, i), x = t * (0.03 + rnd() * 0.025) * spd + rnd(), ph = frac(x), q = R(inst, 82, i * 613 + Math.floor(x));
+    var az = q() * TAU, hk = h0 + (h1 - h0) * q(), hb = fy + H * hk, sp = spread * (0.6 + q() * 0.8), ln = len * (0.6 + q() * 0.8);
+    var jg = shape === "jagged" || (shape === "mixed" && q() < 0.5), zz = (q() < 0.5 ? 1 : -1), wk = w0 * (0.7 + q() * 0.6);
+    var head = eo(cl(ph * 2.2)), tail = ei(cl((ph - 0.25) / 0.75)); if (head - tail < 0.02) continue;   // shoots out, then burns off from the root
+    var ox = Math.cos(az), oz = Math.sin(az), tx = -oz, tz = ox, rr = rw * (0.85 + 0.25 * Math.sin(Math.PI * Math.min(1, hk * 1.1)));
+    var pt = function (s) {   // the strand's centre line at s (0 root .. 1 tip)
+      var out = sp * (1 - Math.pow(1 - s, 2.2)), up = ln * Math.pow(s, 1.25 - 0.6 * Math.min(1.5, curl)) * (0.25 + 0.75 * curl) + ln * 0.15 * s;
+      var zig = jg ? (((Math.floor(s * 5) & 1) ? 1 : -1) * (0.5 - Math.abs(frac(s * 5) - 0.5)) * 2 * 2.2 * z * jag * zz) : 0;
+      var lk = (hk + up / Math.max(1, H)) * 0.8;
+      return [ox * (rr + out) + tx * zig + lean[0] * lk, hb + up, oz * (rr + out) + tz * zig + lean[2] * lk];
+    };
+    // sample points: smooth = even steps; jagged = exactly on each zigzag corner, so the spikes snap
+    var ss = [tail], k, fade = Math.min(1, (1 - ph) * 3.5);
+    if (jg) { for (k = Math.ceil(tail * 10 + 1e-6); k / 10 < head; k++) ss.push(k / 10); }
+    else for (k = 1; k < 8; k++) ss.push(tail + (head - tail) * k / 8);
+    ss.push(head);
+    // thickness along the visible part: thin where it burned off, fullest a quarter in, a point at the tip
+    var wAt = function (s) { var u = (s - tail) / Math.max(1e-4, head - tail); return wk * (u < 0.25 ? 0.25 + 3 * u : 1 - (u - 0.25) / 0.75 * 0.97); };
+    for (k = 1; k < ss.length; k++) {
+      var A0 = pt(ss[k - 1]), B0 = pt(ss[k]), r0 = wAt(ss[k - 1]), r1 = wAt(ss[k]);
+      sh.tube(A0, B0, r0 * 1.9, r1 * 1.9, K.m, al0 * fade * 0.45, {core: false, ink: 0});   // glow round it
+      sh.tube(A0, B0, r0, r1, col, al0 * fade, {ink: 0});   // the bright strand (white-hot core)
+    }
+  }
 }
 // the charge / scream: energy pulled in from all round, a core glowing white, rumble rings, pebbles lifting, arcs
 function chargeFx(sh, inst, C, P, K, Sg, z, fy, d, lp, T, grounded) {
@@ -765,6 +805,20 @@ var UI = {tfx_golden_ascension: [
     ["lightning_pct", "Lightning (%)", "rng", [0, 400, 1], "Arcs on the body: stage 1 only while charging, stage 2 / 3 the whole time"],
     ["bolt_color", "Bolt colour", "col", null, ""],
     ["bolt_width_pct", "Bolt thickness (%)", "rng", [10, 400, 1], ""]]],
+  ["Outer flames", [
+    ["outer_flames", "Outer flames", "chk", null, "Flame strands bursting out of the aura's sides, flaring out and curling up"],
+    ["outer_count", "How many", "rng", [0, 40, 1], "Strands alive at once (each is born at a new random spot)"],
+    ["outer_shape", "Shape", "sel", [["curved", "curved · smooth swooshes"], ["jagged", "jagged · zigzag spikes"], ["mixed", "mixed · each one rolls"]], ""],
+    ["outer_spread_pct", "Spread out (%)", "rng", [0, 400, 1], "How far they fly out sideways from the aura"],
+    ["outer_length_pct", "Length (%)", "rng", [0, 400, 1], "How far they reach up"],
+    ["outer_curl_pct", "Curl up (%)", "rng", [0, 200, 1], "0 = straight out to the side, 100 = flare out then sweep up, 200 = shoot up fast"],
+    ["outer_from_pct", "Start from height (%)", "rng", [0, 100, 1], "Lowest point on the aura they are born (0 = the feet)"],
+    ["outer_to_pct", "Up to height (%)", "rng", [0, 100, 1], "Highest point on the aura they are born (100 = the top)"],
+    ["outer_width_pct", "Thickness (%)", "rng", [10, 400, 1], ""],
+    ["outer_jag_pct", "Zigzag size (%)", "rng", [0, 400, 1], "How sharp the jagged ones zigzag"],
+    ["outer_speed_pct", "Speed (%)", "rng", [0, 400, 1], "How fast each one shoots out and burns off"],
+    ["outer_color", "Colour", "sel", [["hot", "hot colour"], ["main", "main colour"], ["deep", "deep colour"], ["white", "white"]], ""],
+    ["outer_opacity_pct", "Opacity (%)", "rng", [0, 100, 1], ""]]],
   ["Charge & burst", [
     ["charge_streaks_pct", "Energy pulled in (%)", "rng", [0, 300, 1], ""],
     ["charge_glow_pct", "Core glow (%)", "rng", [0, 300, 1], ""],
