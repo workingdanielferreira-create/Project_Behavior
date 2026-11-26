@@ -561,6 +561,31 @@ with billows and rings, lightning dropping from the sky with crackles, drill sha
 detonations, smoke piling up. Keys used: `strike_glow_pct`, `strike_ground` (+ toon_*). `void_sniper` is a weapon style
 (weaponfx), not part of this batch.
 
+**Punching FX + impact FX (Daniel 2026-11-26: "10 new punching FX and 10 impact FX", anime hyper action: speed &
+distortion, debris & environment, elemental flavours).** `tools/fx/studio/hyperfx.js` (`G.HYPERFX`, technique styles,
+registered into `FXK.TECH_STYLES` on load; loaded by `v3/index.html` and FX Studio 3D, not the frozen 2D studio). Each
+style is one recipe (`HYPERFX.parts`): shapes in a local blow frame [forward, up, side], drawn as 3D cel shapes by
+`fx3d.js drawHyper` (2D flattening in `HYPERFX.draw` for render "card"). Presets in FX Studio 3D: groups **3D · Punching
+FX** / **3D · Impact FX** (and "Punching FX" / "Impact FX").
+
+- **Punching FX** (`pfx_*`: speed-line burst, afterimage fists, vacuum cone, blazing fist, thunder knuckle, frost jab,
+  void knuckle, cyclone hook, rocket jab, phantom rush): what happens round a fist WHILE a character punches, not a punch
+  technique. The effect rides its anchor (default `haR`; Start at = another hand / foot) and reads that point's REAL 3D
+  path every tick, so trails / afterimages / jets follow any punch clip. Forward = toward the target (else the way the fist
+  moves). `swing_ticks` = ticks from the effect's start to the contact beat (set the start frame so it lands on the hit),
+  `hold_ticks` = linger. Visual only by default.
+- **Impact FX** (`ifx_*`: shockwave crater, spark star, distortion ripple, pierce-through blast, inferno burst, thunderclap,
+  glacial shatter, void implosion, earthsplitter, sonic boom): standalone hit FX, preset anchor `target`, Motion static,
+  forward = caster -> target (pierce / sonic / earthsplitter blow out the far side). Hit once in its first `swing_ticks`+1
+  within `radius`, `hitstop_ticks` on a hit, `shake_px` camera kick when it bursts. Debris lands on the floor.
+- Settings: `radius`, `length`, `swing_ticks`, `hold_ticks`, `density` (count x), `hitstop_ticks`, `shake_px`. Elemental
+  styles keep their element colours unless Colour = palette (then tinted by the fighter's palette). Toon keys apply.
+
+**Start at = target fix (Daniel 2026-11-26).** FX Studio 3D's "Start at" rides as `3d:<id>`; `anchor2d` checked
+`figure` / `target` before stripping the prefix, so `3d:target` found no bone and fell back to the body centre. Fixed, and
+an effect started on the target now also lies at the target's own side offset (`lane.tgtLat`, followed while attached)
+instead of in the fighter's aim plane.
+
 Strike keys (FX Studio 3D "3D shape & cel look", section Strike): `strike_limb` auto / haR / haL / ftR / ftL / none (FX
 Studio's line only), `strike_glow_pct` (50: spheres for FX Studio's soft glows, % of the glow radius), `strike_spin_deg`
 (90), `strike_ground` (true). The usual toon_* keys apply.
