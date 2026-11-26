@@ -49,9 +49,26 @@ DEFAULTS.pfx_phantom_rush.hold_ticks = 14; DEFAULTS.pfx_rocket_jab.swing_ticks =
 DEFAULTS.ifx_void_implosion.hold_ticks = 32; DEFAULTS.ifx_earthsplitter.length = 80; DEFAULTS.ifx_sonic_boom.length = 70;
 DEFAULTS.ifx_thunderclap.hold_ticks = 24; DEFAULTS.ifx_ripple_dome.shake_px = 4;
 // transformation: swing_ticks = the charge, aura_s = how long the aura stays after the burst, radius = the burst's push
-// reach, length = the light pillar's height, aura_size_pct / lightning_pct scale the stage's look
+// reach, length = the light pillar's height. Every look choice is its own setting (Daniel 2026-11-26: "fx-specific
+// settings ... make it look like an actual aura"), edited in FX Studio 3D's Transformation panel (TFX_UI below).
 DEFAULTS.tfx_golden_ascension = {stage: 1, charge: true, burst: true, aura: true, swing_ticks: 70, aura_s: 20, radius: 60,
-  length: 110, aura_size_pct: 100, lightning_pct: 100, density: 1, hitstop_ticks: 0, shake_px: 9};
+  length: 110, density: 1, hitstop_ticks: 0, shake_px: 9,
+  // aura shape (the flame sheath round the body)
+  aura_size_pct: 100, aura_width_pct: 100, aura_height_pct: 100, aura_base_pct: 60, aura_top_pct: 75, lean_pct: 100, pulse_pct: 30,
+  // flames (torn into the sheath by moving noise)
+  flame_count: 7, flame_height_pct: 100, flame_speed_pct: 100, flame_chaos_pct: 100, flame_gaps_pct: 40, flame_sharp_pct: 80,
+  // colour & glow
+  aura_color: "#ffcc30", aura_hot: "#fff6ba", aura_edge: "#e87600", aura_opacity_pct: 75, rim_pct: 100, inner_pct: 18,
+  bands: 3, additive: true, inner_layer: true, sparks_pct: 100,
+  // lightning
+  lightning_pct: 100, bolt_color: "#a0d4ff", bolt_width_pct: 100,
+  // charge / burst / ground
+  charge_streaks_pct: 100, charge_glow_pct: 100, pillar_width_pct: 100, burst_rings: true, burst_streaks_pct: 100,
+  ground_fx: true, cracks_pct: 100, rocks_pct: 100, dust_pct: 100};
+// a setting of a transformation, its default when the effect predates it
+function pv(P, k) { var v = P[k]; return v == null || v === "" ? DEFAULTS.tfx_golden_ascension[k] : v; }
+function pc(P, k) { return Math.max(0, +pv(P, k) || 0) / 100; }   // a _pct setting as a fraction
+function hexRgb(h, d) { var m = /^#?([0-9a-f]{6})$/i.exec(String(h || "")); if (!m) return d; var n = parseInt(m[1], 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
 var AFTER = 12;   // ticks the debris / embers keep going after the effect's active time
 
 // element colours: [main, hot, deep]
@@ -95,6 +112,11 @@ function scl(d, k) { return [d[0] * k, d[1] * k, d[2] * k]; }
 function colours(inst, host) {
   var s = st(inst.fx.params), e = ELEMENT[s], lut = host && host.lut;
   var base = lut && G.SWORDFX ? G.SWORDFX.lib.colours(inst, host)[0] : [255, 200, 120];
+  if (isTransform(s)) {   // its own three colours (Transformation panel); Colour = palette tints them with the fighter's
+    var P = inst.fx.params, m = hexRgb(pv(P, "aura_color"), EL.gold[0]), h = hexRgb(pv(P, "aura_hot"), EL.gold[1]), dd = hexRgb(pv(P, "aura_edge"), EL.gold[2]);
+    if (inst.fx.color.mode === "palette") return {m: mix(m, base, 0.6), h: mix(h, base, 0.25), d: mix(dd, base, 0.4), e: "gold"};
+    return {m: m, h: h, d: dd, e: "gold"};
+  }
   if (e) {
     var E = EL[e];
     if (inst.fx.color.mode === "palette") return {m: mix(E[0], base, 0.6), h: mix(E[1], base, 0.25), d: E[2], e: e};
@@ -108,6 +130,9 @@ function Sh(out) { this.o = out; }
 Sh.prototype.sph = function (p, r, c, a, x) { if (r > 0.05 && a > 0.01) this.o.push(Object.assign({k: "sph", p: p, r: r, c: c, a: cl(a)}, x || {})); };
 Sh.prototype.tube = function (p, q, r0, r1, c, a, x) { if (a > 0.01 && (r0 > 0.02 || r1 > 0.02)) this.o.push(Object.assign({k: "tube", p: p, q: q, r: r0, r1: r1, c: c, a: cl(a)}, x || {})); };
 Sh.prototype.ring = function (p, n, R0, c, a, x) { if (R0 > 0.1 && a > 0.01) this.o.push(Object.assign({k: "ring", p: p, n: n, r: R0, c: c, a: cl(a)}, x || {})); };
+// the transformation's flame sheath: base point p (the feet), radius r, height h (px), lean [f, v, s] px at the top,
+// its look in o.look (fx3d.js builds it as one noise-torn shader shell; the 2D card draws a glow)
+Sh.prototype.aura = function (p, r, h, lean, c, a, x) { if (r > 0.1 && h > 0.1 && a > 0.01) this.o.push(Object.assign({k: "aura", p: p, r: r, h: h, lean: lean, c: c, a: cl(a)}, x || {})); };
 Sh.prototype.chunk = function (k, p, r, rot, c, a, x) { if (r > 0.05 && a > 0.01) this.o.push(Object.assign({k: k, p: p, r: r, rot: rot, c: c, a: cl(a)}, x || {})); };
 // a jagged bolt from A to B: tube segments, offsets round the line
 Sh.prototype.bolt = function (A, B, n, jag, w, c, a, rnd, x) {
@@ -475,25 +500,26 @@ IF.ifx_sonic_boom = function (sh, inst, C, P, K) {
 // target). C.fy = the feet (v, px, below = negative), C.gy = the floor, C.vel = the body's move per tick [f, v, s] px:
 // the flames stream behind it when it moves. Every flame / spark / bolt is re-rolled per cycle from the seed, so no two
 // seconds of the aura look the same (Daniel's "chaotic control, like a flame").
+// Stage = a preset look on top of the settings: size / shape multipliers, how fast and wild the flames are, lightning
 var STAGE = {
-  1: {size: 1.0, tight: 1.0, height: 1.0, flames: 22, crown: 5, flick: 1.0, bolts: 0, cbolts: 1.2, rocks: 6, motes: 8, quake: false},
-  2: {size: 1.05, tight: 0.82, height: 1.1, flames: 26, crown: 6, flick: 1.45, bolts: 2.6, cbolts: 3, rocks: 9, motes: 12, quake: false},
-  3: {size: 1.4, tight: 1.05, height: 1.35, flames: 38, crown: 8, flick: 1.7, bolts: 4.5, cbolts: 5, rocks: 16, motes: 16, quake: true}};
-function stageOf(P) { var s = Math.round(+P.stage || 1); return STAGE[s < 1 ? 1 : s > 3 ? 3 : s]; }
+  1: {size: 1.0, tight: 1.0, height: 1.0, flame: 1.0, speed: 1.0, chaos: 1.0, bolts: 0, cbolts: 1.2, rocks: 6, motes: 8, quake: false},
+  2: {size: 1.05, tight: 0.85, height: 1.1, flame: 1.1, speed: 1.45, chaos: 1.25, bolts: 2.6, cbolts: 3, rocks: 9, motes: 12, quake: false},
+  3: {size: 1.4, tight: 1.05, height: 1.35, flame: 1.35, speed: 1.6, chaos: 1.6, bolts: 4.5, cbolts: 5, rocks: 16, motes: 16, quake: true}};
+function stageOf(P) { var s = Math.round(+pv(P, "stage") || 1); return STAGE[s < 1 ? 1 : s > 3 ? 3 : s]; }
 function frac(x) { return x - Math.floor(x); }
 // the aura's strength A (0..1) and size x s at tick t
 function auraAmt(T, t, P) {
   var on = P.aura !== false;
   if (t < T.c) { var u = t / T.c; return {A: 0.15 + 0.65 * ei(u * 1.1), s: 0.6 + 0.35 * u}; }
   var tb = t - T.c;
-  if (tb < T.b) { var b = tb / T.b; return on ? {A: 1, s: 1 + 0.45 * (1 - eo(b * 1.5))} : {A: T.c ? 0.8 * (1 - b) : 0, s: 1 + 0.4 * (1 - b)}; }
+  if (tb < T.b) { var b = tb / T.b; return on ? {A: 1, s: 1 + 0.35 * (1 - eo(b * 1.5))} : {A: T.c ? 0.8 * (1 - b) : 0, s: 1 + 0.4 * (1 - b)}; }
   if (!on) return {A: 0, s: 1};
   var ta = tb - T.b, k = !T.c && !T.b ? cl(t / 8) : 1;   // no charge, no burst: the aura flares up on its own
   if (ta < T.a) return {A: k, s: 0.8 + 0.2 * k};
   var o = cl((ta - T.a) / AURA_OUT); return {A: 1 - o, s: 1 - 0.3 * o};
 }
 // crackling arcs over the body: nb bolts (a fraction = sometimes one more), each re-rolled every 4 ticks with a flicker
-function arcs(sh, inst, t, nb, rw, fy, H, z, A, salt) {
+function arcs(sh, inst, t, nb, rw, fy, H, z, A, salt, BC, bw) {
   if (!(nb > 0) || A <= 0.01) return;
   var FL = [1, 0.4, 0.9, 0.2], n = Math.ceil(nb);
   for (var j = 0; j < n; j++) {
@@ -501,10 +527,10 @@ function arcs(sh, inst, t, nb, rw, fy, H, z, A, salt) {
     var q = R(inst, salt + 1, j * 131 + Math.floor((t + j * 7) / 4)); if (q() > 0.78) continue;
     var a1 = q() * TAU, h1 = fy + H * (0.15 + 0.7 * q()), A1 = [Math.cos(a1) * rw * 0.9, h1, Math.sin(a1) * rw * 0.9];
     var a2 = a1 + (q() - 0.5) * 1.8, r2 = rw * (0.7 + q() * 0.7), B = [Math.cos(a2) * r2, h1 + (q() - 0.5) * H * 0.5, Math.sin(a2) * r2];
-    var col = q() < 0.3 ? WHITE : BOLT, al = A * FL[(t + j * 7) & 3];
-    sh.bolt(A1, B, 5, 2.6 * z, 0.6 * z, col, al, q, {ink: 0});
+    var col = q() < 0.3 ? WHITE : BC, al = A * FL[(t + j * 7) & 3];
+    sh.bolt(A1, B, 5, 2.6 * z, 0.6 * z * bw, col, al, q, {ink: 0});
     if (q() < 0.5) { var M = [(A1[0] + B[0]) / 2, (A1[1] + B[1]) / 2, (A1[2] + B[2]) / 2];
-      sh.bolt(M, add(M, [(q() - 0.5) * 8 * z, (q() - 0.3) * 8 * z, (q() - 0.5) * 8 * z], 1), 3, 1.6 * z, 0.35 * z, col, al * 0.8, q, {ink: 0}); }
+      sh.bolt(M, add(M, [(q() - 0.5) * 8 * z, (q() - 0.3) * 8 * z, (q() - 0.5) * 8 * z], 1), 3, 1.6 * z, 0.35 * z * bw, col, al * 0.8, q, {ink: 0}); }
   }
 }
 // pebbles lifting off the floor round the feet, turning, drifting up, falling apart
@@ -516,88 +542,69 @@ function pebbles(sh, inst, C, n, rw, z, A, salt) {
     sh.chunk(q() < 0.5 ? "shard" : "cube", [Math.cos(an) * rd + wob, h, Math.sin(an) * rd], (0.5 + q() * 0.9) * z, [C.t * 0.05 + i, C.t * 0.03 + i * 2, i], EL.rock[q() < 0.5 ? 0 : 1], al, {ink: 0.7});
   }
 }
-// the aura round the body: a see-through egg, rising flame tongues, the tall crown spikes, motes, the ground swirl, arcs
-function auraBody(sh, inst, C, K, Sg, z, A, fy, d, boltK, grounded) {
-  var t = C.t, top = (14 * Sg.height + 4) * z, H = top - fy, rw = 8.5 * z * Sg.tight, i, rnd, v = C.vel || [0, 0, 0];
-  var lean = [-v[0] * 5, 0, -v[2] * 5], lm = Math.hypot(lean[0], lean[2]), lmax = 18 * z;
+// the aura round the body: ONE flame sheath (fx3d.js shader: a teardrop shell hugging the body, torn into rising flame
+// tongues by moving noise, cel bands, a bright rim, see-through in the middle), + sparks, the ground swirl, arcs
+function auraBody(sh, inst, C, P, K, Sg, z, A, fy, d, boltK, grounded) {
+  var t = C.t, H = ((14 * Sg.height + 4) * z - fy) * pc(P, "aura_height_pct"), rw = 8.5 * z * Sg.tight * pc(P, "aura_width_pct");
+  var v = C.vel || [0, 0, 0], lk = 5 * pc(P, "lean_pct"), lean = [-v[0] * lk, 0, -v[2] * lk], lm = Math.hypot(lean[0], lean[2]), lmax = 22 * z;
   if (lm > lmax) lean = scl(lean, lmax / lm);
-  var eh = H * 0.55;
-  sh.sph([lean[0] * 0.15, fy + H * 0.52, lean[2] * 0.15], rw * 1.25, K.m, A * 0.2, {core: false, ink: 0, st: eh / (rw * 1.25), d: [0, 1, 0]});
-  sh.sph([0, fy + H * 0.48, 0], rw * 0.95, K.h, A * 0.1, {core: false, ink: 0, st: eh * 0.85 / (rw * 0.95), d: [0, 1, 0]});
-  // flame tongues: each born low on the body's hull at a new spot every cycle, rising, lengthening, fading
-  var n = Math.round(Sg.flames * d);
-  for (i = 0; i < n; i++) {
-    rnd = R(inst, 60, i);
-    var x = t * (0.035 + rnd() * 0.03) * Sg.flick + rnd(), ph = frac(x), q = R(inst, 61, i * 977 + Math.floor(x));
-    var az = q() * TAU, y01 = ph * 0.9, hb = fy + H * y01 * 0.8;
-    var prof = Math.pow(Math.sin(Math.PI * (0.12 + 0.88 * Math.min(1, y01 * 1.1))), 0.6), rad = rw * (0.55 + 0.45 * prof) * (0.85 + q() * 0.3);
-    var len = (6 + q() * 8) * z * (0.7 + 0.6 * ph), w0 = (1.6 + q() * 1.4) * z * (1 - 0.35 * ph);
-    var j = R(inst, 62, i * 31 + (t >> 1)), base = [Math.cos(az) * rad, hb, Math.sin(az) * rad];
-    // a lick: bellies outward, then its tip curls back in and up (two segments), flickering every 2 ticks
-    var mid = [base[0] * 1.22 + lean[0] * 0.3 * (0.4 + ph), base[1] + len * 0.5, base[2] * 1.22 + lean[2] * 0.3 * (0.4 + ph)];
-    var tip = [base[0] * 1.02 + (j() - 0.5) * 2.4 * z + lean[0] * (0.4 + ph), base[1] + len, base[2] * 1.02 + (j() - 0.5) * 2.4 * z + lean[2] * (0.4 + ph)];
-    var hot = i % 3 === 0, al = A * Math.pow(Math.sin(Math.PI * ph), 0.7) * 0.92, o = hot ? {ink: 0.3} : {core: false, ink: 0.3};
-    sh.tube(base, mid, w0, w0 * 0.7, hot ? K.h : K.m, al, o);
-    sh.tube(mid, tip, w0 * 0.7, 0, hot ? K.h : K.m, al, o);
-  }
-  // the crown: tall flame points over the head, their heights jumping every few ticks
-  for (i = 0; i < Sg.crown; i++) {
-    rnd = R(inst, 63, i); var az2 = i / Sg.crown * TAU + rnd() * 0.8 + t * 0.004, rr = rw * (0.35 + 0.35 * rnd());
-    var q2 = R(inst, 64, i * 53 + Math.floor((t + rnd() * 9) / 3)), b0 = [Math.cos(az2) * rr, top - 10 * z, Math.sin(az2) * rr];
-    var h2 = (9 + rnd() * 9) * z * (0.75 + 0.5 * q2());
-    var tp = [b0[0] * 1.5 + lean[0], b0[1] + h2, b0[2] * 1.5 + lean[2]];
-    sh.tube(b0, tp, 3 * z, 0, K.m, A * 0.85, {core: false, ink: 0.35});
-    sh.tube(add(b0, [0, 2 * z, 0], 1), add(tp, [-tp[0] * 0.1, -h2 * 0.3, -tp[2] * 0.1], 1), 1.4 * z, 0, K.h, A * 0.9, {ink: 0});   // hot inner tongue
-  }
-  // motes streaking up
-  for (i = 0; i < Math.round(Sg.motes * d); i++) {
+  var breathe = 1 + 0.06 * pc(P, "pulse_pct") * Math.sin(t * 0.21) + 0.03 * pc(P, "pulse_pct") * Math.sin(t * 0.67 + 1.3);
+  sh.aura([0, fy - 1.5 * z, 0], rw * breathe, H * breathe, lean, K.m, A, {hot: K.h, edge: K.d, look: {
+    base: pc(P, "aura_base_pct"), top: pc(P, "aura_top_pct"), flames: Math.max(1, +pv(P, "flame_count") || 1),
+    tongue: pc(P, "flame_height_pct") * Sg.flame, speed: pc(P, "flame_speed_pct") * Sg.speed, chaos: pc(P, "flame_chaos_pct") * Sg.chaos,
+    gaps: pc(P, "flame_gaps_pct"), sharp: pc(P, "flame_sharp_pct"), opacity: pc(P, "aura_opacity_pct"), rim: pc(P, "rim_pct"),
+    inner: pc(P, "inner_pct"), bands: Math.max(1, Math.round(+pv(P, "bands") || 1)), additive: pv(P, "additive") !== false,
+    layer2: pv(P, "inner_layer") !== false, seed: ((inst.seed || 1) % 997) / 97}});
+  var i, rnd, nm = Math.round(Sg.motes * d * pc(P, "sparks_pct"));
+  for (i = 0; i < nm; i++) {   // sparks streaking up through it
     rnd = R(inst, 65, i); var x2 = t * (0.025 + rnd() * 0.03) + rnd(), p2 = frac(x2), q3 = R(inst, 66, i * 71 + Math.floor(x2));
-    var az3 = q3() * TAU, rr3 = rw * (0.8 + q3() * 0.8);
-    sh.sph([Math.cos(az3) * rr3 + lean[0] * p2, fy + p2 * H * 1.5, Math.sin(az3) * rr3 + lean[2] * p2], 0.45 * z, q3() < 0.5 ? WHITE : K.h, A * (1 - p2), {core: false, ink: 0, st: 2.2, d: [0, 1, 0]});
+    var az3 = q3() * TAU, rr3 = rw * (0.5 + q3() * 0.7);
+    sh.sph([Math.cos(az3) * rr3 + lean[0] * p2, fy + p2 * H * 1.3, Math.sin(az3) * rr3 + lean[2] * p2], 0.4 * z, q3() < 0.5 ? WHITE : K.h, A * (1 - p2), {core: false, ink: 0, st: 2.4, d: [0, 1, 0]});
   }
-  if (grounded) {   // the air swirling round the feet; stage 3 tears the ground up the whole time
-    var g = C.gy + 0.3;
+  if (grounded && pv(P, "ground_fx") !== false) {   // the air swirling round the feet; stage 3 tears the ground up the whole time
+    var g = C.gy + 0.3, du = pc(P, "dust_pct");
     sh.ring([0, g, 0], [0, 1, 0], rw * (1.25 + 0.12 * Math.sin(t * 0.37)), K.m, A * 0.45, {ink: 0.3});
-    for (i = 0; i < 7; i++) { rnd = R(inst, 67, i); var an = rnd() * TAU + t * (0.05 + rnd() * 0.04), rd = rw * (1.4 + rnd() * 0.6);
+    for (i = 0; i < Math.round(7 * du); i++) { rnd = R(inst, 67, i); var an = rnd() * TAU + t * (0.05 + rnd() * 0.04), rd = rw * (1.4 + rnd() * 0.6);
       sh.sph([Math.cos(an) * rd, g + (1 + rnd() * 1.5) * z, Math.sin(an) * rd], (1.2 + rnd()) * z, EL.rock[1], A * 0.28, {core: false, ink: 0.3}); }
-    if (Sg.quake) pebbles(sh, inst, C, Math.round(Sg.rocks * 0.6 * d), rw, z, A, 68);
+    if (Sg.quake) pebbles(sh, inst, C, Math.round(Sg.rocks * 0.6 * d * pc(P, "rocks_pct")), rw, z, A, 68);
   }
-  arcs(sh, inst, t, Sg.bolts * boltK, rw, fy, H, z, A, 69);
-  return {rw: rw, H: H};
+  arcs(sh, inst, t, Sg.bolts * boltK, rw, fy, H, z, A, 69, hexRgb(pv(P, "bolt_color"), BOLT), pc(P, "bolt_width_pct"));
 }
 // the charge / scream: energy pulled in from all round, a core glowing white, rumble rings, pebbles lifting, arcs
-function chargeFx(sh, inst, C, K, Sg, z, fy, d, lp, T, grounded) {
-  var t = C.t, u = t / T.c, i, rnd, rw = 8.5 * z, H = (14 * Sg.height + 4) * z - fy;
-  for (i = 0; i < Math.round(14 * d); i++) {
+function chargeFx(sh, inst, C, P, K, Sg, z, fy, d, lp, T, grounded) {
+  var t = C.t, u = t / T.c, i, rnd, rw = 8.5 * z, H = (14 * Sg.height + 4) * z - fy, gl = pc(P, "charge_glow_pct");
+  for (i = 0; i < Math.round(14 * d * pc(P, "charge_streaks_pct")); i++) {
     rnd = R(inst, 71, i); var x = t * (0.05 + rnd() * 0.04) + rnd(), ph = frac(x), q = R(inst, 72, i * 59 + Math.floor(x));
     var az = q() * TAU, el = (q() * 100 - 25) * D, dir = [Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az)];
     var far = (26 + q() * 26) * z * (1 - ei(ph)) + rw * 0.8, ln = (5 + 6 * ph) * z;
     sh.tube(add(scl(dir, far + ln), [0, 2 * z, 0], 1), add(scl(dir, far), [0, 2 * z, 0], 1), 0.08 * z, 0.4 * z, q() < 0.4 ? WHITE : K.h, (0.3 + 0.7 * u) * Math.sin(Math.PI * ph), {core: false, ink: 0});
   }
-  var pul = 0.8 + 0.2 * Math.sin(t * (0.5 + u));
-  sh.sph([0, 2 * z, 0], (2.5 + 4 * u) * z * pul, K.h, 0.35 + 0.5 * u, {ink: 0});
-  if (u > 0.75) sh.sph([0, 2 * z, 0], (5 + 32 * (u - 0.75)) * z, WHITE, (u - 0.75) * 2.4 * (0.6 + 0.4 * Math.sin(t * 2.1)), {core: false, ink: 0});
-  if (grounded) {
+  if (gl > 0) {
+    var pul = 0.8 + 0.2 * Math.sin(t * (0.5 + u));
+    sh.sph([0, 2 * z, 0], (2.5 + 4 * u) * z * pul * gl, K.h, 0.35 + 0.5 * u, {ink: 0});
+    if (u > 0.75) sh.sph([0, 2 * z, 0], (5 + 32 * (u - 0.75)) * z * gl, WHITE, (u - 0.75) * 2.4 * (0.6 + 0.4 * Math.sin(t * 2.1)), {core: false, ink: 0});
+  }
+  if (grounded && pv(P, "ground_fx") !== false) {
     var g = C.gy + 0.3;
     for (i = 0; i < 3; i++) { var p3 = frac(t / 14 + i / 3);
       sh.ring([0, g, 0], [0, 1, 0], rw * (0.8 + p3 * 3.2), i % 2 ? EL.rock[1] : K.m, (1 - p3) * 0.6 * (0.4 + 0.6 * u), {ink: 0.3}); }
-    pebbles(sh, inst, C, Math.round(Sg.rocks * d), rw, z, 0.4 + 0.6 * u, 73);
-    if (Sg.bolts > 0) for (i = 0; i < 2; i++) {   // stage 2 / 3: bolts grounding into the floor
+    pebbles(sh, inst, C, Math.round(Sg.rocks * d * pc(P, "rocks_pct")), rw, z, 0.4 + 0.6 * u, 73);
+    if (Sg.bolts > 0 && lp > 0) for (i = 0; i < 2; i++) {   // stage 2 / 3: bolts grounding into the floor
       var q4 = R(inst, 74, i * 19 + (t >> 2)); if (q4() > 0.6 * u) continue;
       var a4 = q4() * TAU, A4 = [Math.cos(a4) * rw, fy + H * 0.3, Math.sin(a4) * rw], B4 = [Math.cos(a4) * rw * 2.6, C.gy + 0.4, Math.sin(a4) * rw * 2.6];
-      sh.bolt(A4, B4, 5, 3 * z, 0.3 * z, BOLT, 0.9, q4, {core: false, ink: 0});
+      sh.bolt(A4, B4, 5, 3 * z, 0.3 * z * pc(P, "bolt_width_pct"), hexRgb(pv(P, "bolt_color"), BOLT), 0.9, q4, {core: false, ink: 0});
     }
   }
-  arcs(sh, inst, t, Sg.cbolts * lp * (0.3 + 0.7 * u), rw, fy, H, z, 1, 76);
+  arcs(sh, inst, t, Sg.cbolts * lp * (0.3 + 0.7 * u), rw, fy, H, z, 1, 76, hexRgb(pv(P, "bolt_color"), BOLT), pc(P, "bolt_width_pct"));
 }
 // cracks running out from the feet: grow through the charge, break open at the burst, stay a while, fade
-function cracks(sh, inst, C, T, z, d) {
-  var t = C.t, g = C.gy + 0.25, top = T.b ? 1 : 0.6;
+function cracks(sh, inst, C, P, T, z, d) {
+  var t = C.t, g = C.gy + 0.25, top = T.b ? 1 : 0.6, ck = pc(P, "cracks_pct");
   var grow = T.c ? (t < T.c ? 0.6 * eo(t / T.c) : 0.6 + (top - 0.6) * eo((t - T.c) / 6)) : top * eo(t / 6);
-  var a = 1 - cl((t - (T.c + T.b + 150)) / 40); if (a <= 0 || grow <= 0.01) return;
-  var n = Math.round(9 * d);
+  var a = 1 - cl((t - (T.c + T.b + 150)) / 40); if (a <= 0 || grow <= 0.01 || ck <= 0) return;
+  var n = Math.round(9 * d * Math.min(2, ck));
   for (var i = 0; i < n; i++) {
-    var rnd = R(inst, 75, i), az = i / n * TAU + rnd() * 0.5, ln = (14 + rnd() * 20) * z * grow, prev = [Math.cos(az) * 3 * z, g, Math.sin(az) * 3 * z];
+    var rnd = R(inst, 75, i), az = i / n * TAU + rnd() * 0.5, ln = (14 + rnd() * 20) * z * grow * ck, prev = [Math.cos(az) * 3 * z, g, Math.sin(az) * 3 * z];
     for (var k = 1; k <= 3; k++) { var ang = az + (rnd() - 0.5) * 0.5, rr = 3 * z + ln * k / 3, p = [Math.cos(ang) * rr, g, Math.sin(ang) * rr];
       sh.tube(prev, p, 0.8 * z * (1 - k * 0.2), 0.6 * z * (1 - k * 0.25), EL.rock[2], a, {core: false, ink: 0});
       if (k === 2 && rnd() < 0.5) { var bA = ang + (rnd() < 0.5 ? 0.6 : -0.6), bq = [Math.cos(bA) * (rr + ln * 0.25), g, Math.sin(bA) * (rr + ln * 0.25)];
@@ -611,39 +618,41 @@ function burstFx(sh, inst, C, P, K, Sg, z, d, lp, T, grounded) {
   var age = C.t - T.c, b = cl(age / T.b), e = eo(b * 1.4), a = 1 - b, R0 = +P.radius * C.ps, L = +P.length * C.ps * Sg.height, g = C.gy + 0.3, i, rnd;
   if (age < T.b) {
     if (age < 5) { sh.sph([0, 2 * z, 0], (12 + 6 * age) * z, WHITE, 1 - age / 5, {ink: 0}); sh.sph([0, 2 * z, 0], (20 + 8 * age) * z, K.h, (1 - age / 5) * 0.5, {core: false, ink: 0}); }
-    var ph = eo(b * 2.2), wid = 9 * z * (1 - 0.5 * b);
-    sh.tube([0, g, 0], [0, g + L * ph, 0], wid, wid * 0.35, K.m, a * 0.75, {ink: 0.4});
-    sh.tube([0, g, 0], [0, g + L * ph * 0.92, 0], wid * 0.5, wid * 0.15, K.h, a);
-    sh.sph([0, 0, 0], R0 * 0.55 * e, K.h, a * 0.2, {core: false, ink: 0});
-    sh.ring([0, 0, 0], [0, 1, 0], R0 * 0.55 * e, WHITE, a * 0.8, {ink: 0.3});
-    sh.ring([0, g, 0], [0, 1, 0], R0 * eo(b * 1.15), WHITE, a, {ink: 0.5});
-    sh.ring([0, g, 0], [0, 1, 0], R0 * 0.7 * eo(b), K.m, a, {ink: 0.5});
-    for (i = 0; i < Math.round(18 * d); i++) { rnd = R(inst, 77, i); var az = rnd() * TAU, el = (rnd() * 45 - 8) * D, dir = [Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az)];
+    var ph = eo(b * 2.2), wid = 9 * z * (1 - 0.5 * b) * pc(P, "pillar_width_pct");
+    if (L > 0 && wid > 0) { sh.tube([0, g, 0], [0, g + L * ph, 0], wid, wid * 0.35, K.m, a * 0.75, {ink: 0.4});
+      sh.tube([0, g, 0], [0, g + L * ph * 0.92, 0], wid * 0.5, wid * 0.15, K.h, a); }
+    if (pv(P, "burst_rings") !== false) {
+      sh.sph([0, 0, 0], R0 * 0.55 * e, K.h, a * 0.2, {core: false, ink: 0});
+      sh.ring([0, 0, 0], [0, 1, 0], R0 * 0.55 * e, WHITE, a * 0.8, {ink: 0.3});
+      sh.ring([0, g, 0], [0, 1, 0], R0 * eo(b * 1.15), WHITE, a, {ink: 0.5});
+      sh.ring([0, g, 0], [0, 1, 0], R0 * 0.7 * eo(b), K.m, a, {ink: 0.5});
+    }
+    for (i = 0; i < Math.round(18 * d * pc(P, "burst_streaks_pct")); i++) { rnd = R(inst, 77, i); var az = rnd() * TAU, el = (rnd() * 45 - 8) * D, dir = [Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az)];
       var s0 = R0 * 0.25 * e + 6 * z, s1 = s0 + R0 * (0.3 + rnd() * 0.4) * (1 - b * 0.8);
       sh.tube(scl(dir, s0), scl(dir, s1), 0.7 * z, 0, i % 3 ? K.h : WHITE, a, {core: false, ink: 0}); }
-    var nb = Sg.bolts * lp;
+    var nb = Sg.bolts * lp, BC = hexRgb(pv(P, "bolt_color"), BOLT);
     if (nb > 0 && age < 14) for (i = 0; i < Math.ceil(nb * 1.5); i++) { var q = R(inst, 78, i * 17 + (age >> 1)), az4 = q() * TAU;
       var A4 = [Math.cos(az4) * 6 * z, (q() - 0.3) * 14 * z, Math.sin(az4) * 6 * z], rr4 = R0 * 0.6 * (0.5 + q() * 0.5);
-      sh.bolt(A4, [Math.cos(az4) * rr4, A4[1] + (q() - 0.5) * 10 * z, Math.sin(az4) * rr4], 6, 4 * z, 0.35 * z, q() < 0.5 ? WHITE : BOLT, 1 - age / 14, q, {core: false, ink: 0}); }
+      sh.bolt(A4, [Math.cos(az4) * rr4, A4[1] + (q() - 0.5) * 10 * z, Math.sin(az4) * rr4], 6, 4 * z, 0.35 * z * pc(P, "bolt_width_pct"), q() < 0.5 ? WHITE : BC, 1 - age / 14, q, {core: false, ink: 0}); }
   }
-  if (!grounded || age >= 60) return;
-  for (i = 0; i < Math.round(14 * d * Sg.size); i++) { rnd = R(inst, 79, i); var az2 = rnd() * TAU, dir2 = [Math.cos(az2) * 0.8, 0.6 + rnd() * 0.8, Math.sin(az2) * 0.8];
+  if (!grounded || age >= 60 || pv(P, "ground_fx") === false) return;
+  for (i = 0; i < Math.round(14 * d * Sg.size * pc(P, "rocks_pct")); i++) { rnd = R(inst, 79, i); var az2 = rnd() * TAU, dir2 = [Math.cos(az2) * 0.8, 0.6 + rnd() * 0.8, Math.sin(az2) * 0.8];
     var p = thrown([Math.cos(az2) * 5 * z, C.gy + 1, Math.sin(az2) * 5 * z], dir2, (1.6 + rnd() * 2.6) * z, age, 0.2 * C.ps, C.gy);
     sh.chunk(rnd() < 0.5 ? "shard" : "cube", p, (0.6 + rnd() * 1.0) * z, [age * 0.3 + i, age * 0.2, i], EL.rock[i % 2], Math.min(1, (1 - age / 60) * 1.5), {ink: 0.7}); }
-  for (i = 0; i < Math.round(10 * d); i++) { rnd = R(inst, 80, i); var az3 = rnd() * TAU, dist = 6 * z + R0 * 0.8 * eo(age / 40) * (0.6 + rnd() * 0.5);
+  for (i = 0; i < Math.round(10 * d * pc(P, "dust_pct")); i++) { rnd = R(inst, 80, i); var az3 = rnd() * TAU, dist = 6 * z + R0 * 0.8 * eo(age / 40) * (0.6 + rnd() * 0.5);
     sh.sph([Math.cos(az3) * dist, C.gy + (2 + rnd() * 2) * z + age * 0.04 * z, Math.sin(az3) * dist], (2.5 + age * 0.12) * z, EL.rock[1], Math.max(0, 1 - age / 55) * 0.55, {core: false, ink: 0.3}); }
 }
 var TF = {};
 TF.tfx_golden_ascension = function (sh, inst, C, P, K) {
-  var T = tfx(P), Sg = stageOf(P), t = C.t, z = Math.max(0.2, (+P.aura_size_pct || 100) / 100) * Sg.size * C.ps, d = dens(P);
-  var fy = C.fy == null ? C.gy : C.fy, grounded = fy - C.gy < 8 * C.ps, lp = P.lightning_pct == null ? 1 : Math.max(0, +P.lightning_pct || 0) / 100;
+  var T = tfx(P), Sg = stageOf(P), t = C.t, z = Math.max(0.2, pc(P, "aura_size_pct")) * Sg.size * C.ps, d = dens(P);
+  var fy = C.fy == null ? C.gy : C.fy, grounded = fy - C.gy < 8 * C.ps, lp = pc(P, "lightning_pct");
   var am = auraAmt(T, t, P);
-  if (am.A > 0.01) auraBody(sh, inst, C, K, Sg, z * am.s, am.A, fy, d, t < T.c ? 0 : lp, grounded);
-  if (t < T.c) chargeFx(sh, inst, C, K, Sg, z, fy, d, lp, T, grounded);
+  if (am.A > 0.01) auraBody(sh, inst, C, P, K, Sg, z * am.s, am.A, fy, d, t < T.c ? 0 : lp, grounded);
+  if (t < T.c) chargeFx(sh, inst, C, P, K, Sg, z, fy, d, lp, T, grounded);
   // the cracks and the burst stay where it went off (C.spot = that point now, fx3d.js), not on a fighter who moves on
   if (t <= T.c + 1) inst.tx_g = grounded;   // went off on the ground (not in the air): its marks stay even if it jumps
   var mark = sh.o.length, sp = C.spot, gs = t <= T.c + 1 ? grounded : !!inst.tx_g;
-  if (gs && (T.c || T.b)) cracks(sh, inst, C, T, z, d);
+  if (gs && (T.c || T.b) && pv(P, "ground_fx") !== false) cracks(sh, inst, C, P, T, z, d);
   if (T.b && t >= T.c) burstFx(sh, inst, C, P, K, Sg, z, d, lp, T, gs);
   if (sp) for (var i = mark; i < sh.o.length; i++) { var e = sh.o[i]; e.p = add(e.p, sp, 1); if (e.q) e.q = add(e.q, sp, 1); }
 };
@@ -704,6 +713,7 @@ function draw(pen, inst, host, ps) {
   parts(inst, host, C).forEach(function (e) {
     var a = e.a * 255, A = W(e.p);
     if (e.k === "sph") { pen.glow(A[0], A[1], e.r * (e.st || 1) * 1.3, e.c, a, 0.75); }
+    else if (e.k === "aura") { var M2 = W([e.p[0], e.p[1] + e.h * 0.5, e.p[2]]); pen.glow(M2[0], M2[1], e.h * 0.55, e.c, a * 0.6, 0.6); pen.glow(M2[0], M2[1], e.r * 1.1, e.hot || e.c, a * 0.5, 0.75); }
     else if (e.k === "tube") { var B = W(e.q), dx2 = B[0] - A[0], dy2 = B[1] - A[1], L = Math.hypot(dx2, dy2) || 1, nx = -dy2 / L, ny = dx2 / L;
       pen.poly([[A[0] + nx * e.r, A[1] + ny * e.r], [B[0] + nx * e.r1, B[1] + ny * e.r1], [B[0] - nx * e.r1, B[1] - ny * e.r1], [A[0] - nx * e.r, A[1] - ny * e.r]], e.c, a);
       if (e.r < 0.4 && e.r1 < 0.4) pen.line(A[0], A[1], B[0], B[1], e.c, a, 0.8); }
@@ -715,7 +725,62 @@ function draw(pen, inst, host, ps) {
   pen.add(false);
 }
 
-G.HYPERFX = {STYLES: STYLES, PUNCH: PUNCH, IMPACT: IMPACT, TRANSFORM: TRANSFORM, STAGE: STAGE, NAMES: NAMES, DEFAULTS: DEFAULTS, EL: EL, ELEMENT: ELEMENT,
+// FX-specific settings panels (FX Studio 3D builds a panel from these for the picked effect's style): groups of
+// [key, label, kind ("rng" min max step | "chk" | "col" | "sel" options), hint]. Keys are params.<key>.
+var UI = {tfx_golden_ascension: [
+  ["Phases", [
+    ["stage", "Stage", "sel", [[1, "1 · gold flame aura"], [2, "2 · tighter, faster + electric arcs"], [3, "3 · biggest, heavy lightning, ground breaking"]], "A preset look on top of every setting below"],
+    ["charge", "Charge / scream", "chk", null, "Energy pulled in, the ground cracking, pebbles lifting before the burst"],
+    ["swing_ticks", "Charge length (ticks)", "rng", [0, 240, 1], "16 ms each: 70 = 1.1 s. Set the action about this long + 30"],
+    ["burst", "Burst", "chk", null, "The flash, light pillar, shock rings and push"],
+    ["aura", "Lasting aura", "chk", null, "The flame aura that stays after the burst"],
+    ["aura_s", "Aura lasts (s)", "rng", [0, 120, 0.5], "Seconds it stays after the burst, whatever the fighter does"]]],
+  ["Aura shape", [
+    ["aura_size_pct", "Size (%)", "rng", [20, 300, 1], "Everything about the aura, scaled"],
+    ["aura_width_pct", "Width (%)", "rng", [20, 300, 1], "How far it stands off the body"],
+    ["aura_height_pct", "Height (%)", "rng", [20, 300, 1], "How far above the head it reaches"],
+    ["aura_base_pct", "Width at the feet (%)", "rng", [0, 150, 1], "0 = pinched to a point under the feet, 100 = as wide as the middle"],
+    ["aura_top_pct", "Top closes (%)", "rng", [0, 100, 1], "0 = open column, 100 = closes to a flame point over the head"],
+    ["lean_pct", "Trails when moving (%)", "rng", [0, 300, 1], "How much the top streams behind a moving fighter"],
+    ["pulse_pct", "Breathing (%)", "rng", [0, 200, 1], "The whole aura swelling and shrinking"]]],
+  ["Flames", [
+    ["flame_count", "Flame tongues round it", "rng", [1, 24, 1], "How many tongues are torn out of it round the body"],
+    ["flame_height_pct", "Tongue length (%)", "rng", [0, 300, 1], "How far the tongues shoot up past the top"],
+    ["flame_speed_pct", "Rise speed (%)", "rng", [0, 400, 1], "How fast the flames climb"],
+    ["flame_chaos_pct", "Chaos (%)", "rng", [0, 300, 1], "Turbulence: 0 = calm and even, high = wild and broken"],
+    ["flame_gaps_pct", "Gaps (%)", "rng", [0, 100, 1], "Holes torn through the sheath between tongues"],
+    ["flame_sharp_pct", "Hard edges (%)", "rng", [0, 100, 1], "100 = crisp cel-cut flame edges, 0 = soft"]]],
+  ["Colour & glow", [
+    ["aura_color", "Main colour", "col", null, "The body of the flames (Colour = palette in Look tints all three)"],
+    ["aura_hot", "Hot colour", "col", null, "The bright rim / inner band"],
+    ["aura_edge", "Deep colour", "col", null, "The darkest band, at the tongues' roots"],
+    ["aura_opacity_pct", "Opacity (%)", "rng", [0, 100, 1], ""],
+    ["rim_pct", "Rim glow (%)", "rng", [0, 200, 1], "How bright the outline of the sheath is"],
+    ["inner_pct", "See-through middle (%)", "rng", [0, 100, 1], "How much of it shows over the body (low = the body stays visible)"],
+    ["bands", "Cel bands", "rng", [1, 6, 1], "Flat colour steps from deep to hot"],
+    ["additive", "Glow (additive)", "chk", null, "Adds light (bright on dark scenes); off = painted colour"],
+    ["inner_layer", "Inner hot layer", "chk", null, "A second, tighter, brighter sheath inside"],
+    ["sparks_pct", "Rising sparks (%)", "rng", [0, 300, 1], ""]]],
+  ["Lightning", [
+    ["lightning_pct", "Lightning (%)", "rng", [0, 400, 1], "Arcs on the body: stage 1 only while charging, stage 2 / 3 the whole time"],
+    ["bolt_color", "Bolt colour", "col", null, ""],
+    ["bolt_width_pct", "Bolt thickness (%)", "rng", [10, 400, 1], ""]]],
+  ["Charge & burst", [
+    ["charge_streaks_pct", "Energy pulled in (%)", "rng", [0, 300, 1], ""],
+    ["charge_glow_pct", "Core glow (%)", "rng", [0, 300, 1], ""],
+    ["radius", "Burst push reach (px)", "rng", [0, 300, 1], "28 px = one body. Push strength = Knockback in Damage"],
+    ["length", "Light pillar height (px)", "rng", [0, 600, 1], "0 = no pillar"],
+    ["pillar_width_pct", "Pillar width (%)", "rng", [0, 300, 1], ""],
+    ["burst_rings", "Dome + shock rings", "chk", null, ""],
+    ["burst_streaks_pct", "Burst streaks (%)", "rng", [0, 300, 1], ""],
+    ["shake_px", "Camera shake", "rng", [0, 30, 1], ""]]],
+  ["Ground", [
+    ["ground_fx", "Ground effects", "chk", null, "Cracks, rumble rings, dust, pebbles and rocks"],
+    ["cracks_pct", "Cracks (%)", "rng", [0, 300, 1], ""],
+    ["rocks_pct", "Rocks & pebbles (%)", "rng", [0, 300, 1], ""],
+    ["dust_pct", "Dust (%)", "rng", [0, 300, 1], ""],
+    ["density", "Overall amount (x)", "rng", [0.2, 4, 0.1], "Every count above, multiplied"]]]]};
+G.HYPERFX = {STYLES: STYLES, UI: UI, PUNCH: PUNCH, IMPACT: IMPACT, TRANSFORM: TRANSFORM, STAGE: STAGE, NAMES: NAMES, DEFAULTS: DEFAULTS, EL: EL, ELEMENT: ELEMENT,
   isHyper: isHyper, isPunch: isPunch, isTransform: isTransform, tfx: tfx, activeTicks: activeTicks, totalTicks: totalTicks, onSpawn: onSpawn, onTick: onTick,
   hit: hit, body: body, hitDir: hitDir, hitFreeze: hitFreeze, draw: draw, parts: parts, colours: colours, swing: swing, hold: hold};
 // register the styles with the FX Kit (fxkit.js loads first)

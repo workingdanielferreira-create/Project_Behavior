@@ -402,6 +402,11 @@ v3-animation skill ("Review questions").
   one push per burst (damage 0, knockback 40 / 55), the aura ends on time, no errors. Not yet seen in the real game /
   studio on a character.
 - Not done: a transformation STATE (stats), the `transform` action in V3 (still skipped for real kits), golden hair.
+- Round 2 (same day, Daniel: "looks like a bunch of bananas floating to his head", wants FX-specific settings to make it a
+  real aura). His picks: a flame-sheath shell (shader) and a dedicated Transformation panel. Done: the cones / crown are gone,
+  the aura is one noise-torn shader sheath (`fx3d.js makeAura / aura3`); 45 settings in 7 groups (`HYPERFX.UI`), every look
+  choice a param; FX Studio 3D section "Transformation" + "Preview plays: the aura only". Checked headless: the sheath renders
+  per stage, four setting variants change it as expected, the panel builds and writes the effect, no errors.
 - **Next:** Daniel's verdict in FX Studio 3D + game.
 
 ## Next steps (agreed direction, not started)
