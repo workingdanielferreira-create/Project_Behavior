@@ -7,7 +7,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
 <style>
 /* World Studio 3D (V3, Daniel 2026-11-24): the little planet V3 fights on. Preview left (the game's own world runtime,
-   v3/js/world3d.js), settings right. Save writes characters/world3d.json; run_v3.bat packs it for the game. */
+   v3/js/world3d.js), settings right. Save writes characters/world3d.json; run_v3.bat packs it for the game.
+   Auto-save (tick box, on by default) writes it after every change and a running game re-reads it live (js/worldlive.js). */
 :root {
   --bg: #0d1120; --panel: #151b2e; --line: #29314a; --fg: #e6e9f2; --muted: #98a1b8;
   --accent: #8aa6ff; --accent-soft: #1e2847; --stage: #0a0e1a; --ok: #5fd39a; --warn: #ff9a6b; --on: #5fd39a;
@@ -34,6 +35,7 @@ body { background: var(--bg); color: var(--fg); font-family: var(--body); font-s
 .bar h1 { font-family: var(--display); font-size: 20px; margin: 0 8px 0 0; letter-spacing: -.01em; }
 #status { font-family: var(--mono); font-size: 12px; color: var(--ok); margin-left: auto; min-width: 0; overflow-wrap: anywhere; }
 #status.warn { color: var(--warn); }
+.bar .auto { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; cursor: pointer; }
 button, select { font: inherit; font-size: 13px; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
   padding: 6px 11px; cursor: pointer; min-height: 32px; }
 button:hover { border-color: var(--accent); }
@@ -84,6 +86,7 @@ details[open] summary .chev { transform: rotate(90deg); }
     <button id="dirBtn" type="button">Characters folder…</button>
     <button id="reconnect" type="button" hidden>Reconnect</button>
     <button id="saveBtn" type="button" class="primary">Save</button>
+    <label class="auto" title="Saves characters/world3d.json half a second after each change; a running game (run_v3.bat) picks it up within a second."><input id="autoSave" type="checkbox"> Auto-save &amp; live game</label>
     <button id="openBtn" type="button">Open file…</button>
     <input id="fileIn" type="file" accept=".json,application/json" hidden>
     <span id="status">Settings for the planet V3 fights on.</span>
@@ -209,7 +212,22 @@ function buildPanel() {
 }
 let rbT = 0;
 function changed(panel) { S.dirty = true; try { localStorage.setItem('pbWorld3dDraft', JSON.stringify(S.cfg)); } catch (e) {}
-  if (panel) buildPanel(); clearTimeout(rbT); rbT = setTimeout(() => rebuild(true), 220); status('Unsaved changes.'); }
+  if (panel) buildPanel(); clearTimeout(rbT); rbT = setTimeout(() => rebuild(true), 220);
+  if (autoOn() && S.dir) { clearTimeout(asT); asT = setTimeout(autoSave, 500); status('Saving…'); } else status('Unsaved changes.'); }
+/* Auto-save + live game (Daniel 2026-11-27): with the characters folder picked, every change is written to
+   characters/world3d.json 0.5 s after the last edit; the running game (js/worldlive.js) re-reads it every second and
+   rebuilds its planet. Tick box remembered; on by default. */
+let asT = 0, saving = false;
+const autoOn = () => $('autoSave').checked;
+try { $('autoSave').checked = localStorage.getItem('pbWorld3dAuto') !== '0'; } catch (e) { $('autoSave').checked = true; }
+$('autoSave').onchange = () => { try { localStorage.setItem('pbWorld3dAuto', autoOn() ? '1' : '0'); } catch (e) {}
+  if (autoOn() && !S.dir) status('Pick the characters folder once (Characters folder…) to auto-save.', true); else if (autoOn() && S.dirty) autoSave(); };
+async function writeDir() { const txt = JSON.stringify(World3D.merge(S.cfg), null, 2) + '\n';
+  const h = await S.dir.getFileHandle('world3d.json', {create: true}); const w = await h.createWritable(); await w.write(txt); await w.close(); S.dirty = false; }
+async function autoSave() { if (!S.dir || !autoOn()) return; if (saving) { clearTimeout(asT); asT = setTimeout(autoSave, 200); return; } saving = true;
+  try { await writeDir(); status('Auto-saved ' + S.dir.name + '/world3d.json · ' + new Date().toLocaleTimeString() + ' · a running game updates within a second.'); }
+  catch (e) { status('Auto-save failed: ' + e.message + (e.name === 'NotAllowedError' ? ' (click Reconnect)' : ''), true); }
+  finally { saving = false; } }
 $('side').addEventListener('input', e => { const t = e.target, s = t.dataset.s, k = t.dataset.k; if (!s || !k) return;
   if (t.type === 'checkbox') { S.cfg[s][k] = t.checked; changed(true); return; }
   const n = parseFloat(t.value); if (!isFinite(n)) return; S.cfg[s][k] = n;
@@ -241,14 +259,13 @@ if (window.showDirectoryPicker && window.indexedDB && !inFrame()) db('readonly',
 }).catch(() => {});
 $('saveBtn').onclick = async () => { const out = World3D.merge(S.cfg); const txt = JSON.stringify(out, null, 2) + '\n';
   try {
-    if (S.dir) { const h = await S.dir.getFileHandle('world3d.json', {create: true}); const w = await h.createWritable(); await w.write(txt); await w.close();
-      S.dirty = false; status('Saved ' + S.dir.name + '/world3d.json. Start the game with run_v3.bat to fight on it.'); }
+    if (S.dir) { await writeDir(); status('Saved ' + S.dir.name + '/world3d.json. A running game (run_v3.bat) picks it up within a second.'); }
     else { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], {type: 'application/json'})); a.download = 'world3d.json'; a.click();
       S.dirty = false; status('Downloaded world3d.json: put it in the characters folder, then run run_v3.bat.'); }
   } catch (e) { status('Could not save: ' + e.message, true); } };
 $('openBtn').onclick = () => $('fileIn').click();
 $('fileIn').onchange = async function () { const f = this.files && this.files[0]; if (!f) return;
-  try { S.cfg = World3D.merge(JSON.parse(await f.text())); S.dirty = true; buildPanel(); rebuild(true); status('Opened ' + f.name + ' (not saved to the folder yet).'); }
+  try { S.cfg = World3D.merge(JSON.parse(await f.text())); S.dirty = true; buildPanel(); rebuild(true); status('Opened ' + f.name + ' (not saved to the folder yet).'); if (autoOn() && S.dir) autoSave(); }
   catch (e) { status('Not a world file: ' + e.message, true); } this.value = ''; };
 window.addEventListener('beforeunload', e => { if (S.dirty) { e.preventDefault(); e.returnValue = ''; } });
 

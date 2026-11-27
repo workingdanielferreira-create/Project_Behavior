@@ -474,6 +474,16 @@ v3-animation skill ("Review questions").
   shows up, the destruction shot cuts + slows on a forced break, foreground / blocking items dither out.
 - **Next:** Daniel's verdict in game (shot lengths, cut chance, camera weight, fade amount).
 
+## World Studio 3D auto-save + live game (2026-11-27)
+
+- Daniel: "make world studio 3d auto save and load updates in real time with the game". His picks: the game watches the
+  file (run_v3.bat gains `--allow-file-access-from-files` for the game window's own profile); a change mid-fight rebuilds
+  the planet at once with the same layout seed.
+- Done: studio "Auto-save & live game" tick box (0.5 s after the last edit), `js/worldlive.js` (1 s poll, applies
+  WORLD_CFG / GRAV / JUMP, `planetReset(seed, ax, az)`), README "Auto-save & live game".
+- Checked headless: a studio edit (groves 25, gravity 150 %) auto-saved and showed up in a running Watch fight within
+  ~1 s, same seed, fight and HP unchanged, no errors. Needs Daniel to restart the game once with the updated run_v3.bat.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,

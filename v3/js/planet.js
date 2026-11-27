@@ -19,8 +19,8 @@ const bendP=v=>PLANET?World3D.bendV(v):v;          // a flat scene point -> wher
 function unbendP(q){const B=World3D.BEND;if(!PLANET||!(B.w>0))return q.clone();const R=B.w,cx=q.x-B.x,cy=q.y+R,cz=q.z-B.z,r=Math.hypot(cx,cy,cz)||1e-6;
   const th=Math.acos(Math.max(-1,Math.min(1,cy/r))),h=Math.hypot(cx,cz);
   return h<1e-6?new THREE.Vector3(B.x,r-R,B.z):new THREE.Vector3(B.x+cx/h*th*R,r-R,B.z+cz/h*th*R);}
-function planetReset(){if(!PLANET)return;if(world)world.dispose();
-  world=new World3D.World(scene,WORLD_CFG,{});world.setAnchor(0,0,true);
+function planetReset(seed,ax,az){if(!PLANET)return;if(typeof sightClear==='function')sightClear();if(world)world.dispose();
+  world=new World3D.World(scene,WORLD_CFG,seed?{seed}:{});world.setAnchor(ax||0,az||0,true);
   world.onBreak=it=>{if(typeof camBreak==='function')camBreak(it);};   // cinecam.js: destruction shot
   scene.background=new THREE.Color(world.pal.sky[1]);const fr=world.fogRange();
   scene.fog=new THREE.Fog(world.pal.fog,fr?fr[0]:1e5,fr?fr[1]:2e5);
