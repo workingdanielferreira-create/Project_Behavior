@@ -5,6 +5,9 @@ REM  (Edge or Chrome "app mode": no address bar or tabs, own taskbar
 REM  icon, F11 = fullscreen, Alt+F4 = quit).  Nothing to install.
 REM  The window keeps its own profile in v3\.window-profile so saved
 REM  settings / teams stay put and it never joins your normal browser.
+REM  --allow-file-access-from-files (this window only): the game re-reads
+REM  characters\world3d.json every second, so World Studio 3D edits
+REM  (auto-saved) show up in the running game.
 REM ===================================================================
 setlocal
 set "HERE=%~dp0"
@@ -35,5 +38,5 @@ if not defined BROWSER (
   goto :eof
 )
 
-start "" "%BROWSER%" --app="%URL%" --user-data-dir="%PROFILE%" --window-size=1600,900 --no-first-run --no-default-browser-check --autoplay-policy=no-user-gesture-required
+start "" "%BROWSER%" --app="%URL%" --user-data-dir="%PROFILE%" --window-size=1600,900 --allow-file-access-from-files --no-first-run --no-default-browser-check --autoplay-policy=no-user-gesture-required
 endlocal

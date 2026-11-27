@@ -86,6 +86,7 @@ Settings and teams are saved between sessions.
 | `hud.js` | HUD, callouts, command bar, damage numbers, feel panel |
 | `menus.js` | title, training (dummy map), teams, settings, controls, pause, results |
 | `main.js` | game loop, fight flow, boot |
+| `worldlive.js` | live link to World Studio 3D: re-reads `characters/world3d.json` every second, rebuilds the planet on a change |
 
 The files are plain scripts sharing one scope rather than ES modules, so the
 game runs straight from disk (`file://`) without a local server. A file may
@@ -802,6 +803,18 @@ the game builds.
   80: breaks things, crater + scorch); two 1.8 m stand-ins on the start spot, one jumping with the Gravity numbers (the
   readout gives jump height in bodies and air time). Characters folder (remembered) -> Save writes `world3d.json` there;
   without folder access Save downloads it. The current edit is also kept in the browser (draft) until saved.
+- **Auto-save & live game** (Daniel 2026-11-27, tick box in the studio's top bar, on by default, remembered): with the
+  characters folder picked, every change is written to `world3d.json` 0.5 s after the last edit. The running game
+  (`js/worldlive.js`) re-reads `characters/world3d.json` every second. `run_v3.bat` starts the game window with
+  `--allow-file-access-from-files`, only for its own profile in `v3\.window-profile`, so it may read the file. On a change:
+  - the settings are copied into `WORLD_CFG` and the gravity numbers into `GRAV` / `JUMP` at once;
+  - the planet is rebuilt right away round the fight with the current world's seed, so the layout stays the same unless
+    **World seed** changed;
+  - fighters, HP and the fight carry on; craters, trenches and broken scenery start fresh; a "World updated" callout
+    shows;
+  - **Planet on** can't switch while running: restart the game for that.
+  Without the flag (an old window) or without the file, the game keeps the settings packed at start and looks again only
+  every 15 s.
 - Title screen: the planet seen from orbit.
 
 ## Knockback tracking shot (Daniel 2026-11-24)
