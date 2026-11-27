@@ -484,6 +484,21 @@ v3-animation skill ("Review questions").
 - Checked headless: a studio edit (groves 25, gravity 150 %) auto-saved and showed up in a running Watch fight within
   ~1 s, same seed, fight and HP unchanged, no errors. Needs Daniel to restart the game once with the updated run_v3.bat.
 
+## Trigger conditions for every triggerable action (2026-11-27)
+
+- Daniel: "add action conditions to each action where there is actually ways to trigger actions". His picks: make every
+  condition type work in V3, a Conditions editor in FX Studio 3D, new V3-only (3D) conditions; hide the panel for actions
+  V3 never triggers. (Not picked: writing starter conditions into the character files.)
+- Done: `js/conds3d.js` catalogue, `realkits.js realCond` (all 42 FX Studio types + 14 in a "3D (V3 only)" group), FX Studio 3D
+  Conditions panel. README "Trigger conditions".
+- Checked headless (Playwright + SwiftShader, Watch fights ronin_copy v pewpew / rapid, tough v puck, sync v sniper,
+  hooded_blades v sueko, puff v rapid, new_fighter v thear_copy, 65-86 s each): every type evaluated each 5 ticks with no
+  errors; Ronin's bullet_deflected counters now fire, Hooded Blades' hop-blade conditions come true; studio panel hidden on
+  idle / attack_normal, add / edit (m) / logic / undo work.
+- Still dead in V3 (needs Daniel's call): tough's attack_special + ultimate (ally_threatened only, no team-mate on the field);
+  ronin_copy's `parry` action plays its clip / FX but does not open a parry window itself; actions with no conditions
+  (e.g. puff / pewpew / swordsman_rig attack_special, several defends) are still key-only until conditions are added.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,

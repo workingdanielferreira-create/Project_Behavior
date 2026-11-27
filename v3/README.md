@@ -685,6 +685,30 @@ the action only while the target's body centre is in that range (3D, height incl
 respects it too. Your own key presses ignore it (Daniel's pick). The stage shows the range as two yellow rings round the
 fighter and the panel says whether the dummy is in range.
 
+**Trigger conditions (Daniel 2026-11-27).** Every action V3 can start on its own gets a **Conditions** panel under the
+Actions panel (hidden for idle / run / attack_normal / switch_in / switch_out / transform and the RIG_SPEC locomotion,
+dodge and hit-reaction clips: `COND3D.triggerable`). **Start when** any / all conditions hold, **+ Add condition…**
+(grouped list, hover for help), per condition a type, **not** and ×, Remove all. Data = FX Studio's own
+`action_settings[a] {logic, conditions [{type, not, ...}]}` (the file still opens in FX Studio). FX Studio's px / px-per-s
+fields are edited in metres / m/s (stored as 2D px, 28 px = 1.8 m; hover a field for the stored value). No conditions =
+the AI never starts the action, only your key does; a chain hit attack_normal_2+ with conditions leaves the J chain.
+- Catalogue: `js/conds3d.js` (`COND3D`: types, groups, defaults, help, `triggerable`), shared by the game and the studio.
+- Game: `realkits.js realCond` reads **every** type against the V3 sim (all of FX Studio's `CONDITION_TYPES` + the 3D
+  group); `combat.js realTriggers` marks `hp_below` on fire (once per crossing per action unless Repeat), resets
+  `attacks_made` per action (`f.nStarts`). Hooks: `f.spd` (own speed, fighter.js), `f.hitTags` (damage(), FX tag / primitive
+  via `HIT_TAG` from fxlive.js, else "bullet" / "melee"), `f.deflT` (perfect / old-style shot parry), `f.hist` /
+  `f.endAt` (endAct), `fxWorld(f)` (fxlive.js: each fighter's live FX in world metres, once per tick, also feeds planetFx).
+- How the FX Studio types read in V3: target above / below = height gap; target facing = within 90°; fx_near / hop blades
+  / ally threat = 3D distance to the FX's body (beams: their whole line); projectile_count = enemy shots + travelling
+  damaging FX; **hit_by_fx / bullet_deflected hold 0.5 s and are used up by the first action they start** (the fighter is
+  still reeling / parrying on the tick it happens); has_token = always true and partner_intent / partner_within /
+  ally_threatened = team-mates ON THE FIELD only, so they stay false while V3 fields one fighter per side (tough's
+  attack_special / ultimate are gated by ally_threatened alone); partner_hp_below / outnumbered count benched partners.
+- 3D group (metres, V3 only): own / target height above ground, target rising / falling, height gap band, 3D distance
+  band, own speed level (Lv2 sprint / Lv3), can fly, target knocked back (m/s), target juggled (combo hits), target behind
+  me (°), target stunned (stag / down / air), locked on (your fighter's lock-on), own parry window (any / perfect /
+  normal), counter window after a perfect parry.
+
 **Start at = target fix (Daniel 2026-11-26).** FX Studio 3D's "Start at" rides as `3d:<id>`; `anchor2d` checked
 `figure` / `target` before stripping the prefix, so `3d:target` found no bone and fell back to the body centre. Fixed, and
 an effect started on the target now also lies at the target's own side offset (`lane.tgtLat`, followed while attached)

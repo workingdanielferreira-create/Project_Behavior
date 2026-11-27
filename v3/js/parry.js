@@ -45,6 +45,7 @@ function parryOnHit(a,t,isShot,shot){parryAiHit(t);const w=parryWindow(t);if(!w)
   const st=pstate(t);stats.parries[t.side]++;if(t.side===0)stats.perfectParries++;director.cnt++;
   FXF=t;fx_ring(t.x,t.y,0xffc857,3.2,.3,1.1);fx_ring(t.x,t.y,0xffffff,2.2,.2,1.1);fx_sparks(t.x,t.y,0xffe7a0,26,9);fx_star(t,t,3);
   hitstopMs=Math.max(hitstopMs,95);shake=Math.max(shake,.45);camPunch=Math.max(camPunch,.06);flash(.12);
+  if(isShot)t.deflT=tick;   // condition bullet_deflected (realkits.js)
   if(isShot&&shot){parryShot(t,shot,c);}
   else if(!isShot&&a&&a!==t&&!a.ko){stun(a,c.staggerMs,'stag');a.lastWhiff=true;a.recoil=Math.min(1.2,a.recoil+.6);
     const dx=a.x-t.x,dy=a.y-t.y,d=Math.hypot(dx,dy)||1;a.vx+=dx/d*260;a.vy+=dy/d*260;

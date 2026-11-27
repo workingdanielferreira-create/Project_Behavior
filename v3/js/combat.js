@@ -4,9 +4,11 @@
 function onField(){return [sides[0].team[sides[0].on],sides[1].team[sides[1].on]];}
 function enemyOf(f){return sides[1-f.side].team[sides[1-f.side].on];}
 function startAct(f,def,kind,name){if(kind==='ult')camEvent('ult',f);const a={def,kind,name,t:0,hi:0,fi:0,li:0};if(def.n2d){f.lastAct2d=def.n2d;f.lastActTick=tick;}
-  if(f.stateUntil>tick&&['normal','special','special2'].includes(kind)){const e=enemyOf(f);[0,180,360].forEach(ms=>later(ms,()=>{if(f.on&&!f.ko&&!e.ko)heavenBlade(f,e);}));}f.act=a;mv3Start(f,def);f.armor=def.armor||0;f.landedThisAct=false;stats.starts[f.side]++;metr.starts.push(tick);
+  if(f.stateUntil>tick&&['normal','special','special2'].includes(kind)){const e=enemyOf(f);[0,180,360].forEach(ms=>later(ms,()=>{if(f.on&&!f.ko&&!e.ko)heavenBlade(f,e);}));}f.act=a;mv3Start(f,def);f.armor=def.armor||0;f.landedThisAct=false;stats.starts[f.side]++;if(kind!=='react')f.nStarts=(f.nStarts||0)+1;metr.starts.push(tick);
   if(f.on&&f.side===0)stats.actions++;return a;}
-function endAct(f){if(!f.act)return;f.mv3=null;f.lastEnd=tick;f.lastWhiff=!f.landedThisAct&&f.act.kind!=='react';f.act=null;f.armor=0;f.justEnded=true;}
+function endAct(f){if(!f.act)return;
+  {const n=f.act.def&&f.act.def.n2d;if(n){(f.endAt||(f.endAt={}))[n]=tick;const h=f.hist||(f.hist=[]);h.push(n);if(h.length>8)h.shift();}}   // conditions since_action / after_actions
+  f.mv3=null;f.lastEnd=tick;f.lastWhiff=!f.landedThisAct&&f.act.kind!=='react';f.act=null;f.armor=0;f.justEnded=true;}
 const fieldBlades=[];
 function condTrue(f,e,c,trig){const d=Math.hypot(f.x-e.x,f.y-e.y);
   switch(c[0]){
@@ -35,8 +37,12 @@ function realTriggers(f,e){// 2D: a triggered action fires the tick its conditio
     if(tr.slot!=='defend'&&(f.act||f.stun>0||f.snap||f.gone>0))continue;
     if(tr.slot==='defend'&&(f.block>0||f.stun>0))continue;
     // real kits: FX Studio conditions (realkits.js realCond), logic any / all; with no conditions = never on its own
-    const ok=f.k.fx2d?(tr.conds.length&&(tr.logic==='all'?tr.conds.every(c=>realCond(f,e,c,st)):tr.conds.some(c=>realCond(f,e,c,st)))):tr.conds.some(c=>condTrue(f,e,c,st));
-    if(ok){if(f.k.fx2d&&f.k[tr.slot]&&f.k[tr.slot].mcd&&tick<(st.cdUntil||0))continue;if(!inTrigDist(f,e,f.k[tr.slot]))continue;st.last=tick;st.fired=tick;if(f.k.fx2d&&f.k[tr.slot])st.cdUntil=tick+ms2t(f.k[tr.slot].mcd||0);return fireTrigger(f,tr,e);}}
+    const nm=(f.k[tr.slot]&&f.k[tr.slot].n2d)||tr.slot;
+    const ok=f.k.fx2d?(tr.conds.length&&(tr.logic==='all'?tr.conds.every(c=>realCond(f,e,c,st,nm)):tr.conds.some(c=>realCond(f,e,c,st,nm)))):tr.conds.some(c=>condTrue(f,e,c,st));
+    if(ok){if(f.k.fx2d&&f.k[tr.slot]&&f.k[tr.slot].mcd&&tick<(st.cdUntil||0))continue;if(!inTrigDist(f,e,f.k[tr.slot]))continue;st.last=tick;st.fired=tick;if(f.k.fx2d&&f.k[tr.slot])st.cdUntil=tick+ms2t(f.k[tr.slot].mcd||0);
+      // hp_below fires once per crossing (unless repeat): mark the ones that hold now (laser/actions.py mark_fired)
+      if(f.k.fx2d)for(const c of tr.conds)if(c.type==='hp_below'&&!c.not&&!c.repeat&&f.hp/f.max*100<=cnum(c.pct,50))f.thr[nm+':'+cnum(c.pct,50)]=1;
+      if(f.k.fx2d)justUse(f,tr.conds);const r=fireTrigger(f,tr,e);st.starts0=f.nStarts||0;return r;}}
   return false;}
 function tryAttack(f,e,forced){
   if(f.k.real&&!forced&&realTriggers(f,e))return true;
@@ -74,18 +80,19 @@ function hitResolve(a,t,h){ // h=[at,dmg,w,reach]
   return damage(a,t,h[1],h[2],false,null,h[4]);}
 // fx3 = an FX Studio effect (fxlive.js fxHit): its own 3D contact already decided the hit, so the height-gap check
 // (meant for the stand-in melee / shots) is skipped: an FX fired from a jump that reaches a grounded body lands.
-function damage(a,t,dmg,w,isShot,shot,kbpx,unblock,fx3){
+let HIT_TAG='';   // the tag of the FX about to hit (fxlive.js fxHit), for condition hit_by_fx
+function damage(a,t,dmg,w,isShot,shot,kbpx,unblock,fx3){const htag=HIT_TAG||(isShot?'bullet':'melee');HIT_TAG='';
   if(t.ko||!t.on||t.gone>0)return false;
   if(!shot&&!fx3&&Math.abs(a.z-t.z)>(isShot?520:420)&&t.stun<=0)return false; // too far above / below
   if(t.iframe>0){if(t.side===0&&t.perfectReady){t.perfectReady=false;perfect(t,a);}return false;}
   if(t.parry>0&&!isShot&&!unblock){t.parry=0;stun(a,450,'stag');a.lastWhiff=true;fx_ring(t.x,t.y,0xffffff,2.6,.3,1.1);fx_sparks(t.x,t.y,0xffffff,24,8);hitstopMs=Math.max(hitstopMs,(70));shake=Math.max(shake,.4);director.cnt++;
     if(t.side===0||a.side===0)callout('PARRY',t.k.name+' turns it aside',cssc(t.k.fx),.6,true);stats.parries[t.side]++;return false;}
-  if(t.parry>0&&isShot&&!unblock){t.parry=0;if(shot){shot.side=t.side;shot.vx*=-1.2;shot.vy*=-1.2;shot.dmg*=1.2;}fx_ring(t.x,t.y,0xffffff,2,.25,1.1);director.cnt++;return false;}
+  if(t.parry>0&&isShot&&!unblock){t.parry=0;t.deflT=tick;if(shot){shot.side=t.side;shot.vx*=-1.2;shot.vy*=-1.2;shot.dmg*=1.2;}fx_ring(t.x,t.y,0xffffff,2,.25,1.1);director.cnt++;return false;}
   // Parry / deflect (parry.js): a perfect parry takes the hit, a normal one cuts damage and knockback.
   let pk=1,pkb=1;if(!unblock){const pr=parryOnHit(a,t,isShot,shot);if(!pr)return false;pk=pr.k;pkb=pr.kb;}
   let k=pk;if(t.block>0&&!unblock){k=Math.min(k,.3);fx_ring(t.x,t.y,t.k.fx,1.8,.25,1);director.cnt++;}
   const jug=comboBefore(t);   // combo.js: juggled = still stunned by an earlier hit; its old flight is dropped (redirect)
-  dmg*=(a.dmgMul||1)*(t.takenMul||1)*parryCounterMult(a,t)*(a.dummy?TRAIN.fightDmg:1)*(jug?comboKeep(t):1);const dm=dmg*k;t.dmgLog.push([tick,dm]);if(t.dmgLog.length>40)t.dmgLog.shift();t.hp=Math.max(0,t.hp-dm);t.hurts.push(tick);t.lastHurt=tick;if(t.hurts.length>8)t.hurts.shift();t.tp.mom=Math.max(-1,t.tp.mom-.2);
+  dmg*=(a.dmgMul||1)*(t.takenMul||1)*parryCounterMult(a,t)*(a.dummy?TRAIN.fightDmg:1)*(jug?comboKeep(t):1);const dm=dmg*k;t.dmgLog.push([tick,dm]);if(t.dmgLog.length>40)t.dmgLog.shift();t.hp=Math.max(0,t.hp-dm);t.hurts.push(tick);t.lastHurt=tick;if(t.hurts.length>32)t.hurts.shift();{const h=t.hitTags||(t.hitTags=[]);h.push([tick,htag]);if(h.length>8)h.shift();}t.tp.mom=Math.max(-1,t.tp.mom-.2);
   trainNoteHit(a,t,dm);a.landedThisAct=true;a.lastLanded=tick;a.tp.mom=Math.min(1,a.tp.mom+.15);
   director.hits++;director.dmg+=dm;director.taken+=dm;director.lastHitTick=tick;metr.hits.push(tick);stats.dealt[a.side]+=dm;
   const wv={L:1,M:2,H:3,B:4}[w]||1;
