@@ -17,6 +17,7 @@ function fxHit(f,e,dmg,kb,inst){if(!e||e.ko||!e.on)return;const fx=inst.fx||{};
   if(!(dmg>0)&&window.HYPERFX&&HYPERFX.isTransform((fx.params||{}).style)){fxShove(f,e,kb);return;}
   const w=kb>=20?'B':kb>=13?'H':kb>=7?'M':'L';const shot=fx.motion&&fx.motion.kind!=='attached'&&fx.motion.kind!=='orbit';
   const w0=fxDefendTicks(e),dodging=e.iframe>0;
+  HIT_TAG=String(fx.tag||fx.prim||'fx').toLowerCase();   // condition hit_by_fx (realkits.js)
   if(damage(f,e,dmg,w,shot,null,kb>0?kb*PX2D*.35:0,false,true)!==false)return;
   // Defended (dodge i-frames, a parry window, a blink): the effect keeps its hit (fx3d.js tryHit) and may land once the
   // defence is over (Daniel 2026-11-26: FX phasing through the body). The dodge shows, so it never reads as a miss.
@@ -41,8 +42,12 @@ function fxTick(f){const S=fxRunner(f);if(!S)return;
     action:a?{key:a,name:a.def.n2d,frames:a.def.frames,frameMs:a.def.frameMs}:null,
     moving:!!(f.snap||f.lean>.2),gone:f.gone>0,frame:a?Math.floor(a.t*TICK/a.def.frameMs):0,groundY:0});
   // the planet: moving FX hit scenery, low beams / flyers dig the ground, big impacts crater (planet.js planetFx)
-  if(PLANET&&typeof planetFx==='function')planetFx(S.run.worldFx());
+  S.wt=-1;   // fxWorld cache is stale now
+  if(PLANET&&typeof planetFx==='function')planetFx(fxWorld(f));
   fxHeldBlades(f,S);}
+// Live FX of fighter f in world metres (FX3D Runner.worldFx), once per tick: planet scenery hits + trigger conditions
+// (realkits.js fx_near / projectile_count / hop blades / ally_threatened).
+function fxWorld(f){const S=f&&f.fx3;if(!S||!f.on||f.ko)return [];if(S.wt!==tick){S.wt=tick;try{S.wl=S.run.worldFx();}catch(err){S.wl=[];}}return S.wl||[];}
 // one of each blade: the 3D weapon hides while its own weapon FX is out (weapons3d.js pbwFxHeld)
 function fxHeldBlades(f,S){if(f.glb&&typeof pbwFxHeld==='function')pbwFxHeld(f.glb.model,S&&f.on&&!f.ko?S.run.lanes:null,f);}
 // Render frame (main.js): paint and place every fighter's live FX cards.

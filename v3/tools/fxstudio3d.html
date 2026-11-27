@@ -99,6 +99,11 @@ input[type=color] { width: 44px; height: 26px; padding: 0; border: 1px solid var
 .list .it.sel { background: var(--accent); color: var(--bg); }
 .list .it .m { font-family: var(--mono); font-size: 11px; opacity: .75; margin-left: auto; white-space: nowrap; }
 .list .it input { margin: 0; }
+.cond { border: 1px solid var(--line); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 5px; margin-bottom: 6px; }
+.cond .hd { display: flex; gap: 6px; align-items: center; }
+.cond .hd select { flex: 1; min-width: 0; }
+.cond .hd label { font-size: 12px; white-space: nowrap; }
+.cond .hd button { padding: 0 8px; flex: none; }
 .params { display: flex; flex-direction: column; gap: 4px; max-height: 340px; overflow: auto; padding-right: 2px; }
 .params .row { grid-template-columns: 150px minmax(0, 1fr); }
 #partsBox details { border: 1px solid var(--line, #3335); border-radius: 6px; margin: 6px 0; padding: 2px 8px; }
@@ -171,6 +176,14 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
       <div class="row"><label for="aTd" title="The AI and FX Studio condition triggers start this action only while the target is between these distances (body centre to body centre, height included). Your own key presses ignore it">Trigger distance</label>
         <div class="pair"><input id="aTd" type="checkbox" aria-label="Use a trigger distance"> <input id="aTdMin" type="number" min="0" step="0.1" title="closest (m)" aria-label="Closest (m)"> – <input id="aTdMax" type="number" min="0" step="0.1" title="farthest (m), 0 = no limit" aria-label="Farthest (m), 0 = no limit"> m</div></div>
       <p class="note" id="aTdOut"></p>
+    </section>
+
+    <section id="secCond"><h2>Conditions <small id="condOut"></small></h2>
+      <p class="note" id="condNote"></p>
+      <div class="row"><label for="cLogic" title="Any = the action starts when one condition holds; All = only when every condition holds">Start when</label>
+        <select id="cLogic"><option value="any">any condition holds</option><option value="all">all conditions hold</option></select></div>
+      <div id="condList"></div>
+      <div class="btns"><select id="cAdd" aria-label="Add a condition"><option value="">+ Add condition…</option></select><button id="cClear" type="button">Remove all</button></div>
     </section>
 
     <section id="secDummy"><h2>Target dummy</h2>
@@ -256,6 +269,7 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
 <script src="../../tools/fx/studio/presets.js"></script>
 <script src="../../tools/fx/studio/hyperfx.js"></script>   <!-- punching FX + impact FX (V3, Daniel 2026-11-26) -->
 <script src="../js/fx3d.js"></script>
+<script src="../js/conds3d.js"></script>   <!-- action trigger conditions (shared with the game's realkits.js) -->
 <script>
 'use strict';
 (function () {
@@ -494,6 +508,7 @@ function buildActs() {
   const t = timing(S.act); $('aFrames').value = t.frames; $('aFms').value = t.fms;
   const as = aset(S.act); $('aCool').value = as ? +as.cooldown_ms || 0 : 0;
   const td = tdOf(S.act); $('aTd').checked = td.enabled; $('aTdMin').value = td.min_m; $('aTdMax').value = td.max_m; $('aTdMin').disabled = $('aTdMax').disabled = !td.enabled; syncTd();
+  buildConds();
 }
 /* trigger distance (action_settings[a].trigger_dist, Daniel 2026-11-26; game: realkits.js trigDist + combat.js inTrigDist):
    min / max metres from the target, max 0 = no limit; rings on the floor round the fighter + the dummy's readout */
@@ -515,6 +530,71 @@ function selAction(a) { S.act = a; const list = fxOf(a); S.sel = list.length ? l
 $('aFrames').onchange = function () { const v = Math.max(1, Math.round(+this.value || 1)); pushUndo(); (S.F.timing[S.act] || (S.F.timing[S.act] = {})).frames = v; changed(true); };
 $('aFms').onchange = function () { const v = Math.max(1, +this.value || TICK); pushUndo(); (S.F.timing[S.act] || (S.F.timing[S.act] = {})).frame_ms = v; changed(true); };
 $('aCool').onchange = function () { pushUndo(); aset(S.act, true).cooldown_ms = Math.max(0, +this.value || 0); changed(false); };
+
+/* ---------------------------------------------------------------- trigger conditions (Daniel 2026-11-27)
+   action_settings[a] {logic, conditions [{type, not, ...}]} = FX Studio's own data, read by the game (realkits.js realCond)
+   for every type in COND3D.TYPES (js/conds3d.js). Shown only for actions V3 can start from conditions (COND3D.triggerable).
+   FX Studio's px / px-per-s fields are edited here in metres (stored as 2D px so the file still opens in FX Studio). */
+function condGroupsSelect(sel, cur) {
+  COND3D.GROUPS.forEach(([g, ks]) => { const og = document.createElement('optgroup'); og.label = g;
+    ks.forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = COND3D.TYPES[k].l; o.title = COND3D.TYPES[k].h; if (k === cur) o.selected = true; og.appendChild(o); });
+    sel.appendChild(og); });
+}
+(function () { condGroupsSelect($('cAdd'), null); })();
+function condsOf(a) { const as = aset(a); return (as && Array.isArray(as.conditions)) ? as.conditions : []; }
+function condEdit(fn, structural) { if (!S.F) return; pushUndo(); const as = aset(S.act, true); if (!Array.isArray(as.conditions)) as.conditions = []; fn(as);
+  if (!as.conditions.length) delete as.conditions; changed(false); buildActs(); }
+const r2 = v => Math.round(v * 100) / 100;
+function condField(c, i, fd) {
+  const [key, label, kind, def, opts] = fd, row = document.createElement('div'); row.className = 'row';
+  const id = 'cf' + i + '_' + key, lab = document.createElement('label'); lab.htmlFor = id; lab.textContent = label; row.appendChild(lab);
+  const cur = c[key] == null ? def : c[key]; let el;
+  const put = v => condEdit(as => { as.conditions[i][key] = v; });
+  if (kind === 'chk') { el = document.createElement('input'); el.type = 'checkbox'; el.checked = !!cur; el.onchange = () => put(el.checked); }
+  else if (kind === 'sel' || kind === 'action') { el = document.createElement('select');
+    const list = kind === 'sel' ? opts : [''].concat(actions());
+    list.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v === '' ? (key === 'action' && /empty = this/.test(label) ? '(this action)' : '(any)') : v.replace(/_/g, ' '); if (String(v) === String(cur)) o.selected = true; el.appendChild(o); });
+    el.onchange = () => put(el.value); }
+  else if (kind === 'text' || kind === 'tags') { el = document.createElement('input'); el.type = 'text'; el.value = cur || ''; if (kind === 'text') el.placeholder = 'e.g. attack_normal_2, attack_special';
+    else el.placeholder = 'e.g. beam, energy (empty = any)'; el.onchange = () => put(el.value.trim()); }
+  else { el = document.createElement('input'); el.type = 'number'; const px = kind === 'px' || kind === 'pxs';
+    el.step = px || kind === 'm' ? '0.1' : kind === 'ms_' ? '50' : '1'; if (kind !== 'm') el.min = '0';
+    el.value = px ? r2((+cur || 0) * COND3D.PX_M) : (+cur || 0);
+    if (px) el.title = 'Stored as ' + (+cur || 0) + ' 2D px' + (kind === 'pxs' ? '/s' : '') + ' (28 px = one 1.8 m body), so the file still opens in FX Studio';
+    el.onchange = () => { const v = +el.value || 0; put(px ? Math.round(v / COND3D.PX_M * 10) / 10 : v); }; }
+  el.id = id; row.appendChild(el); return row;
+}
+function buildConds() {
+  const sec = $('secCond'); if (!S.F) { sec.hidden = true; return; }
+  const can = COND3D.triggerable(S.act); sec.hidden = !can; if (!can) return;
+  const list = condsOf(S.act), as = aset(S.act) || {}, box = $('condList'); box.innerHTML = '';
+  $('cLogic').value = as.logic === 'all' ? 'all' : 'any'; $('cLogic').disabled = list.length < 2; $('cClear').disabled = !list.length;
+  $('condOut').textContent = list.length ? list.length + ' condition' + (list.length > 1 ? 's' : '') : 'none';
+  const chainN = /^attack_normal_\d+$/.test(S.act);
+  $('condNote').textContent = (list.length ? 'The AI starts this action on its own when the conditions hold (cooldown, trigger distance and its rhythm still apply). Your key presses ignore them.'
+    : 'No conditions: the AI never starts this action on its own; only your key press does.') +
+    (chainN ? ' Note: a chain hit (attack_normal_2+) with conditions leaves the J chain and becomes a triggered action.' : '');
+  list.forEach((c, i) => {
+    const m = COND3D.TYPES[c.type], card = document.createElement('div'); card.className = 'cond';
+    const hd = document.createElement('div'); hd.className = 'hd';
+    const ts = document.createElement('select'); ts.setAttribute('aria-label', 'Condition type');
+    if (!m) { const o = document.createElement('option'); o.value = c.type; o.textContent = '(unknown: ' + c.type + ')'; o.selected = true; ts.appendChild(o); }
+    condGroupsSelect(ts, c.type);
+    ts.onchange = () => condEdit(as => { as.conditions[i] = Object.assign(COND3D.blank(ts.value), {not: !!c.not}); });
+    const nl = document.createElement('label'); nl.title = 'Not = the action starts when this is NOT true';
+    const nc = document.createElement('input'); nc.type = 'checkbox'; nc.checked = !!c.not; nc.onchange = () => condEdit(as => { as.conditions[i].not = nc.checked; });
+    nl.appendChild(nc); nl.appendChild(document.createTextNode(' not'));
+    const del = document.createElement('button'); del.type = 'button'; del.textContent = '×'; del.title = 'Remove this condition'; del.setAttribute('aria-label', 'Remove condition');
+    del.onclick = () => condEdit(as => { as.conditions.splice(i, 1); });
+    hd.appendChild(ts); hd.appendChild(nl); hd.appendChild(del); card.appendChild(hd);
+    if (m) { m.f.forEach(fd => card.appendChild(condField(c, i, fd))); const h = document.createElement('p'); h.className = 'note'; h.textContent = m.h; card.appendChild(h); }
+    else { const h = document.createElement('p'); h.className = 'note'; h.textContent = 'V3 does not know this type: it is never true.'; card.appendChild(h); }
+    box.appendChild(card);
+  });
+}
+$('cAdd').onchange = function () { const t = this.value; this.value = ''; if (!t) return; condEdit(as => { as.conditions.push(COND3D.blank(t)); }); };
+$('cLogic').onchange = function () { const v = this.value; condEdit(as => { as.logic = v; }); };
+$('cClear').onclick = () => condEdit(as => { as.conditions = []; });
 
 /* ---------------------------------------------------------------- FX list */
 function fxLabel(e) { const P = e.params || {}; return (e.prim === 'technique' && P.style ? P.style : e.prim) + ' · f' + (+e.start_frame || 0) + ((+e.end_frame >= 0) ? '–' + e.end_frame : '+'); }

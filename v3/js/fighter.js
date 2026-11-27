@@ -6,12 +6,14 @@ function mkFighter(key,side){const k=KITS[key];const m=buildBody(k,key);
     ni:0,lastNormal:-999,gapUntil:0,cds:{special:0,special2:0,ult:600},
     lastEnd:-999,lastWhiff:false,landedThisAct:false,lastLanded:-999,lastHurt:-999,hurts:[],
     tp:{intent:'neutral',since:0,until:0,n:0,done:0,mom:0,orbit:Math.random()<.5?1:-1,swayPh:rnd(0,TAU),swayMs:rnd(900,2200),feintKind:'dash_in',feintBit:false,openSeen:false,resetAng:0,punishReady:0,lastStart:0},
-    manualUntil:0,label:null,bench:0,leap:0,h:0,flashT:0,jitT:0,recoil:0,stepT:Math.random()*.24,antic:0,dmgMul:1,spdMul:1,form:0,counterAt:0,strafe:0,beam:null,lx:0,ly:0,lean:0,trig:{},thr:{},dmgLog:[],lastAct2d:'',lastActTick:-999,stateUntil:0,retreatCd:0,retreatT:0,takenMul:1,orbitSwap:0,orbitDir:1,formChannel:-1,z:0,vz:0,zPref:0,zPrefT:0,zWant:0,manualZ:null,jumps:0,jumpCd:0,ffall:false,landT:0,jumpAfterSnap:false,mvx:0,mvy:0,spdLv:1});}
+    manualUntil:0,label:null,bench:0,leap:0,h:0,flashT:0,jitT:0,recoil:0,stepT:Math.random()*.24,antic:0,dmgMul:1,spdMul:1,form:0,counterAt:0,strafe:0,beam:null,lx:0,ly:0,lean:0,trig:{},thr:{},dmgLog:[],lastAct2d:'',lastActTick:-999,spd:0,lpos:null,hitTags:[],deflT:-999,hist:[],endAt:{},nStarts:0,stateUntil:0,retreatCd:0,retreatT:0,takenMul:1,orbitSwap:0,orbitDir:1,formChannel:-1,z:0,vz:0,zPref:0,zPrefT:0,zWant:0,manualZ:null,jumps:0,jumpCd:0,ffall:false,landT:0,jumpAfterSnap:false,mvx:0,mvy:0,spdLv:1});}
 function setOn(f,on){f.on=on;f.g.visible=on;f.sh.visible=on;f.aline.visible=false;}
 /* ================= per-fighter update ================= */
 function updFighter(f){
   if(f.ko&&f.on&&f.z>0){f.vz-=JUMP.gravity*DT;f.z=Math.max(0,f.z+f.vz*DT);}
   if(!f.on||f.ko)return;const e=enemyOf(f);
+  // own speed (conditions self / target_speed_*): ~0.1 s average, blinks / snaps > 60 2D px a tick ignored
+  {const L=f.lpos,v=L?Math.hypot(f.x-L[0],f.y-L[1],f.z-L[2])/DT:0;if(L&&v*DT<=60*PX2D)f.spd+=(v-f.spd)*.25;f.lpos=[f.x,f.y,f.z];}
   if(f.gone>0)f.gone--;if(f.iframe>0)f.iframe--;if(f.parry>0)f.parry--;if(f.block>0)f.block--;
   const started=f.startedNow||0;f.startedNow=0;const ended=f.justEnded;f.justEnded=false;
   const human=f.side===0&&level!=='watch';const handson=(f.side===0&&level==='handson')||!!e.phantom;   // no dummies: only your inputs
