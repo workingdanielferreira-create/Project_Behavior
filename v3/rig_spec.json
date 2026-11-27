@@ -117,7 +117,7 @@
 
   "clips": {
     "fps": 30,
-    "naming": "glTF animation name = the game action name below (Blender: one Action per clip, pushed to an NLA track or exported as 'Actions').",
+    "naming": "glTF animation name = the game action name below (Blender: one Action per clip, pushed to an NLA track or exported as 'Actions'). A form's own version of a clip (transformations) = <clip>@<N>, N = 1..5, e.g. idle@1.",
     "in_place": true,
     "in_place_note": "The sim moves the fighter. Hips may bob up / down but stay over the origin on X / Z (Mixamo: tick 'In Place').",
     "events_note": "Hit / release frames are set in the importer (written to character.json), not in Blender.",

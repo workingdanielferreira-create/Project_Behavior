@@ -6,6 +6,7 @@
 const PX2D=BODY/28;
 const REAL_KITS=window.PB3_KITS||{};
 const SKIP_ACTIONS={idle:1,run:1,switch_out:1,transform:1};
+const TFORM_RE=/^transform(_\d+)?$/;   // transform, transform_2 ...: the change into a form (transform3d), never a plain trigger
 function hexInt(h,d){h=String(h||'').replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');const v=parseInt(h,16);return h.length===6&&isFinite(v)?v:d;}
 function lighten(c,k){const r=(c>>16)&255,g=(c>>8)&255,b=c&255;const f=x=>Math.round(x+(255-x)*k);return (f(r)<<16)|(f(g)<<8)|f(b);}
 // A colour bright enough to read as FX / HP bar on the dark arena.
@@ -20,10 +21,10 @@ function realKit(R){
   const dur=a=>Math.max(120,Math.round((T[a].frames||1)*(T[a].frame_ms||16)));
   const cfg=a=>AS[a]||{};
   const def=(a,extra)=>Object.assign({n2d:a,name:a.replace(/_/g,' '),dur:dur(a),hits:[],fx:[],fx2d:true,frames:T[a].frames||1,frameMs:T[a].frame_ms||16,
-    mcd:+cfg(a).cooldown_ms||0,move3d:cfg(a).move3d&&cfg(a).move3d.enabled?cfg(a).move3d:null,tdist:trigDist(cfg(a).trigger_dist)},extra||{});   // move3d: FX Studio 3D movement (fxlive.js); tdist: trigger distance (combat.js inTrigDist)
+    mcd:+cfg(a).cooldown_ms||0,inForms:inForms(cfg(a).in_forms),move3d:cfg(a).move3d&&cfg(a).move3d.enabled?cfg(a).move3d:null,tdist:trigDist(cfg(a).trigger_dist)},extra||{});   // move3d: FX Studio 3D movement (fxlive.js); tdist: trigger distance (combat.js inTrigDist)
   const melee=pr.uses_melee!==false;
   const reach=clamp((+st.basic_attack_radius||(melee?120:400))*(melee?1:PX2D*.5),70,melee?260:900);
-  const acts=Object.keys(T).filter(a=>!SKIP_ACTIONS[a]);
+  const acts=Object.keys(T).filter(a=>!SKIP_ACTIONS[a]&&!TFORM_RE.test(a));
   const k={key:R.key,name:String(R.display_name||R.name||R.key).toUpperCase(),short:shortName(R.display_name||R.key),real:true,fx2d:true,src:R,
     col:body,acc:acc,fx:vivid(fxCol),core:lighten(vivid(fxCol),.7),hp:+st.max_hp||2000,melee:melee,reach:reach,
     speed:clamp((+st.chase_speed||2.5)*95,160,560),blink:0,gate:false,
@@ -44,6 +45,14 @@ function realKit(R){
   // any other action with conditions (attack_special_3, ultimate_2 ...) fires as a trigger
   for(const a of acts){if(normals.includes(a)||['attack_special','attack_special_2','ultimate','defend','switch_in'].includes(a)||!COND3D.triggerable(a))continue;
     const c=cfg(a);if((c.conditions||[]).length)addTrigger(k,'x:'+a,def(a,{name:prettyName(F,a)}),c);}
+  // transformations (FX Studio 3D, Daniel 2026-11-27): transform3d.forms = Form 1..N on top of the base. The change into
+  // form i plays transform_i (transform for form 1, or when transform_i is missing); its conditions = when the AI steps up.
+  const TF=F.transform3d,FL=TF&&Array.isArray(TF.forms)?TF.forms.slice(0,5):[];
+  if(FL.length){k.forms3d=FL.map((f,i)=>({name:String(f.name||'Form '+(i+1)),spd:Math.max(.05,cnum(f.speed_pct,100)/100),dmg:Math.max(0,cnum(f.damage_pct,100)/100),
+      taken:Math.max(0,cnum(f.taken_pct,100)/100),lasts:Math.max(0,cnum(f.lasts_ms,0))}));
+    k.tforms=FL.map((f,i)=>{const own=i>0&&T['transform_'+(i+1)]?'transform_'+(i+1):T.transform?'transform':null;
+      const d=own?def(own,{name:k.forms3d[i].name}):{n2d:'',name:k.forms3d[i].name,dur:600,hits:[],fx:[],mcd:0};d.form=i+1;
+      const s='tform'+(i+1);k[s]=d;const c=own?cfg(own):{};if((c.conditions||[]).length)addTrigger(k,s,null,c);return d;});}
   // dodge (pack.dodge) -> V3's auto reaction
   const D=F.dodge;
   if(D&&D.enabled){const parry=D.style==='parry';k.react={kind:parry?'parry':'sidestep',p:clamp((+D.chance_pct||100)/100,0,1)*.6,cd:Math.max(300,+D.cooldown_ms||0),
@@ -59,6 +68,8 @@ function prettyName(F,a){// an action's FX name (first enabled damaging effect),
   const e=(F.effects||[]).find(x=>x.action===a&&x.enabled!==false&&(x.battle||{}).deals_damage&&x.name);
   const n=e?String(e.name).split(/[·:]/).pop().replace(/\s*(copy|\d+)(\s+(copy|\d+))*$/i,'').trim():'';
   const t=s=>s.replace(/\b\w/g,c=>c.toUpperCase());return t(n&&n.length<26?n:a.replace(/_/g,' '));}
+// action_settings[a].in_forms: the forms (0 = base, 1..N) this action can be used in; missing / empty = every form
+function inForms(v){return Array.isArray(v)&&v.length?v.map(Number).filter(n=>isFinite(n)):null;}
 // FX Studio 3D trigger distance (Daniel 2026-11-26): action_settings[a].trigger_dist {enabled, min_m, max_m (0 = no limit)}
 function trigDist(t){if(!t||!t.enabled)return null;const mn=Math.max(0,+t.min_m||0),mx=Math.max(0,+t.max_m||0);return mn||mx?{min:mn,max:mx}:null;}
 function addTrigger(k,slot,d,c){if(d)k[slot]=d;k.triggers.push({slot,logic:c.logic==='all'?'all':'any',cd:+c.cooldown_ms||0,conds:(c.conditions||[]).map(x=>Object.assign({},x))});}
@@ -155,6 +166,8 @@ function realCond(f,e,c,trig,name){const d=Math.hypot(f.x-e.x,f.y-e.y),now=tick,
   case'target_stunned':v=e.stun>0&&(!c.kind||c.kind==='any'||e.stunKind===c.kind);break;
   case'locked_on':v=typeof lockOn!=='undefined'&&lockOn&&lockT===e&&lockPlayer()===f;break;
   case'self_parry_window':{const w=parryWindow(f);v=!!w&&(!c.grade||c.grade==='any'||w===c.grade);break;}
+  case'own_form':{const n=f.form3||0,w=cnum(c.form,1);v=c.op==='below'?n<w:c.op==='at_least'?n>=w:n===w;break;}
+  case'target_form':{const n=e.form3||0,w=cnum(c.form,1);v=c.op==='below'?n<w:c.op==='at_least'?n>=w:n===w;break;}
   case'counter_ready':v=!!(f.pw&&f.pw.counterOn===e&&tick<=f.pw.counterUntil);break;}
   return neg?!v:v;}
 

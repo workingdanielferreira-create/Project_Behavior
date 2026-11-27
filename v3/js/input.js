@@ -1,7 +1,7 @@
 'use strict';
 /* Input: keyboard state, camera-relative WASD, commands (snap, chain, skills, intents, tag, jump / fast fall or fly, sprint, camera, control level). */
 /* ================= input ================= */
-const keys={};let inputDir=null;const GAMEK={KeyR:1,KeyF:1,KeyC:1,KeyW:1,KeyA:1,KeyS:1,KeyD:1,ArrowUp:1,ArrowDown:1,ArrowLeft:1,ArrowRight:1,Space:1,KeyJ:1,KeyK:1,KeyL:1,KeyI:1,Digit1:1,Digit2:1,Digit3:1,Digit4:1,KeyQ:1,KeyE:1,KeyT:1,Tab:1,Escape:1,KeyP:1};
+const keys={};let inputDir=null;const GAMEK={KeyR:1,KeyF:1,KeyC:1,KeyW:1,KeyA:1,KeyS:1,KeyD:1,ArrowUp:1,ArrowDown:1,ArrowLeft:1,ArrowRight:1,Space:1,KeyJ:1,KeyK:1,KeyL:1,KeyI:1,Digit1:1,Digit2:1,Digit3:1,Digit4:1,KeyQ:1,KeyE:1,KeyT:1,KeyG:1,Tab:1,Escape:1,KeyP:1};
 function readDir(){let x=0,y=0;if(keys.KeyW||keys.ArrowUp)y-=1;if(keys.KeyS||keys.ArrowDown)y+=1;if(keys.KeyA||keys.ArrowLeft)x-=1;if(keys.KeyD||keys.ArrowRight)x+=1;const l=Math.hypot(x,y);if(!l)return null;x/=l;y/=l;
   // locked on (combo.js): W = toward the target, S = away, A / D = circle it
   const LA=lockAxes();if(LA)return [LA[0][0]*(-y)+LA[1][0]*x,LA[0][1]*(-y)+LA[1][1]*x];
@@ -34,6 +34,7 @@ function command(code,retry){const f=sides[0].team[sides[0].on];if(!f||f.ko)retu
   if(!retry&&(code==='KeyJ'||((code==='KeyK'||code==='KeyL'||code==='KeyI')&&f.k.melee))&&lockHome(f,e,code==='KeyJ'||f.k.melee)){f.buf={code,until:tick+ms2t(500)};return;}
   if(code==='KeyJ'){if(f.act&&f.act.kind==='normal'){const a=f.act;const lastHit=a.def.hits.length?a.def.hits[a.def.hits.length-1][0]:a.def.fx.length?a.def.fx[a.def.fx.length-1][0]:0;if(a.t*TICK>lastHit+20)endAct(f);else{f.bufChain=true;return;}}
     if(!tryAttack(f,e,true))fail('KeyJ');else{stats.pChains++;f.buf=null;}return;}
+  if(code==='KeyG'){if(formPress(f))f.buf=null;else if(!formReady(f))deny(code);else fail(code);return;}   // transform (forms3d.js)
   if(code==='KeyK'||code==='KeyL'||code==='KeyI'){const w=code==='KeyK'?'special':code==='KeyL'?'special2':'ult';if(!useSkill(f,w)){if(f.cds[w]>tick&&!busy())deny(code);else fail(code);}else{stats.pSkills++;f.buf=null;}return;}
   if(code.startsWith('Digit')){const n=+code[5];const map={1:'engage',2:'punish',3:'reset',4:'feint'};const it=map[n];
     if(level==='handson'){deny(code);return;}

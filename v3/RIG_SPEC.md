@@ -120,7 +120,8 @@ bone; the importer lets you point each one at any bone.
 | `parry` | | | `defend` |
 | `switch_in` | | | `dash` |
 | `switch_out` | | | `dodge_back` |
-| `transform` | | | `ultimate` |
+| `transform` (the change into Form 1, and into any form without its own) | | | `ultimate` |
+| `transform_N` (N = 2..5, the change into Form N) | | | `transform` |
 
 ### Locomotion
 
@@ -174,6 +175,13 @@ clip: incline / decline, or the ground direction (same sectors as the runs).
 | `knockdown` | | | `hit_heavy` |
 | `getup` | | | `idle` |
 | `ko` (ends on the floor, last frame held) | | yes | |
+
+### Form clips (transformations)
+
+A character with Transformations (FX Studio 3D, `transform3d`) can give any clip a version for one form: name it
+`<clip>@<N>` (N = 1..5), e.g. `idle@1`, `run@2`, `attack_special@1`. While the fighter is in Form N the game plays
+`<clip>@<N>` when it exists (checked for the picked clip, then for the clip it falls back to), else the usual clip.
+Rig Forge 3D: Spec row, pick Form N to list / Create the missing `@N` clips (each starts from its base clip).
 
 **Minimum set for a playable fighter (9 required clips):** `idle`, `run`, `attack_normal`,
 `attack_special`, `ultimate`, `defend`, `dodge`, `hit_light`, `ko`. `walk` and `sprint` are
