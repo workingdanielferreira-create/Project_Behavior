@@ -707,7 +707,21 @@ the AI never starts the action, only your key does; a chain hit attack_normal_2+
 - 3D group (metres, V3 only): own / target height above ground, target rising / falling, height gap band, 3D distance
   band, own speed level (Lv2 sprint / Lv3), can fly, target knocked back (m/s), target juggled (combo hits), target behind
   me (°), target stunned (stag / down / air), locked on (your fighter's lock-on), own parry window (any / perfect /
-  normal), counter window after a perfect parry.
+  normal), counter window after a perfect parry, own / target form is (exactly / at least / below; 0 = base).
+
+**Transformations (Daniel 2026-11-27).** `transform` is a real action now (`js/forms3d.js`). FX Studio 3D, panel
+**Transformations**: Form 1..5 over the base, each with name, speed %, damage %, damage taken % and **Lasts** (ms, 0 =
+stays), saved as `transform3d.forms` in the fxkit file (packed by `build_kits.py`). Forms step **up one at a time**:
+- The change into Form N plays `transform_N` (Form 1 = `transform`; a missing `transform_N` = `transform`), its own clip
+  and FX; the form takes over when that action ends (cut short too, unless K.O.'d), with a burst + callout.
+- Who: the AI when that action's **Conditions** hold (only once in the form below, its cooldown applies); you with
+  **G** (HUD chip "→ next form", ignores conditions, keeps the cooldown). At the top form nothing steps up.
+- A form with Lasts > 0 drops back ONE form when it runs out (that lower form's timer then starts).
+- In a form: `f.spdMul` / `f.dmgMul` / `f.takenMul` = its %; **Usable in** (Actions panel, `action_settings[a].in_forms`,
+  0 = base) keeps an action out of the other forms (J chain hits skip, K / L / I and triggers refuse); the body plays
+  `<clip>@<N>` where the character has one (`glbody.js glbFormClip`, RIG_SPEC "Form clips"; Rig Forge 3D Spec row ->
+  Form N lists / creates them).
+- Replaces the old hard-coded Puck forms (60 % / 30 % HP). No character file has forms yet: add them in the studio.
 
 **Start at = target fix (Daniel 2026-11-26).** FX Studio 3D's "Start at" rides as `3d:<id>`; `anchor2d` checked
 `figure` / `target` before stripping the prefix, so `3d:target` found no bone and fell back to the body centre. Fixed, and

@@ -236,7 +236,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
       <div class="row"><label for="actTrig">Trigger</label><input type="text" id="actTrig" class="grow" spellcheck="false"></div>
       <div class="row"><label for="actCool">Cooldown</label><input type="number" id="actCool" min="0" step="50"><span class="readout">ms</span></div>
       <div class="row"><button id="actAdd">+ Action</button><button id="actDup">Duplicate</button><button id="actDel" class="danger">Remove</button></div>
-      <div class="row"><label for="specMiss">Spec</label><select id="specMiss" class="grow" aria-label="Missing spec actions" disabled></select><button id="specMake" disabled>Create</button></div>
+      <div class="row"><label for="specMiss">Spec</label><select id="specForm" aria-label="For which form" title="Base = the spec actions; Form N = that form's own clips (name@N, played by V3 while the fighter is in Form N)"><option value="0">Base</option><option value="1">Form 1</option><option value="2">Form 2</option><option value="3">Form 3</option><option value="4">Form 4</option><option value="5">Form 5</option></select><select id="specMiss" class="grow" aria-label="Missing spec actions" disabled></select><button id="specMake" disabled>Create</button></div>
       <div class="readout" id="specMissOut"></div>
       <div class="row"><label for="speed">Play speed</label><input id="speed" type="range" min="0.1" max="2" step="0.05" value="1"><output id="speedOut">1.00×</output></div>
       <div class="readout" id="charFilesOut">Character files: connect the characters folder to edit length / trigger / cooldown in the game.</div>
@@ -3021,7 +3021,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     rebake(n, false); setFrame(Math.min(S.frame, newN)); buildActs();
     status(n + " now plays for " + (ms / 1000).toFixed(3) + " s" + (S.keyMode[n] ? ", key poses stretched to fill it" : "") + (CF.fx ? " (written into the character's files on Save)." : ". Connect the characters folder so the game uses it too."));
   }
-  function validName(nm) { return /^[A-Za-z0-9_]+$/.test(nm) && S.order.indexOf(nm) < 0; }
+  function validName(nm) { return /^[A-Za-z0-9_]+(@[1-5])?$/.test(nm) && S.order.indexOf(nm) < 0; }   // name@N = a form's own clip (V3 transformations)
   function forgetUndo(why) { S.undo = []; S.redo = []; uiUndo(); markDirty(); status(why + " (can't be undone; Save to keep it)."); }
   function renameAct() {
     var a = S.clip, b = $("actName").value.trim(); if (!a || b === a) return;
@@ -3065,10 +3065,16 @@ details.adv[open] > summary { margin-bottom: 6px; }
     ["knockdown", "hit_heavy"], ["getup", "idle"], ["ko", null]];
   var SPEC_FB = {}; SPEC_ACTS.forEach(function (a) { SPEC_FB[a[0]] = a[1]; });
   /* the clip a missing spec action plays in the game today (its fallback chain, as glbody.js glbClip) */
-  function specSource(nm) { var n = SPEC_FB[nm], g = 0; while (n && S.order.indexOf(n) < 0 && g++ < 8) n = SPEC_FB[n]; return n && S.order.indexOf(n) >= 0 ? n : null; }
+  function specSource(nm) { var fm = String(nm).split("@"), base = fm[0];
+    if (fm[1]) return S.order.indexOf(base) >= 0 ? base : specSource(base);   // a form clip starts from the base clip (what the game plays without it)
+    var n = SPEC_FB[nm], g = 0; while (n && S.order.indexOf(n) < 0 && g++ < 8) n = SPEC_FB[n]; return n && S.order.indexOf(n) >= 0 ? n : null; }
   function fillSpecMiss() {
     var sel = $("specMiss"); if (!sel || !SPEC_ACTS) return;
-    var miss = S.root ? SPEC_ACTS.filter(function (a) { return S.order.indexOf(a[0]) < 0; }) : [];
+    var fm = +(($("specForm") || {}).value || 0);
+    /* Form N: every clip the character has (+ the spec ones) as name@N */
+    var list = fm ? S.order.filter(function (n) { return n.indexOf("@") < 0; }).map(function (n) { return [n]; })
+        .concat(SPEC_ACTS.filter(function (a) { return S.order.indexOf(a[0]) < 0; })).map(function (a) { return [a[0] + "@" + fm]; }) : SPEC_ACTS;
+    var miss = S.root ? list.filter(function (a) { return S.order.indexOf(a[0]) < 0; }) : [];
     sel.innerHTML = miss.map(function (a) { var s = specSource(a[0]);
       return '<option value="' + esc(a[0]) + '">' + esc(a[0]) + (s ? "  (from " + esc(s) + ")" : "  (new still pose)") + "</option>"; }).join("");
     sel.disabled = $("specMake").disabled = !miss.length;
@@ -3128,6 +3134,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
   $("actRename").onclick = renameAct;
   $("actName").addEventListener("keydown", function (e) { if (e.key === "Enter") renameAct(); });
   $("specMake").onclick = makeSpecAct;
+  $("specForm").onchange = fillSpecMiss;
   $("actAdd").onclick = function () { addAct(false); };
   $("actDup").onclick = function () { addAct(true); };
   $("actDel").onclick = removeAct;

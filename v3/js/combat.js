@@ -22,6 +22,7 @@ function condTrue(f,e,c,trig){const d=Math.hypot(f.x-e.x,f.y-e.y);
   case'proj_count':return shots.filter(s=>s.side===f.side).length>=c[1];}
   return false;}
 function fireTrigger(f,tr,e){const slot=tr.slot;const def=f.k[slot];if(!def)return false;
+  if(slot.startsWith('tform'))return formStart(f,+slot.slice(5),false);   // forms3d.js
   tr.conds.forEach(c=>{if(c[0]==='hp_below'&&f.hp/f.max*100<c[1])f.thr[c[1]]=1;});
   if(slot==='defend'){if(f.act)endAct(f);f.block=ms2t(def.dur);startAct(f,def,'react','defend');return true;}
   startAct(f,def,slot,slot);stats.used[f.side][slot==='ult'?'ult':slot]++;if(slot==='ult'&&f.on)callout(def.name,f.k.name,cssc(f.k.fx),.9);return true;}
@@ -37,6 +38,8 @@ function realTriggers(f,e){// 2D: a triggered action fires the tick its conditio
     if(tr.slot!=='defend'&&(f.act||f.stun>0||f.snap||f.gone>0))continue;
     if(tr.slot==='defend'&&(f.block>0||f.stun>0))continue;
     // real kits: FX Studio conditions (realkits.js realCond), logic any / all; with no conditions = never on its own
+    if(tr.slot.startsWith('tform')&&formReady(f)!==+tr.slot.slice(5))continue;   // forms3d.js: only the next form, once ready
+    if(!formAllows(f,f.k[tr.slot]))continue;   // in_forms
     const nm=(f.k[tr.slot]&&f.k[tr.slot].n2d)||tr.slot;
     const ok=f.k.fx2d?(tr.conds.length&&(tr.logic==='all'?tr.conds.every(c=>realCond(f,e,c,st,nm)):tr.conds.some(c=>realCond(f,e,c,st,nm)))):tr.conds.some(c=>condTrue(f,e,c,st));
     if(ok){if(f.k.fx2d&&f.k[tr.slot]&&f.k[tr.slot].mcd&&tick<(st.cdUntil||0))continue;if(!inTrigDist(f,e,f.k[tr.slot]))continue;st.last=tick;st.fired=tick;if(f.k.fx2d&&f.k[tr.slot])st.cdUntil=tick+ms2t(f.k[tr.slot].mcd||0);
@@ -65,8 +68,9 @@ function tryAttack(f,e,forced){
   else{const cr=comboReach(e);if(d>f.k.reach*(forced?1.9:(f.k.melee?1.7:1))*cr)return false;
   if(f.k.melee&&Math.abs(f.z-e.z)>f.k.reach*(forced?1.9:1.3)*cr+60)return false;}
   if(tick-f.lastNormal>ms2t(900))f.ni=0;
+  {const L=f.k.normals.length;let g=0;while(g<L&&!formAllows(f,f.k.normals[f.ni%L])){f.ni++;g++;}if(g>=L)return false;}   // forms3d.js: chain hits not usable in this form are skipped
   const def=f.k.normals[f.ni%f.k.normals.length];f.ni++;f.lastNormal=tick;startAct(f,def,'normal','N'+f.ni);stats.used[f.side].normal++;return true;}
-function useSkill(f,which){if(!f||f.ko||f.stun>0||f.gone>0||!f.k[which]||f.k[which].none)return false;const e=enemyOf(f);
+function useSkill(f,which){if(!f||f.ko||f.stun>0||f.gone>0||!f.k[which]||f.k[which].none||!formAllows(f,f.k[which]))return false;const e=enemyOf(f);
   if(f.act&&f.act.kind!=='normal')return false;const cdk=which;if(f.cds[cdk]>tick){return false;}
   if(f.k.real){if(f.act)endAct(f);const def=f.k[which];startAct(f,def,which,which);f.cds[cdk]=tick+ms2t(def.mcd||2500);const st=f.trig[which]||(f.trig[which]={});st.last=tick;st.fired=tick;stats.used[f.side][which]++;if(which==='ult')callout(def.name,f.k.name,cssc(f.k.fx),.9);return true;}
   if(f.act)endAct(f);const def=f.k[which];startAct(f,def,which,which);f.cds[cdk]=tick+ms2t(def.cd);stats.used[f.side][which==='ult'?'ult':which]++;

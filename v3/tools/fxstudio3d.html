@@ -169,6 +169,12 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
       <p class="note" id="bodyOut"></p>
     </section>
 
+    <section id="secTforms"><h2>Transformations <small id="tfOut"></small></h2>
+      <p class="note">Forms on top of the base, stepped up one at a time: the AI by the <b>transform</b> action's conditions (transform_2, transform_3 … for Form 2, 3 … when the character has them, else transform), you with <b>G</b>. A form lasting 0 ms stays; otherwise it drops back one form when it runs out. In a form the body plays <code>clip@N</code> clips where they exist (e.g. idle@1, made in Rig Forge 3D).</p>
+      <div id="tfList"></div>
+      <div class="btns"><button id="tfAdd" type="button">+ Add form</button><button id="tfDel" type="button">Remove last form</button></div>
+    </section>
+
     <section id="secActs"><h2>Actions <small id="actOut"></small></h2>
       <div class="list" id="acts"></div>
       <div class="row"><label>Length</label><div class="pair"><input id="aFrames" type="number" min="1" step="1" title="frames"> × <input id="aFms" type="number" min="1" step="1" title="ms per frame"> ms</div></div>
@@ -176,6 +182,7 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
       <div class="row"><label for="aTd" title="The AI and FX Studio condition triggers start this action only while the target is between these distances (body centre to body centre, height included). Your own key presses ignore it">Trigger distance</label>
         <div class="pair"><input id="aTd" type="checkbox" aria-label="Use a trigger distance"> <input id="aTdMin" type="number" min="0" step="0.1" title="closest (m)" aria-label="Closest (m)"> – <input id="aTdMax" type="number" min="0" step="0.1" title="farthest (m), 0 = no limit" aria-label="Farthest (m), 0 = no limit"> m</div></div>
       <p class="note" id="aTdOut"></p>
+      <div class="row" id="aInRow" hidden><label title="Forms (Transformations) this action can be used in. All ticked (or none) = every form">Usable in</label><div class="pair" id="aIn" style="flex-wrap:wrap"></div></div>
     </section>
 
     <section id="secCond"><h2>Conditions <small id="condOut"></small></h2>
@@ -486,7 +493,47 @@ $('flight').onchange = function () { pushUndo(); S.F.flight = Object.assign({}, 
 /* sprint levels (V3 sprint.js): fxkit sprint {lv2_pct, lv3, lv3_pct}; defaults = V3's SPRINT (185 % / 300 %) */
 const SPRINT_DEF = {lv2_pct: 185, lv3: false, lv3_pct: 300};
 function syncSprint() { const sp = Object.assign({}, SPRINT_DEF, (S.F && S.F.sprint) || {});
-  $('spLv2').value = sp.lv2_pct; $('spLv3').checked = !!sp.lv3; $('spLv3Pct').value = sp.lv3_pct; $('spLv3Pct').disabled = !sp.lv3; }
+  $('spLv2').value = sp.lv2_pct; $('spLv3').checked = !!sp.lv3; $('spLv3Pct').value = sp.lv3_pct; $('spLv3Pct').disabled = !sp.lv3; buildTforms(); }
+
+/* ---------------------------------------------------------------- transformations (Daniel 2026-11-27)
+   transform3d.forms [{name, speed_pct, damage_pct, taken_pct, lasts_ms}] (Form 1..5 over the base); game: js/forms3d.js.
+   Per action: action_settings[a].in_forms [0 = base, 1..N] (missing = every form). */
+const TF_MAX = 5, TF_FIELDS = [['name', 'Name', 'text'], ['speed_pct', 'Speed (%)', 100], ['damage_pct', 'Damage (%)', 100], ['taken_pct', 'Damage taken (%)', 100], ['lasts_ms', 'Lasts (ms, 0 = stays)', 0]];
+function tfList() { return (S.F && S.F.transform3d && Array.isArray(S.F.transform3d.forms)) ? S.F.transform3d.forms : []; }
+function tfEdit(fn) { if (!S.F) return; pushUndo(); const T = S.F.transform3d || (S.F.transform3d = {forms: []}); if (!Array.isArray(T.forms)) T.forms = []; fn(T.forms);
+  if (!T.forms.length) delete S.F.transform3d; changed(false); buildTforms(); buildActs(); }
+function tfAction(i) { const T = (S.F && S.F.timing) || {}; return i > 1 && T['transform_' + i] ? 'transform_' + i : T.transform ? 'transform' : ''; }
+function buildTforms() {
+  const L = tfList(), box = $('tfList'); box.innerHTML = '';
+  $('tfOut').textContent = L.length ? L.length + ' form' + (L.length > 1 ? 's' : '') : 'none'; $('tfAdd').disabled = !S.F || L.length >= TF_MAX; $('tfDel').disabled = !L.length;
+  L.forEach((f, i) => {
+    const card = document.createElement('div'); card.className = 'cond';
+    const a = tfAction(i + 1), n = document.createElement('p'); n.className = 'note';
+    n.innerHTML = '<b>Form ' + (i + 1) + '</b> · plays ' + (a ? '<code>' + esc(a) + '</code>' : '<i>no transform action (a short pause)</i>') + (a && (aset(a) || {}).conditions && aset(a).conditions.length ? ' · AI: its conditions' : a ? ' · AI: never (no conditions on it)' : '');
+    card.appendChild(n);
+    TF_FIELDS.forEach(([k, lab, d]) => { const row = document.createElement('div'); row.className = 'row'; const id = 'tf' + i + k;
+      const l = document.createElement('label'); l.htmlFor = id; l.textContent = lab; const el = document.createElement('input'); el.id = id;
+      if (d === 'text') { el.type = 'text'; el.value = f.name || ''; el.onchange = () => tfEdit(F => { F[i].name = el.value.trim() || 'Form ' + (i + 1); }); }
+      else { el.type = 'number'; el.min = '0'; el.step = k === 'lasts_ms' ? '100' : '5'; el.value = f[k] == null ? d : +f[k]; el.onchange = () => tfEdit(F => { F[i][k] = Math.max(0, +el.value || 0); }); }
+      row.appendChild(l); row.appendChild(el); card.appendChild(row); });
+    box.appendChild(card);
+  });
+}
+$('tfAdd').onclick = () => tfEdit(F => { if (F.length < TF_MAX) F.push({name: 'Form ' + (F.length + 1), speed_pct: 120, damage_pct: 120, taken_pct: 100, lasts_ms: 0}); });
+$('tfDel').onclick = () => tfEdit(F => { const n = F.length; F.pop();
+  Object.values(S.F.action_settings || {}).forEach(as => { if (Array.isArray(as.in_forms)) { as.in_forms = as.in_forms.filter(x => x < n); if (!as.in_forms.length) delete as.in_forms; } }); });
+// "Usable in" (Actions panel): base + each form
+function syncInForms() {
+  const L = tfList(), row = $('aInRow'), a = S.act; const show = !!(S.F && L.length && a && !COND3D.isTransform(a) && (COND3D.triggerable(a) || a === 'attack_normal'));
+  row.hidden = !show; if (!show) return; const box = $('aIn'); box.innerHTML = '';
+  const cur = (aset(a) || {}).in_forms, all = ['Base'].concat(L.map(f => f.name || 'Form'));
+  all.forEach((nm, i) => { const lab = document.createElement('label'); lab.className = 'note'; const cb = document.createElement('input'); cb.type = 'checkbox';
+    cb.checked = !Array.isArray(cur) || !cur.length || cur.includes(i);
+    cb.onchange = () => { pushUndo(); const as = aset(a, true); let v = Array.isArray(as.in_forms) && as.in_forms.length ? as.in_forms.slice() : all.map((_, j) => j);
+      v = cb.checked ? v.concat(i) : v.filter(x => x !== i); v = [...new Set(v)].sort();
+      if (v.length === all.length || !v.length) delete as.in_forms; else as.in_forms = v; changed(false); syncInForms(); };
+    lab.appendChild(cb); lab.appendChild(document.createTextNode(' ' + nm + ' ')); box.appendChild(lab); });
+}
 function putSprint(k, v) { if (!S.F) return; pushUndo(); S.F.sprint = Object.assign({}, SPRINT_DEF, S.F.sprint || {}, {[k]: v}); syncSprint(); changed(false); }
 $('spLv2').onchange = function () { putSprint('lv2_pct', Math.max(100, +this.value || SPRINT_DEF.lv2_pct)); };
 $('spLv3').onchange = function () { putSprint('lv3', this.checked); };
@@ -508,7 +555,7 @@ function buildActs() {
   const t = timing(S.act); $('aFrames').value = t.frames; $('aFms').value = t.fms;
   const as = aset(S.act); $('aCool').value = as ? +as.cooldown_ms || 0 : 0;
   const td = tdOf(S.act); $('aTd').checked = td.enabled; $('aTdMin').value = td.min_m; $('aTdMax').value = td.max_m; $('aTdMin').disabled = $('aTdMax').disabled = !td.enabled; syncTd();
-  buildConds();
+  buildConds(); syncInForms();
 }
 /* trigger distance (action_settings[a].trigger_dist, Daniel 2026-11-26; game: realkits.js trigDist + combat.js inTrigDist):
    min / max metres from the target, max 0 = no limit; rings on the floor round the fighter + the dummy's readout */
@@ -571,7 +618,10 @@ function buildConds() {
   $('cLogic').value = as.logic === 'all' ? 'all' : 'any'; $('cLogic').disabled = list.length < 2; $('cClear').disabled = !list.length;
   $('condOut').textContent = list.length ? list.length + ' condition' + (list.length > 1 ? 's' : '') : 'none';
   const chainN = /^attack_normal_\d+$/.test(S.act);
-  $('condNote').textContent = (list.length ? 'The AI starts this action on its own when the conditions hold (cooldown, trigger distance and its rhythm still apply). Your key presses ignore them.'
+  const tfN = COND3D.isTransform(S.act) ? (S.act === 'transform' ? 1 : +S.act.split('_')[1]) : 0;
+  $('condNote').textContent = tfN ? (tfList().length ? 'Transformation: when these hold, the AI steps up into ' + (S.act === 'transform' ? 'the next form that has no own transform_N action (Form 1 first)' : 'Form ' + tfN) + ', once it is in the form below. Your G key ignores them (cooldown still applies).' + (list.length ? '' : ' No conditions: the AI never transforms.')
+    : 'Add forms under Transformations (top of the panel) first: without forms this action never plays in V3.') :
+    (list.length ? 'The AI starts this action on its own when the conditions hold (cooldown, trigger distance and its rhythm still apply). Your key presses ignore them.'
     : 'No conditions: the AI never starts this action on its own; only your key press does.') +
     (chainN ? ' Note: a chain hit (attack_normal_2+) with conditions leaves the J chain and becomes a triggered action.' : '');
   list.forEach((c, i) => {

@@ -80,19 +80,24 @@
     target_stunned: {g: '3D (V3 only)', l: 'target stunned / staggered', f: [['kind', 'Kind', 'sel', 'any', ['any', 'stag', 'down', 'air']]], h: 'The target is stunned: stag = staggered (parry, light hit), down = knocked down, air = launched.'},
     locked_on: {g: '3D (V3 only)', l: 'locked on to the target', f: [], h: 'Your fighter holds the lock-on (T / middle mouse) on this target. The AI never locks on: always false for it.'},
     self_parry_window: {g: '3D (V3 only)', l: 'own parry window open', f: [['grade', 'Window', 'sel', 'any', ['any', 'perfect', 'normal']]], h: 'This fighter\'s parry window (Ctrl+Space / AI roll, parry.js) is open: a counter as the hit comes in.'},
+    own_form: {g: '3D (V3 only)', l: 'own form is', f: [['op', 'Compare', 'sel', 'at_least', ['exactly', 'at_least', 'below']], ['form', 'Form (0 = base)', 'count', 1]],
+      h: 'This fighter\'s transformation form (FX Studio 3D Transformations; 0 = base) is exactly / at least / below this one.'},
+    target_form: {g: '3D (V3 only)', l: 'target form is', f: [['op', 'Compare', 'sel', 'at_least', ['exactly', 'at_least', 'below']], ['form', 'Form (0 = base)', 'count', 1]],
+      h: 'The target\'s transformation form (0 = base) is exactly / at least / below this one.'},
     counter_ready: {g: '3D (V3 only)', l: 'counter window after a perfect parry', f: [], h: 'This fighter perfect-parried the target and its counter window (hits x counter bonus) is still open.'}
   };
   // actions V3 never starts from conditions (locomotion, poses, hit reactions; attack_normal = first chain hit; switch_in plays on a tag-in)
-  const NONTRIG = new Set(['idle', 'run', 'attack_normal', 'switch_in', 'switch_out', 'transform', 'walk', 'sprint', 'dash', 'jump', 'air', 'air_move',
+  const NONTRIG = new Set(['idle', 'run', 'attack_normal', 'switch_in', 'switch_out', 'walk', 'sprint', 'dash', 'jump', 'air', 'air_move',
     'fall', 'land', 'turn', 'run_back', 'run_left', 'run_right', 'run_stop', 'jump_start', 'jump_air', 'jump_land', 'fly_forward', 'fly_back',
     'fly_left', 'fly_right', 'fly_incline', 'fly_decline', 'dodge', 'dodge_back', 'dodge_left', 'dodge_right', 'hit_light', 'hit_heavy', 'hit_air',
     'stagger', 'knockdown', 'getup', 'ko']);
-  const triggerable = a => !!a && !NONTRIG.has(a);
+  const triggerable = a => !!a && !NONTRIG.has(a) && a.indexOf('@') < 0;   // name@N = a form's own clip, not an action
+  const isTransform = a => /^transform(_\d+)?$/.test(a || '');
   const groups = [];
   Object.keys(T).forEach(k => { let gr = groups.find(x => x[0] === T[k].g); if (!gr) groups.push(gr = [T[k].g, []]); gr[1].push(k); });
   function blank(type) { const m = T[type]; const c = {type, not: false}; if (m) m.f.forEach(f => { c[f[0]] = f[3]; }); return c; }
   // "a, B ,c" -> ["a", "b", "c"]
   const tags = s => String(s || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
   const tagMatch = (want, tag) => !want.length || want.includes(String(tag || '').toLowerCase());
-  G.COND3D = {TYPES: T, GROUPS: groups, PX_M, triggerable, NONTRIG, blank, tags, tagMatch};
+  G.COND3D = {TYPES: T, GROUPS: groups, PX_M, triggerable, isTransform, NONTRIG, blank, tags, tagMatch};
 })(typeof window !== 'undefined' ? window : globalThis);

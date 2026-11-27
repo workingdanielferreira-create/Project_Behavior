@@ -145,14 +145,16 @@ function glbPick(f,body){
   return [air?'air':'idle','still',0];}
 /* a looping move's restart id = the clip it really plays, so swapping between names that fall back to the same clip
    (e.g. run_left -> run on a body without run_left) does not restart it */
+/* a form's own clip (forms3d.js): <clip>@<form>, for the picked name or the clip it falls back to; else the usual one */
+function glbFormClip(B,n,fm){const base=glbClip(B,n);if(!fm)return base;return B.clips[n+'@'+fm]?n+'@'+fm:B.clips[base+'@'+fm]?base+'@'+fm:base;}
 function glbId(body,name){return [name,'mv:'+glbClip(body,name),0];}
-function glbAnim(f,rdt){const G=f.glb,B=G.body;const p=glbPick(f,B);const name=glbClip(B,p[0]);
+function glbAnim(f,rdt){const G=f.glb,B=G.body;const p=glbPick(f,B);const name=glbFormClip(B,p[0],f.form3||0);
   /* run_stop: armed when a ground run ends with no move / hit taking over, only on bodies that have the clip */
   const moving=typeof p[1]==='string'&&p[1].indexOf('mv:')===0&&p[0].indexOf('fly_')<0;
   if(G.wasRun&&!moving&&p[1]==='still'&&B.clips.run_stop&&f.z<=0){G.stopT=tick+ms2t(GLB_STOP_MS);G.wasRun=false;return glbAnim(f,rdt);}
   G.wasRun=moving&&p[0]!=='run_stop';
   if(name!==G.cur||p[1]!==G.curId){const clip=B.clips[name];const act=G.mixer.clipAction(clip);
-    const loop=!!GLB_LOOPS[name];act.reset();act.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce,Infinity);act.clampWhenFinished=!loop;
+    const loop=!!GLB_LOOPS[name.split('@')[0]];act.reset();act.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce,Infinity);act.clampWhenFinished=!loop;
     act.timeScale=p[2]>0&&!loop?clip.duration/p[2]:1;
     const fade=name==='ko'||!G.act?0:p[2]>0?.06:.14;act.play();if(G.act&&G.act!==act)G.act.crossFadeTo(act,fade,false);else act.fadeIn(fade);
     G.act=act;G.cur=name;G.curId=p[1];

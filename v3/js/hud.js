@@ -8,8 +8,8 @@ function stepNums(rdt){const r=host.getBoundingClientRect();for(let i=nums.lengt
   if(n.t>.8){n.el.remove();nums.splice(i,1);}}}
 function flash(a){const el=$('flash');el.style.transition='none';el.style.opacity=a;requestAnimationFrame(()=>{el.style.transition='opacity .22s';el.style.opacity=0;});}
 /* ================= HUD ================= */
-const CMDS=[['Space','Snap'],['Parry','Parry'],['KeyJ','Chain'],['KeyK','Special'],['KeyL','Special 2'],['KeyI','Ultimate'],['Digit1','1 Pressure'],['Digit2','2 Punish'],['Digit3','3 Reset'],['Digit4','4 Feint'],['KeyQ','Q Tag'],['KeyE','E Tag']];
-const KEYLBL={Parry:'Ctrl+Space',Space:'Space',KeyJ:'J',KeyK:'K',KeyL:'L',KeyI:'I'};
+const CMDS=[['Space','Snap'],['Parry','Parry'],['KeyJ','Chain'],['KeyK','Special'],['KeyL','Special 2'],['KeyI','Ultimate'],['KeyG','Transform'],['Digit1','1 Pressure'],['Digit2','2 Punish'],['Digit3','3 Reset'],['Digit4','4 Feint'],['KeyQ','Q Tag'],['KeyE','E Tag']];
+const KEYLBL={Parry:'Ctrl+Space',Space:'Space',KeyJ:'J',KeyK:'K',KeyL:'L',KeyI:'I',KeyG:'G'};
 const cmdEls={};
 (function(){const bar=$('cmdbar');const r1=document.createElement('div');r1.className='crow';const r2=document.createElement('div');r2.className='crow';bar.appendChild(r1);bar.appendChild(r2);
   CMDS.forEach((c,i)=>{const el=document.createElement('div');el.className='ck';el.innerHTML=(KEYLBL[c[0]]?'<kbd>'+KEYLBL[c[0]]+'</kbd>':'')+'<span>'+c[1]+'</span><i class="cd"></i>';
@@ -35,6 +35,9 @@ function hud(rdt){const [a,b]=onField();
   setCk('KeyK',f.cds.special<=tick,false,cdf('special',f.k.special.cd));cmdEls.KeyK.querySelector('span').textContent=f.k.special.name;
   setCk('KeyL',f.cds.special2<=tick,false,cdf('special2',f.k.special2.cd));cmdEls.KeyL.querySelector('span').textContent=f.k.special2.name;
   setCk('KeyI',f.cds.ult<=tick,burst(),cdf('ult',f.k.ult.cd));cmdEls.KeyI.querySelector('span').textContent=f.k.ult.name;
+  {const K=f.k.forms3d,el=cmdEls.KeyG;el.style.display=K?'':'none';   // transformations (forms3d.js): the next form, or the top one reached
+    if(K){const i=(f.form3||0)+1,d=f.k['tform'+i];setCk('KeyG',formReady(f)>0,false,d&&f.cds['tform'+i]>tick?(f.cds['tform'+i]-tick)/ms2t(d.mcd||1):0);
+      el.querySelector('span').textContent=i>K.length?K[K.length-1].name+' (max)':'→ '+K[i-1].name;}}
   setCk('Digit2',!!isOpen(e),!!isOpen(e));['Digit1','Digit3','Digit4'].forEach(c=>setCk(c,level!=='handson'));
   const s=sides[0];const bench=[0,1,2].filter(i=>i!==s.on);['KeyQ','KeyE'].forEach((c,j)=>{const g=s.team[bench[j]];cmdEls[c].style.display=g?'':'none';if(!g)return;setCk(c,!g.ko&&s.tagCd<=tick,false,s.tagCd>tick?(s.tagCd-tick)/ms2t(3000):0);cmdEls[c].querySelector('span').textContent=(c==='KeyQ'?'Q ':'E ')+g.k.short;});
   ['Digit1','Digit2','Digit3','Digit4'].forEach((c,j)=>cmdEls[c].classList.toggle('on',f.tp.intent===['engage','punish','reset','feint'][j]&&level!=='handson'&&false));

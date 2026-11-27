@@ -6,7 +6,7 @@ function mkFighter(key,side){const k=KITS[key];const m=buildBody(k,key);
     ni:0,lastNormal:-999,gapUntil:0,cds:{special:0,special2:0,ult:600},
     lastEnd:-999,lastWhiff:false,landedThisAct:false,lastLanded:-999,lastHurt:-999,hurts:[],
     tp:{intent:'neutral',since:0,until:0,n:0,done:0,mom:0,orbit:Math.random()<.5?1:-1,swayPh:rnd(0,TAU),swayMs:rnd(900,2200),feintKind:'dash_in',feintBit:false,openSeen:false,resetAng:0,punishReady:0,lastStart:0},
-    manualUntil:0,label:null,bench:0,leap:0,h:0,flashT:0,jitT:0,recoil:0,stepT:Math.random()*.24,antic:0,dmgMul:1,spdMul:1,form:0,counterAt:0,strafe:0,beam:null,lx:0,ly:0,lean:0,trig:{},thr:{},dmgLog:[],lastAct2d:'',lastActTick:-999,spd:0,lpos:null,hitTags:[],deflT:-999,hist:[],endAt:{},nStarts:0,stateUntil:0,retreatCd:0,retreatT:0,takenMul:1,orbitSwap:0,orbitDir:1,formChannel:-1,z:0,vz:0,zPref:0,zPrefT:0,zWant:0,manualZ:null,jumps:0,jumpCd:0,ffall:false,landT:0,jumpAfterSnap:false,mvx:0,mvy:0,spdLv:1});}
+    manualUntil:0,label:null,bench:0,leap:0,h:0,flashT:0,jitT:0,recoil:0,stepT:Math.random()*.24,antic:0,dmgMul:1,spdMul:1,form:0,counterAt:0,strafe:0,beam:null,lx:0,ly:0,lean:0,trig:{},thr:{},dmgLog:[],lastAct2d:'',lastActTick:-999,form3:0,form3Until:0,tfPending:0,spd:0,lpos:null,hitTags:[],deflT:-999,hist:[],endAt:{},nStarts:0,stateUntil:0,retreatCd:0,retreatT:0,takenMul:1,orbitSwap:0,orbitDir:1,formChannel:-1,z:0,vz:0,zPref:0,zPrefT:0,zWant:0,manualZ:null,jumps:0,jumpCd:0,ffall:false,landT:0,jumpAfterSnap:false,mvx:0,mvy:0,spdLv:1});}
 function setOn(f,on){f.on=on;f.g.visible=on;f.sh.visible=on;f.aline.visible=false;}
 /* ================= per-fighter update ================= */
 function updFighter(f){
@@ -19,9 +19,7 @@ function updFighter(f){
   const human=f.side===0&&level!=='watch';const handson=(f.side===0&&level==='handson')||!!e.phantom;   // no dummies: only your inputs
   if(!handson&&f.k.rhythm!==false)think(f,e,started,ended);
   if(f.stun>0){f.stun--;}
-  if(f.key==='puck'&&f.form<2&&f.hp/f.max<(f.form===0?.6:.3)){f.form++;f.dmgMul=f.form===1?1.12:1.25;f.spdMul=f.form===1?1.15:1.3;f.aura.visible=true;
-    f.aura.children.forEach(c=>c.material.color.setHex(f.form===2?0x9fe0ff:0xffd24a));fx_dome(f.x,f.y,0xffd24a,4);flash(.3);shake=Math.max(shake,.6);hitstopMs=Math.max(hitstopMs,120);
-    if(f.on)callout(f.form===1?'TRANSFORM':'TRANSFORM II',f.k.name+' powers up',cssc(f.k.fx),.9);}
+  formTick(f);   // transformations (forms3d.js; replaces the old hard-coded Puck forms, Daniel 2026-11-27)
   if(f.k.berserk){const lost=1-f.hp/f.max,B=f.k.berserk;const x=clamp(lost/B.maxLost,0,1);const q=Math.floor((Math.exp(3*x)-1)/(Math.exp(3)-1)*B.steps)/B.steps;f.dmgMul=1+B.bonus*q;f.aura.visible=q>0;if(q>0)f.aura.children.forEach(c=>c.material.color.setHex(0x9a9a9a));}
   if(f.k.forms){const nx=f.k.forms[f.form||0];if(nx&&f.hp/f.max<nx.at&&f.formChannel<0&&!f.stun){if(f.act)endAct(f);f.formChannel=f.form||0;startAct(f,f.k.transform,'transform','transform');if(f.on)callout('TRANSFORM',f.k.name+' changes form','#'+nx.aura.toString(16).padStart(6,'0'),.9);}
     if(f.formChannel>=0&&!f.act){const F=f.k.forms[f.formChannel];f.form=f.formChannel+1;f.formChannel=-1;f.spdMul=F.spd;f.dmgMul=F.dmg;f.takenMul=F.taken;f.mat.color.setHex(F.col);f.aura.visible=true;f.aura.children.forEach(c=>c.material.color.setHex(F.aura));fx_dome(f.x,f.y,F.aura,5);flash(.35);shake=Math.max(shake,.8);hitstopMs=Math.max(hitstopMs,150);}}

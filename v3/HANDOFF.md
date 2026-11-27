@@ -499,6 +499,22 @@ v3-animation skill ("Review questions").
   ronin_copy's `parry` action plays its clip / FX but does not open a parry window itself; actions with no conditions
   (e.g. puff / pewpew / swordsman_rig attack_special, several defends) are still key-only until conditions are added.
 
+## Transformations as a real action (2026-11-27)
+
+- Daniel: "build transform as a real action". His picks: new V3-only data (not the 2D `unique_ability.dual_form`, so Puck /
+  Sueko start with no forms); triggered by the transform action's conditions + a player key (G); a form changes stats,
+  which actions can be used and the body's clips (`clip@N`); forms step up one at a time, one transform action per form
+  (`transform_N`, falls back to `transform`); per-form "lasts ms" (0 = stays) drops back ONE form; V3's hard-coded Puck
+  forms removed.
+- Done: `js/forms3d.js`, realkits.js (`transform3d` -> `k.forms3d` / `k.tform1..N`, `in_forms`), combat / fighter / input /
+  hud / glbody / menus hooks, FX Studio 3D Transformations panel + "Usable in" row + transform conditions, Rig Forge 3D
+  Spec row "Form N" (+ `name@N` names), RIG_SPEC "Form clips", conditions own_form / target_form. README "Transformations".
+- Checked headless with in-memory test forms on Puck (Watch v tough, 60 s): steps 0 -> 1 -> 2 on hp_below, stats applied,
+  a 3 s form drops back one, attack_special locked to forms 1-2 never started in base; G (Hands-on) plays the 3 s
+  transform then Form 1; studio panel / Usable in / transform conditions note; regression fights clean.
+- **Next:** Daniel sets forms (and transform conditions) for the characters he wants; form clips (`idle@1` ...) authored
+  per character.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,
