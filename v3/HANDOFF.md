@@ -431,6 +431,17 @@ v3-animation skill ("Review questions").
   fights with an unreachable range start nothing, with 0-3 m attack as usual. Not seen yet by Daniel in the real studio.
 - **Next:** Daniel's verdict.
 
+## Key presses: no range limit (2026-11-28)
+
+- Daniel: "while the distance for each action has been defined in the fx studio, it doesn't detect it in the actual game;
+  pressing an action key while in the required range it doesn't trigger until I get right up in front of the target".
+- Cause: J (forced key press) skipped the trigger distance but still hit the old reach check (1.9x reach, + height).
+  His pick: "keep the range for the AI but remove the range restriction from when the user plays the characters".
+- Done: `combat.js tryAttack` forced === true skips every range check; AI + parry counter ('ai') unchanged. K / L / I
+  already had none. Lock-on homing (`combo.js lockHome`, menu Homing range, 0 = off) left as is.
+- Checked headless: fighters 40 m apart, action range 0-3 m: AI refuses, J starts the chain, no errors.
+- **Next:** Daniel's verdict in the game.
+
 ## Directional locomotion actions (2026-11-26)
 
 - Daniel: "add new animation assign actions for each character: run backwards, left, right, stop running; jump start,
