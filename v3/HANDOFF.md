@@ -530,6 +530,11 @@ v3-animation skill ("Review questions").
   = right, carried on as a long wavy tail. Done: `trail_from` top (default) / middle, `trail_wave_pct`,
   `trail_wave_len_pct`; narrower start (0.75 x aura width). Checked headless: fast flight + ground dash = wavy tail off
   the top flames, no errors.
+- Round 3 (Daniel, two marked game screenshots): the trail could clearly be seen as a second part; "it needs to blend
+  as if it's one whole, like a liquid flame". Done: the separate trail mesh is removed; the aura shells themselves stretch
+  along the path (`fx3d.js` AURA_VS comet stretch, `uP[24]` / `uTrailOn` / `uTrailK` / `uTTaper` / `uThin`; `hyperfx.js
+  auraTrail` now returns the path as `look.trail` for the sheath + layers). `trail_from` and `trail_opacity_pct` dropped.
+  Checked headless: side / top-down / rising / ground dash = one continuous tapering flame, no seam, no errors.
 - **Next:** Daniel's verdict in game; tune defaults (trail_ms 260, taper 80, thin 100, wave 100).
 
 ## Next steps (agreed direction, not started)

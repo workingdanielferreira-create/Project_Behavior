@@ -649,15 +649,15 @@ with no damage; three stages.
   into a round, sphere-like bowl hanging under the feet (eased in with the height over the floor, opens again on landing;
   the flame layers / outer flames hug it, the low layers stop flaring out). `air_close`, `air_round_pct` (bowl depth).
   Shader uniforms `uClose` / `uBowl` (`fx3d.js` AURA_VS `prof`), JS twin `hyperfx.js sheathW`.
-- **Flame trail** (Daniel 2026-11-28 sketch, group "Flame trail", Solo + Battle, ground moves too): a comet tail of the
-  same noise-torn flame along the path the body centre took (`fx3d.js` keeps one point per tick in `inst._tv.hist`,
-  a teleport starts it over; `hyperfx.js auraTrail` takes the last `trail_ms` of it, resampled to 24 even points, so the
-  faster the move the longer the tail). Aura-wide where it leaves the body, narrowing to a point (`trail_taper_pct`), and
-  a long trail is thinner overall (`trail_thin_pct`); `trail_width_pct`, `trail_opacity_pct`, `trail`. Drawn by
-  `fx3d.js makeTrail / trail3` (a tube bent along `uP[24]` in the vertex shader + a fainter hot core when Inner hot layer is on).
-  Round 2 (Daniel's sketch: not a tube out of the middle): `trail_from` top (default) lifts the line to where the
-  swept-back top flames end, so the tail carries them on; `trail_wave_pct` / `trail_wave_len_pct` ripple it up and down
-  like a flag (growing toward the tail, travelling back); `middle` = the old line out of the body centre.
+- **Flame trail** (Daniel 2026-11-28, 3 rounds; Solo + Battle, ground moves too): the aura's OWN surface stretches back
+  along the path the body took into one tapering tail, like a liquid flame (round 3: "it needs to blend as if it's one
+  whole"; the separate trail tube of rounds 1-2 is gone). `fx3d.js` keeps the body centre's path (one point per tick in
+  `inst._tv.hist`, a teleport starts it over); `hyperfx.js auraTrail` takes the last `trail_ms` of it (so faster = longer),
+  resampled to 24 even points plus a flag-like wave (`trail_wave_pct`, `trail_wave_len_pct`), and hands it as `look.trail`
+  to the sheath, inner layer and every flame layer. `AURA_VS` comet stretch: each shell point facing back along the path
+  is pulled down it by sT (front / sides stay, the very back = the tail tip), its width scaled by (1 - sT)^taper
+  (`trail_taper_pct`) and thinned toward `thin` (a long trail is thinner: `trail_thin_pct`, `trail_width_pct`); the
+  fragment shader burns the tail's end off and damps the overlap so it doesn't add up to flat white. `trail` = on / off.
 - **Stages** (`stage`): 1 = gold flame aura; 2 = tighter, brighter, faster flicker + blue-white arcs crackling over the
   body the whole time; 3 = biggest (x1.4, taller crown, many more flames), heavy lightning, the ground breaking up and
   floating round the feet the whole time. A stage multiplies the panel's settings (size, height, flame length, speed, chaos).
