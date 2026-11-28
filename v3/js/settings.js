@@ -50,6 +50,20 @@ const DEFAULT_SETTINGS={
   trackOutMs:520,             // the glide back
   trackMaxS:2.5,              // longest track (s)
   trackCdS:4,                 // cooldown between two tracking shots (s)
+  // sky shot (camera.js, Daniel 2026-11-28): one fighter high + far -> over its shoulder looking down at the other
+  skyOn:true,                 // on / off
+  skyGapM:6,                  // starts when the height gap is at least this (m; one body = 1.8 m)
+  skyDistM:10,                // ... and the two are at least this far apart (m)
+  skyEndPct:75,               // ends once the gap or distance drops under this % of its start value ...
+  skyEndMs:350,               // ... for this long (ms)
+  skyBack:4,                  // metres behind the high fighter
+  skyShoulder:1.3,            // metres to its side
+  skySide:'right',            // over the right / left shoulder
+  skyUp:1.1,                  // metres above its chest
+  skyZoom:10,                 // % narrower view
+  skyPull:6,                  // metres the camera pulls away mid-swing on the way in
+  skyInMs:1400,               // the gradual pull away + orbit round to behind the high fighter
+  skyOutMs:700,               // the glide back
   // knockback combos + lock-on (combo.js, Daniel 2026-11-26)
   comboOn:true,               // a fighter still stunned by a hit can be hit again: each hit redirects its flight
   comboChase:false,           // auto chase: a melee attacker snaps after the fighter it knocked back (off = snap yourself)

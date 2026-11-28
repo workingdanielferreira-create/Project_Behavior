@@ -551,6 +551,18 @@ v3-animation skill ("Review questions").
   body, ground still / ground dash unchanged at the feet, no errors.
 - **Next:** Daniel's verdict in game; tune defaults (trail_ms 260, taper 80, thin 100, wave 100, raise 50).
 
+## Sky shot (2026-11-28)
+
+- Daniel: "when a character is in the sky and there is a significant distance between the two characters, the higher one
+  gets the camera over the shoulder, aimed at where the lower one is".
+- His picks: Over the shoulder + Dynamic + Cinematic; trigger = height gap AND distance; above everything; entry = a
+  gradual pull away turning (up to) 180 deg, ending behind the high fighter. Exit was not specified: it glides back.
+- Done: `camera.js skyStep / skyPose / skyGap`, settings `sky*`, Settings group "Sky shot". README "Sky shot".
+- Checked headless (Playwright + SwiftShader, thresholds lowered for the test, one fighter pinned high): Over the
+  shoulder + Dynamic go in (orbit with pull-out) > hold > glide back, the camera ends behind the high fighter looking down
+  at the low one, no errors. Cinematic: the AI jumped up to the pinned fighter so the gap closed (not reached in the test).
+- **Next:** Daniel's verdict in game (thresholds, swing time, pull away, whether the swing should always be a full 180).
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,
