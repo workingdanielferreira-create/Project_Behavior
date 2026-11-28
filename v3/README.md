@@ -913,6 +913,10 @@ so the glide back lands on them.
 - Out: once the gap or distance stays under **Ends under** (75 %) of its start value for **... for** (350 ms), or the
   on-field pair changes, it glides back to the shot underneath over **Glide-back time** (0.7 s).
 - View only: the sim never reads it. Settings screen group "Sky shot".
+- Fix (Daniel 2026-11-28, "the character ends up past the camera"): the camera now sits on the 3D line from the low
+  fighter through the high one, past it (the high fighter is always between the camera and the target), worked out in
+  drawn (globe-bent) space (high up the bend stretched sideways offsets ~2x). `skyKeep` turns the aim toward the high
+  fighter if it would sit further off centre than 75 % of the half view.
 
 ## Knockback combos + lock-on (Daniel 2026-11-26)
 
