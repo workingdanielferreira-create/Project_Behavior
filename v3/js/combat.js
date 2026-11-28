@@ -88,7 +88,9 @@ function hitResolve(a,t,h){ // h=[at,dmg,w,reach]
 // fx3 = an FX Studio effect (fxlive.js fxHit): its own 3D contact already decided the hit, so the height-gap check
 // (meant for the stand-in melee / shots) is skipped: an FX fired from a jump that reaches a grounded body lands.
 let HIT_TAG='';   // the tag of the FX about to hit (fxlive.js fxHit), for condition hit_by_fx
-function damage(a,t,dmg,w,isShot,shot,kbpx,unblock,fx3){const htag=HIT_TAG||(isShot?'bullet':'melee');HIT_TAG='';
+// fx3 may be {dir: [x, y, z up]} = the effect's knockback angle (fx3d.js kbDir, FX Studio 3D "Knockback direction",
+// Daniel 2026-11-28): the push goes that way and replaces the random launch / spike / blowback lift (weight still sets stun).
+function damage(a,t,dmg,w,isShot,shot,kbpx,unblock,fx3){const htag=HIT_TAG||(isShot?'bullet':'melee');HIT_TAG='';const kd=fx3&&fx3.dir||null;
   if(t.ko||!t.on||t.gone>0)return false;
   if(!shot&&!fx3&&Math.abs(a.z-t.z)>(isShot?520:420)&&t.stun<=0)return false; // too far above / below
   if(t.iframe>0){if(t.side===0&&t.perfectReady){t.perfectReady=false;perfect(t,a);}return false;}
@@ -114,16 +116,26 @@ function damage(a,t,dmg,w,isShot,shot,kbpx,unblock,fx3){const htag=HIT_TAG||(isS
   const dx=t.x-a.x,dy=t.y-a.y,dd=Math.hypot(dx,dy)||1;const kvx=t.vx,kvy=t.vy;const st0=t.stun,vz0=t.vz;
   if(k===1&&wv>t.armor&&(wv>=3||(wv===2&&!t.act))){if(t.act)endAct(t);const kb=[0,160,420,800,1600][wv];t.vx+=dx/dd*kb;t.vy+=dy/dd*kb;
     stun(t,[0,150,260,600,850][wv],wv>=3?'down':'stag');if(wv>=3&&t.z<10)fx_dust(t.x,t.y,6);
-    if(wv>=3&&a.z>t.z+60&&t.z>90){t.vz=-2900;t.stunKind='air';callout('SPIKE','','#ffc857',.5,true);camEvent('launch',t);}
+    if(kd){}   // knockback angle: kbAim below decides up / down
+    else if(wv>=3&&a.z>t.z+60&&t.z>90){t.vz=-2900;t.stunKind='air';callout('SPIKE','','#ffc857',.5,true);camEvent('launch',t);}
     else if(wv===4){t.vz=(t.z-a.z)*1.4+rnd(350,800);t.stunKind='air';t.vx*=GRAV.launchPower;t.vy*=GRAV.launchPower;}
     else if(wv===3&&(t.z<40?Math.random()<.4:Math.random()<.25)){t.vz=rnd(1250,1650);t.stunKind='air';t.stun=Math.max(t.stun,ms2t(1000));t.vx*=GRAV.launchPower;t.vy*=GRAV.launchPower;callout('LAUNCH','','#8fd3ff',.5,true);camEvent('launch',t);
       if(a.k.melee&&!(a.side===0&&level==='handson'))later(200,()=>{if(a.ko||!a.on||t.ko)return;a.snapCd=0;a.gapUntil=0;snapTo(a,t.x-Math.cos(a.face)*60,t.y-Math.sin(a.face)*60,Math.random()<a.k.blink,true,t.z+40);if(!canFly(a))a.jumpAfterSnap=true;if(a.k.rhythm!==false)enter(a,'punish');});}}
   if(kbpx&&k===1){t.vx+=dx/dd*kbpx*2.2;t.vy+=dy/dd*kbpx*2.2;}
   else{t.vx+=dx/dd*(wv>=2?220:110)*pkb;t.vy+=dy/dd*(wv>=2?220:110)*pkb;}
+  if(kd)kbAim(t,kd,kvx,kvy,k===1&&wv>t.armor,wv);   // blocked / parried / armoured: turned, never lifted
   comboAfter(a,t,jug,wv,st0,vz0);   // combo.js: re-stun / juggle lift / decay / cap on a combo hit, auto chase
   camKnock(t,t.vx-kvx,t.vy-kvy);   // camera.js: knockback tracking shot (view only)
   planetHit(t,wv,dm);   // planet.js: the impact reaches scenery / pillars round the target
   if(t.hp<=0)ko(t);return true;}
+// Knockback angle: turn the push this hit added (t.v - kv0) onto kd (sim unit [x, y, z up]); its up / down part lifts / spikes.
+const KB_VK=1.7;   // vertical speed per px/s of push (a heavy hit's ~850 px/s push straight up ~ the old launch, 1250-1650)
+function kbAim(t,kd,kvx,kvy,full,wv){const M=Math.hypot(t.vx-kvx,t.vy-kvy);t.vx=kvx+kd[0]*M;t.vy=kvy+kd[1]*M;
+  if(full)kbLift(t,kd[2]*M*KB_VK*(kd[2]>0?GRAV.launchPower:1),wv>=3);}
+// vz > 0 launches (stunned in the air), vz < 0 spikes a target that is in the air (on the ground it only holds it down).
+function kbLift(t,vz,big){if(vz>300){t.vz=Math.max(t.vz,vz);t.stunKind='air';t.stun=Math.max(t.stun,ms2t(Math.min(1200,300+vz*.4)));t.stunId=(t.stunId||0)+1;t.snap=null;if(t.act)endAct(t);
+    if(big){callout('LAUNCH','','#8fd3ff',.5,true);camEvent('launch',t);}}
+  else if(vz<-300&&t.z>10){t.vz=Math.min(t.vz,vz);if(t.stun>0)t.stunKind='air';if(big){callout('SPIKE','','#ffc857',.5,true);camEvent('launch',t);}}}
 function stun(f,ms,kind){f.stun=Math.max(f.stun,ms2t(ms));f.stunKind=kind;f.stunId=(f.stunId||0)+1;f.snap=null;if(f.act)endAct(f);}
 function perfect(t,a){slowmo=ms2t(320);stats.perfect++;callout('PERFECT SNAP','Dodged on the frame · counter ready','#ffc857',.7);flash(.25);t.tp.mom=1;t.gapUntil=0;stun(a,300,'stag');a.lastWhiff=true;director.cnt++;}
 function ko(f){if(training){f.hp=0;return;}   // training.js: nobody is K.O.'d, HP refills

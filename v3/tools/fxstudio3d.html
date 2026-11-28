@@ -450,7 +450,7 @@ async function openChar(i) {
     S.dummy = await makeBody(null, 0x6a7088, false, null);
     stripRootMotion(S.fighter);
     S.runner = new FX3D.Runner({fx: previewF(F), palette: pal, anchors3d: S.anchors3d, scene,
-      onHit: (ref, dmg, kb, inst) => onHit(dmg, kb, inst), onHitstop: () => {}, onShake: () => {}});
+      onHit: (ref, dmg, kb, inst, dir) => onHit(dmg, kb, inst, dir), onHitstop: () => {}, onShake: () => {}});
     try { localStorage.setItem('pbFx3dChar', c.name); } catch (e) {}
     $('drop').hidden = true; $('save').disabled = false;
     $('charOut').textContent = c.name; $('flight').checked = !!(F.flight && F.flight.enabled); syncSprint();
@@ -856,6 +856,10 @@ const HIT = [
   {l: 'Deals damage', p: 'battle.deals_damage', t: 'chk', s: true},
   {l: 'Damage', p: 'battle.damage', t: 'num', show: v => v.battle.deals_damage},
   {l: 'Knockback', p: 'battle.knockback', t: 'num', show: v => v.battle.deals_damage, h: 'V3: 7+ medium, 13+ heavy, 20+ blowback'},
+  {l: 'Knockback direction', p: 'fx3d.kb_dir', t: 'sel', s: true, show: v => v.battle.deals_damage, o: [['auto', 'auto (away from the attacker; heavy hits may launch / spike)'], ['line', 'angle from the attacker → target line'], ['facing', 'angle from the attacker\'s facing'], ['travel', 'angle from the effect\'s own travel / swing']], h: 'Which way a hit throws the target. Set = this angle always decides it (no random launch / spike)'},
+  {l: 'Angle (°)', p: 'fx3d.kb_angle_deg', t: 'rng', min: -180, max: 180, show: v => v.battle.deals_damage && v.fx3d.kb_dir !== 'auto', h: '0 = along it, 90 = to its right, -90 = left, 180 = back'},
+  {l: 'Elevation (°)', p: 'fx3d.kb_elev_deg', t: 'rng', min: -90, max: 90, show: v => v.battle.deals_damage && v.fx3d.kb_dir !== 'auto', h: '+ launches up, - spikes down (a target in the air), 0 = level'},
+  {l: 'Spread (± °)', p: 'fx3d.kb_spread_deg', t: 'rng', min: 0, max: 90, show: v => v.battle.deals_damage && v.fx3d.kb_dir !== 'auto', h: 'Random each hit, on both angles (0 = exact)'},
   {l: 'Pierce', p: 'battle.pierce', t: 'chk', show: v => v.battle.deals_damage, h: 'Keeps going after a hit'},
   {l: 'Re-hit (ticks)', p: 'battle.rehit_ticks', t: 'num', step: 1, show: v => v.battle.deals_damage, h: '0 = hits each enemy once'},
   {l: 'Blockable', p: 'battle.blockable', t: 'chk', show: v => v.battle.deals_damage},
@@ -1067,8 +1071,11 @@ function simTo(k) {
   S.fast = false; S.k = k;
 }
 function seek(k) { setPlaying(false); simTo(Math.max(0, Math.min(k, Math.ceil(totalMs() / TICK)))); }
-function onHit(dmg, kb, inst) {
+// knockback angle preview: an arrow out of the dummy along the hit's push (fx3d.js kbDir), shown ~0.8 s
+const kbArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1.6, 0xffc857, 0.35, 0.22); kbArrow.visible = false; scene.add(kbArrow);
+function onHit(dmg, kb, inst, dir) {
   S.hits.push({k: S.simK, dmg, kb, name: (inst.src || inst.fx).name}); S.dmg += dmg;
+  if (dir && S.dummy && !S.fast) { kbArrow.position.copy(dummyFeet()).add(new THREE.Vector3(0, 0.9, 0)); kbArrow.setDirection(dir); kbArrow.visible = true; S.kbT = 0.8; }
   S.flash = 0.18;
   if (!S.fast && !S.measuring) { const n = document.createElement('div'); n.className = 'num'; n.textContent = dmg > 0 || !(kb > 0) ? Math.round(dmg * 10) / 10 : 'PUSH'; n.dataset.t0 = performance.now(); $('over').appendChild(n); }
 }
@@ -1178,6 +1185,7 @@ function frame(now) {
       const t = timing(S.act), ms = S.k * TICK, dur = actDur(S.act);
       $('frameOut').textContent = ms < dur ? 'frame ' + Math.floor(ms / t.fms) + ' / ' + t.frames + ' · ' + ms + ' ms' : 'after the action · +' + Math.round(ms - dur) + ' ms';
       const ph = $('ph'); if (ph) ph.style.left = (ms / totalMs() * 100).toFixed(2) + '%';
+      if (S.kbT > 0) { S.kbT -= dt; if (S.kbT <= 0) kbArrow.visible = false; }
       if (S.flash > 0) { S.flash -= dt; S.dummy.mat.color.setHex(0xff5a6a); } else S.dummy.mat.color.setHex(0x6a7088);
       S.runner.draw(cam, renderer.domElement.height, {});
       drawPlanes(); drawPath(); drawAnchors(); drawNums();

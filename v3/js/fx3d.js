@@ -45,7 +45,14 @@ const DEF3D = {lay: 'auto', tilt_deg: 0, yaw_deg: 0, pitch_deg: 0, pivot: 'spawn
   render: 'auto', toon_bands: 3, toon_core_pct: 30, toon_shade_pct: 55, toon_core: '#ffffff', toon_ink_m: 0.02, toon_alpha_pct: 100, toon_sides: 12,
   laser_streak: 5, laser_max_m: 6, laser_width_pct: 85, beam_bulb_pct: 130, beam_flare_pct: 150, beam_wobble_pct: 8, beam_width_pct: 100,
   impact_shell: true, impact_shell_pct: 35, impact_ring: true, impact_spikes: 8, impact_spike_pct: 90, chunk_shape: 'shard', chunk_spread_pct: 60, chunk_size_pct: 120,
-  strike_limb: 'auto', strike_glow_pct: 50, strike_spin_deg: 90, strike_ground: true, blade_thick_pct: 35};
+  strike_limb: 'auto', strike_glow_pct: 50, strike_spin_deg: 90, strike_ground: true, blade_thick_pct: 35,
+  kb_dir: 'auto', kb_angle_deg: 0, kb_elev_deg: 0, kb_spread_deg: 0};
+/* Knockback angle (Daniel 2026-11-28): which way a hit of this effect throws its target. kb_dir = what the angle is measured
+   from: auto = off (away from the attacker, heavy hits may launch / spike as before), line = attacker -> target, facing =
+   the attacker's facing, travel = the effect's own travel / swing at the hit. kb_angle_deg turns it (0 = along it, 90 = to
+   its right, -90 = left, 180 = back), kb_elev_deg tips it up (+, launch) / down (-, spike), kb_spread_deg = random +- on
+   both. Strength stays battle.knockback + the hit weight (combat.js damage). */
+const KB_DIRS = ['auto', 'line', 'facing', 'travel'];
 const RENDERS = ['auto', '3d', 'card'];
 const CHUNKS = ['shard', 'ball', 'cube'];
 const TOON_PRIMS = ['ribbon', 'beam', 'particles', 'glow', 'pulse'];
@@ -89,6 +96,9 @@ function cfg3d(fx) {
   if (CHUNKS.indexOf(c.chunk_shape) < 0) c.chunk_shape = 'shard';
   if (STRIKE_LIMBS.indexOf(c.strike_limb) < 0) c.strike_limb = 'auto';
   c.strike_ground = c.strike_ground !== false;
+  if (KB_DIRS.indexOf(c.kb_dir) < 0) c.kb_dir = 'auto';
+  ['kb_angle_deg', 'kb_elev_deg', 'kb_spread_deg'].forEach(k => { c[k] = num(c[k], 0); });
+  c.kb_elev_deg = Math.max(-90, Math.min(90, c.kb_elev_deg)); c.kb_spread_deg = Math.max(0, c.kb_spread_deg);
   TOON_NUMS.forEach(k => { c[k] = num(c[k], DEF3D[k]); });
   c.toon_bands = Math.max(1, Math.min(6, Math.round(c.toon_bands))); c.toon_sides = Math.max(3, Math.min(48, Math.round(c.toon_sides)));
   c.impact_spikes = Math.max(0, Math.min(48, Math.round(c.impact_spikes)));
@@ -390,9 +400,29 @@ function Runner(o) {
     onIntercept() {}, onDrag() {},
     // o.onHit returns a number of ticks when the target DEFENDED (dodge i-frames, a parry window ...): tryHit then
     // gives the effect its hit back; anything else = the hit landed (FX Studio 3D's dummy always takes it)
-    onHit(inst, dmg, dx, dy, kb) { const e = R.curEnemy; if (!e || !o.onHit) return; const r = o.onHit(e.ref, dmg, kb, inst);
+    onHit(inst, dmg, dx, dy, kb) { const e = R.curEnemy; if (!e || !o.onHit) return; const r = o.onHit(e.ref, dmg, kb, inst, R.kbDir(inst, e, dx, dy));
       if (typeof r === 'number' && r > 0) R.defended = Math.max(R.defended, r); else R.landed++; }};
 }
+// The world direction (unit Vector3, y up) a hit of inst throws enemy e (kb_dir / kb_angle_deg / kb_elev_deg / kb_spread_deg),
+// or null = the game's own push (kb_dir auto). dx, dy = FX Studio's 2D hit direction in the effect's plane (travel / swing).
+const _kh = new THREE.Vector3(), _kt = new THREE.Vector3();
+Runner.prototype.kbDir = function (inst, e, dx, dy) {
+  const c = inst._c || cfg3d(inst.src || inst.fx), ctx = this.ctx; if (!c || c.kb_dir === 'auto' || !ctx) return null;
+  const line = () => { _kh.set(e.centre.x - ctx.centre.x, 0, e.centre.z - ctx.centre.z); if (_kh.lengthSq() < 1e-8) facing(); };
+  const facing = () => { _kh.set(ctx.facing ? ctx.facing.x : 1, 0, ctx.facing ? ctx.facing.z : 0); };
+  if (c.kb_dir === 'facing') facing();
+  else if (c.kb_dir === 'travel' && this.cur && this.curXf) {
+    const xf = this.curXf; this.xform(this.cur, inst, xf); this.axes(this.cur, xf);
+    _kt.copy(xf.ax).multiplyScalar(+dx || 0).addScaledVector(xf.ay, -(+dy || 0)); _kh.set(_kt.x, 0, _kt.z);
+    if (_kh.lengthSq() < 1e-6) line();
+  } else line();
+  if (_kh.lengthSq() < 1e-8) _kh.set(1, 0, 0);
+  _kh.normalize();
+  const sp = c.kb_spread_deg, j = () => sp > 0 ? (Math.random() * 2 - 1) * sp : 0;
+  const a = (c.kb_angle_deg + j()) * D, el = Math.max(-90, Math.min(90, c.kb_elev_deg + j())) * D;
+  const hx = _kh.x * Math.cos(a) - _kh.z * Math.sin(a), hz = _kh.z * Math.cos(a) + _kh.x * Math.sin(a);   // + = to its right (y up)
+  return new THREE.Vector3(hx * Math.cos(el), Math.sin(el), hz * Math.cos(el));
+};
 Runner.prototype.reload = function (fx) { this.o.fx = fx; this.by = byAction(fx); };
 Runner.prototype.reset = function () { this.lanes = []; this.cards.forEach(c => { c.mesh.visible = false; }); this.toons.forEach(t => { t.m.visible = t.h.visible = false; }); this.auras.forEach(a => { a.m.visible = false; }); };
 Runner.prototype.clear = function () {
@@ -667,6 +697,7 @@ Runner.prototype.sweep = function (inst) {
 Runner.prototype.hits = function (l, ctx) {
   const en = ctx.enemies || []; if (!en.length) return;
   const xf = {P: new THREE.Vector3(), q: new THREE.Quaternion(), Us: U, bill: false};
+  this.curXf = {P: new THREE.Vector3(), q: new THREE.Quaternion(), Us: U, bill: false};   // kbDir's own (travel)
   for (const inst of l.player.insts.slice()) {
     const b = inst.fx.battle; if (!b || !b.deals_damage || inst.dead) continue;
     this.initInst(l, inst);
@@ -2499,7 +2530,7 @@ function movePlan(cfg, S, T, frames, frameMs, rnd) {
   return {at, total, face: c.face, P0, E: endP, S, T, startEnd, t0, t1, samples, cfg: c, blink: c.start_mode === 'blink'};
 }
 
-G.FX3D = {hyperKind, U, HURT, ANCHORS, LAYS, PIVOTS, DEF3D, MOVE_DEFAULTS, MOVE_PATHS, START_MODES, MOVE_EASES, RENDERS, CHUNKS, TOON_PRIMS, STRIKE_LIMBS,
+G.FX3D = {hyperKind, U, HURT, ANCHORS, LAYS, PIVOTS, DEF3D, KB_DIRS, MOVE_DEFAULTS, MOVE_PATHS, START_MODES, MOVE_EASES, RENDERS, CHUNKS, TOON_PRIMS, STRIKE_LIMBS,
   PART_KEYS, PART_COLORS, PART_INKS, partsOf, extrasOf, partCfg,
   strikeKind, bladeKind, gunKind, cfg3d, is3d, autoLay, layOf, moveCfg, byAction, Runner, movePlan, spotAround, easeU};
 })(window);

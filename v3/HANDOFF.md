@@ -626,3 +626,14 @@ merge it.
   distance); `f.g.rotation.order = 'YXZ'` so pitch is in the yawed frame; the group shifts so the body centre
   (`AIR_PIVOT_C` 0.9 m) stays put. Paint only (hits / reach / sim untouched). Air = `f.z > 8`; skipped for `react`
   actions, stun, KO, a phantom / KO'd target.
+
+## Knockback angle for damaging FX (2026-11-28)
+- Daniel: "add a knockback angle fx that damage objects can set so that it hits the target in the desired direction".
+- His picks: the reference is a per-effect setting (attacker -> target line / attacker's facing / the effect's own
+  travel); a 2nd elevation angle (launch / spike); a set angle overrides the random launch / spike; a +- spread.
+- Done: `fx3d.js` `kb_dir` / `kb_angle_deg` / `kb_elev_deg` / `kb_spread_deg` + `Runner.kbDir`, `fxlive.js`,
+  `combat.js kbAim` / `kbLift`, FX Studio 3D Hit rows + a preview arrow on the dummy. README "Knockback angle".
+- Checked headless: damage() with set directions (90 = right, 45 up = launch, 180 = back, -90 in the air = spike),
+  kbDir maths (line / facing / angle / elevation, spread within +-20), a 25 s Watch fight with every effect on travel
+  30 / 40 / 15: no errors; FX Studio 3D loads. No character file has it set yet.
+- **Next:** Daniel's verdict in game (vertical factor `KB_VK` 1.7, lift threshold 300 px/s).
