@@ -698,7 +698,9 @@ star spikes, rail rings, gatling barrels (guns).
 limit), saved as `action_settings[a].trigger_dist {enabled, min_m, max_m}`. The AI and FX Studio condition triggers start
 the action only while the target's body centre is in that range (3D, height included; `realkits.js trigDist` ->
 `def.tdist`, `combat.js inTrigDist`); for a normal attack it replaces the AI's reach check, and the AI's parry counter
-respects it too. Your own key presses ignore it (Daniel's pick). The stage shows the range as two yellow rings round the
+respects it too. Your own key presses ignore it and have no range limit at all (Daniel 2026-11-28): J starts the
+chain wherever the target is (the old 1.9x reach check is gone for keys; the AI keeps it when no trigger distance is
+set). Lock-on's snap-in (Homing range) is separate; 0 turns it off. The stage shows the range as two yellow rings round the
 fighter and the panel says whether the dummy is in range.
 
 **Trigger conditions (Daniel 2026-11-27).** Every action V3 can start on its own gets a **Conditions** panel under the

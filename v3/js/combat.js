@@ -64,7 +64,10 @@ function tryAttack(f,e,forced){
   if(!forced&&(!allows(f)||tick<f.gapUntil))return false;
   if(f.k.rhythm===false&&!forced)f.gapUntil=tick+ms2t(rnd(150,450));
   const nd=f.k.normals[f.ni%f.k.normals.length];
-  if(forced!==true&&nd&&nd.tdist){if(!inTrigDist(f,e,nd))return false;}   // its own trigger distance replaces the reach check (forced true = your key press; 'ai' = the AI's parry counter)
+  // range: your key press (forced true) has none (Daniel 2026-11-28: the range is for the AI only, you fire anywhere);
+  // the AI (and its parry counter, forced 'ai') uses the action's own trigger distance, else the reach check
+  if(forced===true){}
+  else if(nd&&nd.tdist){if(!inTrigDist(f,e,nd))return false;}
   else{const cr=comboReach(e);if(d>f.k.reach*(forced?1.9:(f.k.melee?1.7:1))*cr)return false;
   if(f.k.melee&&Math.abs(f.z-e.z)>f.k.reach*(forced?1.9:1.3)*cr+60)return false;}
   if(tick-f.lastNormal>ms2t(900))f.ni=0;
