@@ -19,12 +19,18 @@ function fxHit(f,e,dmg,kb,inst,dir){if(!e||e.ko||!e.on)return;const fx=inst.fx||
   const w=kb>=20?'B':kb>=13?'H':kb>=7?'M':'L';const shot=fx.motion&&fx.motion.kind!=='attached'&&fx.motion.kind!=='orbit';
   const w0=fxDefendTicks(e),dodging=e.iframe>0;
   HIT_TAG=String(fx.tag||fx.prim||'fx').toLowerCase();   // condition hit_by_fx (realkits.js)
-  if(damage(f,e,dmg,w,shot,null,kb>0?kb*PX2D*.35:0,false,kd?{dir:kd}:true)!==false)return;
+  const rep=fxRepeat(inst,e);
+  if(damage(f,e,dmg,w,shot,null,kb>0?kb*PX2D*.35:0,false,kd||rep?{dir:kd,rep}:true)!==false)return;
   // Defended (dodge i-frames, a parry window, a blink): the effect keeps its hit (fx3d.js tryHit) and may land once the
   // defence is over (Daniel 2026-11-26: FX phasing through the body). The dodge shows, so it never reads as a miss.
   if(e.ko||!e.on)return;
   if(dodging&&e.gone<=0){fx_ghost(e,e.x,e.y);fx_ring(e.x,e.y,0xffffff,1.3,.16,1);}
   return Math.max(1,w0,fxDefendTicks(e));}
+// A held beam / rapid re-hit (Daniel 2026-11-28, puck's beam pulsed the camera every tick): the SAME effect instance hitting
+// the same target again within FX_REPEAT_MS is a repeat -> combat.js damage() keeps the damage / knockback but gives it
+// only a steady rumble (no new freeze, punch-in, crash zoom, screen flash or tracking shot). First hit = full feel.
+const FX_REPEAT_MS=500,fxRep=new WeakMap();
+function fxRepeat(inst,e){let m=fxRep.get(inst);if(!m){m=new Map();fxRep.set(inst,m);}const last=m.get(e);m.set(e,tick);return last!==undefined&&tick-last<=ms2t(FX_REPEAT_MS);}
 // How many more ticks a target's defences last: dodge i-frames, an old-style parry, the parry window (parry.js), a blink.
 function fxDefendTicks(t){const pw=t.pw;return Math.max(Math.ceil(t.iframe||0),Math.ceil(t.parry||0),t.gone>0?Math.ceil(t.gone):0,pw&&pw.until>=tick?pw.until-tick+1:0);}
 // Pushed away from the fighter (kb = FX Studio knockback px): no damage, no hit flash, a short stagger so it reads.

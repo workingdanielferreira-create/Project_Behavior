@@ -106,11 +106,13 @@ function damage(a,t,dmg,w,isShot,shot,kbpx,unblock,fx3){const htag=HIT_TAG||(isS
   director.hits++;director.dmg+=dm;director.taken+=dm;director.lastHitTick=tick;metr.hits.push(tick);stats.dealt[a.side]+=dm;
   const wv={L:1,M:2,H:3,B:4}[w]||1;
   // HIT FEEL: freeze on every hit (by weight), target flashes / shakes / recoils, directional shake, camera punch, impact star, numbers
-  FXF=t;const HS=[0,55,95,145,190][wv];hitstopMs=Math.max(hitstopMs,HS*(k<1?.6:1));t.flashT=.11;t.jitT=HS/1000+.05;t.recoil=Math.min(1.2,t.recoil+.22*wv);
-  fx_sparks(t.x,t.y,a.k.fx,10+wv*9,6+wv*2.5);fx_sparks(t.x,t.y,0xffffff,6+wv*3,9+wv*2);fx_ring(t.x,t.y,a.k.core,1.4+wv*.9,.26,1);fx_star(t,a,wv);
+  const rep=!!(fx3&&fx3.rep);   // fxlive.js fxRepeat: a held beam's later hits = steady rumble only (Daniel 2026-11-28)
+  FXF=t;const HS=rep?0:[0,55,95,145,190][wv];hitstopMs=Math.max(hitstopMs,HS*(k<1?.6:1));t.flashT=.11;t.jitT=HS/1000+.05;t.recoil=Math.min(1.2,t.recoil+.22*wv);
+  if(rep){fx_sparks(t.x,t.y,a.k.fx,4+wv*2,6+wv*2.5);shake=Math.max(shake,.05+.025*wv);}
+  else{fx_sparks(t.x,t.y,a.k.fx,10+wv*9,6+wv*2.5);fx_sparks(t.x,t.y,0xffffff,6+wv*3,9+wv*2);fx_ring(t.x,t.y,a.k.core,1.4+wv*.9,.26,1);fx_star(t,a,wv);
   if(wv>=3&&k===1){flash(.1*wv);fx_crack(t.x,t.y,wv);}
   if(wv>=3)camEvent('heavy',t,a);   // cinecam.js: crash zoom
-  {const ddx=t.x-a.x,ddy=t.y-a.y,l=Math.hypot(ddx,ddy)||1;shakeDir=[ddx/l,ddy/l];}shake=Math.max(shake,.16*wv+.08);camPunch=Math.max(camPunch,.035*wv);
+  {const ddx=t.x-a.x,ddy=t.y-a.y,l=Math.hypot(ddx,ddy)||1;shakeDir=[ddx/l,ddy/l];}shake=Math.max(shake,.16*wv+.08);camPunch=Math.max(camPunch,.035*wv);}
   dmgNum(t,Math.round(dm),a.k.fx,wv);a.vx+=Math.cos(a.face)*40;a.vy+=Math.sin(a.face)*40;
   // 2D-style trading: light hits never interrupt, medium only an idle target, heavy / blowback always (unless armoured)
   const dx=t.x-a.x,dy=t.y-a.y,dd=Math.hypot(dx,dy)||1;const kvx=t.vx,kvy=t.vy;const st0=t.stun,vz0=t.vz;
@@ -125,7 +127,7 @@ function damage(a,t,dmg,w,isShot,shot,kbpx,unblock,fx3){const htag=HIT_TAG||(isS
   else{t.vx+=dx/dd*(wv>=2?220:110)*pkb;t.vy+=dy/dd*(wv>=2?220:110)*pkb;}
   if(kd)kbAim(t,kd,kvx,kvy,k===1&&wv>t.armor,wv);   // blocked / parried / armoured: turned, never lifted
   comboAfter(a,t,jug,wv,st0,vz0);   // combo.js: re-stun / juggle lift / decay / cap on a combo hit, auto chase
-  camKnock(t,t.vx-kvx,t.vy-kvy);   // camera.js: knockback tracking shot (view only)
+  if(!rep)camKnock(t,t.vx-kvx,t.vy-kvy);   // camera.js: knockback tracking shot (view only)
   planetHit(t,wv,dm);   // planet.js: the impact reaches scenery / pillars round the target
   if(t.hp<=0)ko(t);return true;}
 // Knockback angle: turn the push this hit added (t.v - kv0) onto kd (sim unit [x, y, z up]); its up / down part lifts / spikes.

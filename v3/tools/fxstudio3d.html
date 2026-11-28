@@ -1136,7 +1136,7 @@ function stepSim(k, fast) {   // tick k of the action (0 = its first)
 }
 function simTo(k) {
   if (!S.runner || !S.fighter) return;
-  if (S.simK < 0 || k < S.simK) { S.runner.reset(); S.actKey = {}; S.simK = -1; S.hits = []; S.dmg = 0; S.fast = true; S.plan = null; }
+  if (S.simK < 0 || k < S.simK) { S.runner.reset(); fxRep = new WeakMap(); S.actKey = {}; S.simK = -1; S.hits = []; S.dmg = 0; S.fast = true; S.plan = null; }
   S.fast = k - S.simK > 2;
   while (S.simK < k) { S.simK++; S.k = S.simK; stepSim(S.simK, S.fast && S.simK < k); }
   S.fast = false; S.k = k;
@@ -1144,11 +1144,15 @@ function simTo(k) {
 function seek(k) { setPlaying(false); simTo(Math.max(0, Math.min(k, Math.ceil(totalMs() / TICK)))); }
 // knockback angle preview: an arrow out of the dummy along the hit's push (fx3d.js kbDir), shown ~0.8 s
 const kbArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1.6, 0xffc857, 0.35, 0.22); kbArrow.visible = false; scene.add(kbArrow);
+// a held beam / rapid re-hit: the same instance again within 500 ms = steady rumble only (game: fxlive.js fxRepeat)
+let fxRep = new WeakMap();
+function fxRepeat(inst) { const ms = S.simK * TICK, last = fxRep.get(inst); fxRep.set(inst, ms); return last !== undefined && ms >= last && ms - last <= 500; }
 function onHit(dmg, kb, inst, dir) {
   S.hits.push({k: S.simK, dmg, kb, name: (inst.src || inst.fx).name}); S.dmg += dmg;
   if (dir && S.dummy && !S.fast) { kbArrow.position.copy(dummyFeet()).add(new THREE.Vector3(0, 0.9, 0)); kbArrow.setDirection(dir); kbArrow.visible = true; S.kbT = 0.8; }
   S.flash = 0.18;
-  if (!S.fast && !S.measuring) gcHit(kb);
+  const rep = fxRepeat(inst);
+  if (!S.fast && !S.measuring) gcHit(kb, rep);
   if (!S.fast && !S.measuring) { const n = document.createElement('div'); n.className = 'num'; n.textContent = dmg > 0 || !(kb > 0) ? Math.round(dmg * 10) / 10 : 'PUSH'; n.dataset.t0 = performance.now(); $('over').appendChild(n); }
 }
 
@@ -1332,7 +1336,8 @@ function gcActionStart(F, T, face) {
   GC.line = ACTCAM.lineOf(F, T, fdOf(face));
   if (GC.on && GC.feel && GC.mode === 'cinematic' && /^ultimate/.test(S.act)) { const n = performance.now() / 1000; GC.cine.ev = {t0: n, until: n + 1.9}; GC.snap = true; }   // cinecam.js camEvent('ult')
 }
-function gcHit(kb) { if (!GC.on || !GC.feel) return; const wv = kb >= 20 ? 4 : kb >= 13 ? 3 : kb >= 7 ? 2 : 1;   // fxlive.js fxHit weights
+function gcHit(kb, rep) { if (!GC.on || !GC.feel) return; const wv = kb >= 20 ? 4 : kb >= 13 ? 3 : kb >= 7 ? 2 : 1;   // fxlive.js fxHit weights
+  if (rep) { GC.shake = Math.max(GC.shake, .05 + .025 * wv); return; }   // combat.js damage(): later hits of a held beam rumble only
   GC.shake = Math.max(GC.shake, .16 * wv + .08); GC.punch = Math.max(GC.punch, .035 * wv);
   if (wv >= 3 && GC.mode === 'cinematic') { const C = GC.cine; C.zoom = Math.max(C.zoom, CINE.crash / 100); C.zoomHold = performance.now() / 1000 + .07; C.kick = (Math.random() < .5 ? -1 : 1) * Math.min(4, CINE.dutch * .4) * Math.PI / 180; } }
 // the shot's slow-mo (playback speed): slow_ms of screen time at slow_pct = slow_ms x pct of the action's time

@@ -664,3 +664,14 @@ merge it.
   Dummy stays measured from the stage centre. Checked headless (puck): sliders + both gizmos move / turn it, no errors.
 - **Next:** Daniel's verdict in the studio.
 
+
+## Held beams no longer pulse the camera (2026-11-28)
+- Daniel: puck's attack_special beam made the FX Studio 3D Game camera "rapidly zoom in and out", cutting the fighter
+  out of frame. Cause: `Charged laser copy` (rehit 1 tick, knockback 500) hits every tick, and every hit was treated as
+  a fresh heavy blow (shake 0.72 along the hit line = forward / back jolts, punch-in, crash zoom; in the game also a
+  190 ms freeze, screen flash and a tracking-shot restart).
+- His pick "first hit only": the same effect instance hitting the same target again within 500 ms is a repeat ->
+  damage / knockback / target flash stay, but only a steady rumble (shake 0.05 + 0.025 x weight), small sparks.
+  Game: `fxlive.js fxRepeat` -> `damage(..., {rep})` in `combat.js`; studio: `fxRepeat` + `gcHit(kb, rep)`.
+  Checked headless (puck attack_special): 46 hits from one instance, first full, the other 45 rumble only.
+- **Next:** Daniel's verdict in the studio and the game.
