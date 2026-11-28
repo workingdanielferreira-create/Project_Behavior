@@ -117,6 +117,9 @@ details.adv[open] > summary { margin-bottom: 6px; }
 .acts { max-height: 200px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); font-size: 12px; }
 .acts [role=option] { display: flex; gap: 6px; padding: 3px 8px; cursor: pointer; white-space: nowrap; }
 .acts [role=option]:hover { background: var(--accent-soft); }
+.acts [role=option].dragging { opacity: .45; }
+.acts [role=option].drop-above { box-shadow: inset 0 2px 0 var(--accent); }
+.acts [role=option].drop-below { box-shadow: inset 0 -2px 0 var(--accent); }
 .acts [role=option][aria-selected="true"] { background: var(--accent-soft); color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
 .acts .ms { margin-left: auto; color: var(--muted); }
 /* reference images (original Rig Forge's reference track) */
@@ -1063,8 +1066,10 @@ details.adv[open] > summary { margin-bottom: 6px; }
       base.tracks = base.tracks.filter(function (t) { return !xnames[t.name.split(".")[0]]; });
       base.name = c.name; S.baseClips[c.name] = base;
     });
+    var saved = ext && Array.isArray(ext.order) ? ext.order : [];   /* list order set by drag & drop (Daniel 2026-11-28) */
     S.order = Object.keys(S.baseClips).sort(function (a, b) {
-      var ia = pref.indexOf(a), ib = pref.indexOf(b); ia = ia < 0 ? 99 : ia; ib = ib < 0 ? 99 : ib; return ia - ib || (a < b ? -1 : 1);
+      var sa = saved.indexOf(a), sb = saved.indexOf(b); sa = sa < 0 ? 1e4 : sa; sb = sb < 0 ? 1e4 : sb;
+      var ia = pref.indexOf(a), ib = pref.indexOf(b); ia = ia < 0 ? 99 : ia; ib = ib < 0 ? 99 : ib; return sa - sb || ia - ib || (a < b ? -1 : 1);
     });
     initAnchors();
     syncStructure();
@@ -2293,6 +2298,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
     var rig3d = JSON.parse(snap());
     Object.keys(S.keyMode).forEach(function (n) { delete rig3d.edits[n]; });   /* key clips: the keys ARE the clip */
     delete rig3d.meta; delete rig3d.len;                                        /* lengths are in the clips, files get the rest */
+    rig3d.order = S.order.slice();                                              /* the Actions list order (drag & drop) */
     ex.userData = {pb_rig3d: rig3d};
     if (Object.keys(S.saveKeys || {}).length) ex.userData.pb_keys = S.saveKeys;
     /* clips-only character file: save the skeleton + clips, never the shared body's mesh */
@@ -2876,15 +2882,34 @@ details.adv[open] > summary { margin-bottom: 6px; }
     var top = row.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop, bot = top + row.offsetHeight;
     if (top < box.scrollTop) box.scrollTop = top; else if (bot > box.scrollTop + box.clientHeight) box.scrollTop = bot - box.clientHeight;
   }
+  var ACT_DRAG = null;   /* name of the action row being dragged */
   function buildActs() {
     var box = $("acts"); if (!box) return;
     box.innerHTML = S.order.map(function (n) {
-      return '<div role="option" tabindex="-1" data-n="' + esc(n) + '" aria-selected="' + (n === S.clip) + '"><span>' + esc(n) +
+      return '<div role="option" tabindex="-1" draggable="true" title="Drag to move it in the list" data-n="' + esc(n) + '" aria-selected="' + (n === S.clip) + '"><span>' + esc(n) +
         '</span><span class="ms">' + (gameMs(n) / 1000).toFixed(2) + " s · " + actKeys(n) + " keys</span></div>";
     }).join("");
     Array.prototype.forEach.call(box.children, function (r) {
       r.onclick = function () { setClip(r.dataset.n, 0); };
       if (r.dataset.n === S.clip) scrollInBox(box, r);
+      r.ondragstart = function (e) { ACT_DRAG = r.dataset.n; r.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", ACT_DRAG); } catch (x) {} };
+      r.ondragend = function () { ACT_DRAG = null; buildActs(); };
+      r.ondragover = function (e) {
+        if (!ACT_DRAG || ACT_DRAG === r.dataset.n) return; e.preventDefault(); e.dataTransfer.dropEffect = "move";
+        var b = r.getBoundingClientRect(), below = e.clientY > b.top + b.height / 2;
+        Array.prototype.forEach.call(box.children, function (o) { o.classList.remove("drop-above", "drop-below"); });
+        r.classList.add(below ? "drop-below" : "drop-above");
+        var bb = box.getBoundingClientRect(); if (e.clientY < bb.top + 18) box.scrollTop -= 8; else if (e.clientY > bb.bottom - 18) box.scrollTop += 8;   /* auto-scroll at the edges */
+      };
+      r.ondragleave = function () { r.classList.remove("drop-above", "drop-below"); };
+      r.ondrop = function (e) {
+        e.preventDefault(); var from = ACT_DRAG, to = r.dataset.n; if (!from || from === to) return;
+        var b = r.getBoundingClientRect(), below = e.clientY > b.top + b.height / 2;
+        S.order.splice(S.order.indexOf(from), 1);
+        S.order.splice(S.order.indexOf(to) + (below ? 1 : 0), 0, from);
+        ACT_DRAG = null; fillClipSelect(); markDirty();
+        status("Moved " + from + (below ? " below " : " above ") + to + " (Save to keep the order).");
+      };
     });
     syncActFields(); fillSpecMiss();
   }
