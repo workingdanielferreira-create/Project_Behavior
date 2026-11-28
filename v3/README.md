@@ -655,6 +655,9 @@ with no damage; three stages.
   faster the move the longer the tail). Aura-wide where it leaves the body, narrowing to a point (`trail_taper_pct`), and
   a long trail is thinner overall (`trail_thin_pct`); `trail_width_pct`, `trail_opacity_pct`, `trail`. Drawn by
   `fx3d.js makeTrail / trail3` (a tube bent along `uP[24]` in the vertex shader + a fainter hot core when Inner hot layer is on).
+  Round 2 (Daniel's sketch: not a tube out of the middle): `trail_from` top (default) lifts the line to where the
+  swept-back top flames end, so the tail carries them on; `trail_wave_pct` / `trail_wave_len_pct` ripple it up and down
+  like a flag (growing toward the tail, travelling back); `middle` = the old line out of the body centre.
 - **Stages** (`stage`): 1 = gold flame aura; 2 = tighter, brighter, faster flicker + blue-white arcs crackling over the
   body the whole time; 3 = biggest (x1.4, taller crown, many more flames), heavy lightning, the ground breaking up and
   floating round the feet the whole time. A stage multiplies the panel's settings (size, height, flame length, speed, chaos).

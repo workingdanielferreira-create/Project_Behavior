@@ -78,7 +78,9 @@ DEFAULTS.tfx_golden_ascension = {stage: 1, charge: true, burst: true, aura: true
   air_close: true, air_round_pct: 100,
   // flame trail (Daniel 2026-11-28 sketch): a comet tail of the same flame along the path the body took; it holds the
   // last trail_ms of the path, so the faster the move the longer it is; it tapers to a point and a long one is thinner
-  trail: true, trail_ms: 260, trail_width_pct: 100, trail_thin_pct: 100, trail_taper_pct: 80, trail_opacity_pct: 85};
+  trail: true, trail_ms: 260, trail_width_pct: 100, trail_thin_pct: 100, trail_taper_pct: 80, trail_opacity_pct: 85,
+  // (Daniel 2026-11-28 round 2: NOT a tube out of the middle; it carries on from the swept-back top flames as a long wavy tail)
+  trail_from: "top", trail_wave_pct: 100, trail_wave_len_pct: 100};
 // a setting of a transformation, its default when the effect predates it
 function pv(P, k) { var v = P[k]; return v == null || v === "" ? DEFAULTS.tfx_golden_ascension[k] : v; }
 function pc(P, k) { return Math.max(0, +pv(P, k) || 0) / 100; }   // a _pct setting as a fraction
@@ -576,7 +578,7 @@ function auraBody(sh, inst, C, P, K, Sg, z, A, fy, d, boltK, grounded) {
     chaos: pc(P, "flame_chaos_pct") * Sg.chaos, gaps: pc(P, "flame_gaps_pct"), sharp: pc(P, "flame_sharp_pct"), rim: pc(P, "rim_pct"),
     inner: pc(P, "inner_pct"), bands: Math.max(1, Math.round(+pv(P, "bands") || 1)), additive: pv(P, "additive") !== false,
     layer2: pv(P, "inner_layer") !== false, seed: ((inst.seed || 1) % 997) / 97};
-  auraTrail(sh, C, P, K, rw * breathe, A, look0);
+  auraTrail(sh, C, P, K, rw * breathe, A, look0, fy - 1.5 * z + H * breathe, lean);
   sh.aura([0, fy - 1.5 * z, 0], rw * breathe, H * breathe, lean, K.m, A, {hot: K.h, edge: K.d, look: {close: close, bowl: cb,
     base: pc(P, "aura_base_pct"), top: pc(P, "aura_top_pct"), flames: Math.max(1, +pv(P, "flame_count") || 1),
     tongue: pc(P, "flame_height_pct") * Sg.flame, speed: pc(P, "flame_speed_pct") * Sg.speed, chaos: pc(P, "flame_chaos_pct") * Sg.chaos,
@@ -611,13 +613,18 @@ function sheathW(hk, base, top, close, cb) {
 }
 // The flame trail: C.hist = where the body centre was each past tick ([f, v, s] px in today's frame, newest first;
 // fx3d.js keeps it). The last trail_ms of it, resampled evenly, is the tail's centre line, so its length = speed x time.
-// Radius at the body = the aura's width; it tapers to a point (taper), and the longer it is the thinner it gets (thin).
-function auraTrail(sh, C, P, K, rw, A, look) {
+// trail_from top (default): the line is lifted to where the swept-back top flames end (top = the sheath's top height,
+// lean = its lean), so the tail carries those flames on; middle = out of the body centre. A wave (trail_wave_pct, wave
+// length trail_wave_len_pct) ripples up / down along it, growing toward the tail and travelling back like a flag.
+// Radius where it starts = the flames' width; it tapers to a point (taper), and the longer it is the thinner (thin).
+function auraTrail(sh, C, P, K, rw, A, look, top, lean) {
   var hs = C.hist; if (pv(P, "trail") === false || !hs || hs.length < 2) return;
   var TM = (FXK() && FXK().TICK_MS) || 16, n = Math.max(1, Math.round(Math.max(0, +pv(P, "trail_ms") || 0) / TM));
-  var src = [[0, 0, 0]], cum = [0], i;
+  var fromTop = String(pv(P, "trail_from")) !== "middle", lf = lean || [0, 0, 0];
+  var off = fromTop ? [lf[0] * 0.85, top * 0.92, lf[2] * 0.85] : [0, 0, 0];
+  var src = [off.slice()], cum = [0], i;
   for (i = 1; i <= n && i < hs.length; i++) {
-    var a = src[src.length - 1], b = hs[i], dd = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+    var a = src[src.length - 1], b = add(hs[i], off, 1), dd = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
     if (dd < 1e-4) continue;
     src.push(b); cum.push(cum[cum.length - 1] + dd);
   }
@@ -628,8 +635,20 @@ function auraTrail(sh, C, P, K, rw, A, look) {
     var u = cl((s - cum[j]) / Math.max(1e-6, cum[j + 1] - cum[j])), p0 = src[j], p1 = src[j + 1];
     pts.push([p0[0] + (p1[0] - p0[0]) * u, p0[1] + (p1[1] - p0[1]) * u, p0[2] + (p1[2] - p0[2]) * u]);
   }
+  var wv = pc(P, "trail_wave_pct"), wl = Math.max(0.5, rw * 5 * pc(P, "trail_wave_len_pct")), ph0 = C.t * 0.2 * pc(P, "flame_speed_pct");
+  if (wv > 0) {   // the flag-like wave, up / down off the line (perpendicular to it), none at the start
+    var wp = pts.map(function (q) { return q.slice(); });
+    for (i = 1; i < N; i++) {
+      var pa = pts[i - 1], pb = pts[Math.min(N - 1, i + 1)], T = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]], tl = Math.hypot(T[0], T[1], T[2]) || 1;
+      T = scl(T, 1 / tl); var Nn = [-T[0] * T[1], 1 - T[1] * T[1], -T[2] * T[1]], nl = Math.hypot(Nn[0], Nn[1], Nn[2]);
+      if (nl < 0.2) continue; Nn = scl(Nn, 1 / nl);
+      var sk = i / (N - 1), amp = rw * 0.6 * wv * Math.pow(sk, 0.8) * Math.min(1, L / (rw * 4));
+      wp[i] = add(pts[i], scl(Nn, amp * Math.sin(sk * L / wl * 6.2832 - ph0)), 1);
+    }
+    pts = wp;
+  }
   var thin = Math.max(0.3, Math.pow(Math.max(1, L / (rw * 4)), -0.35 * pc(P, "trail_thin_pct")));
-  var r0 = rw * 1.1 * pc(P, "trail_width_pct") * thin, al = A * pc(P, "trail_opacity_pct") * cl(L / (rw * 1.5));
+  var r0 = rw * (fromTop ? 0.75 : 1.1) * pc(P, "trail_width_pct") * thin, al = A * pc(P, "trail_opacity_pct") * cl(L / (rw * 1.5));
   sh.trail(pts, r0, L, K.m, al, {hot: K.h, edge: K.d, look: Object.assign({}, look, {taper: pc(P, "trail_taper_pct")})});
 }
 // Outer flames: strands born on the sheath's side at a new random spot each cycle (height between outer_from / to % of the
@@ -873,7 +892,10 @@ var UI = {tfx_golden_ascension: [
     ["trail_width_pct", "Width (%)", "rng", [0, 300, 1], "Its width where it leaves the aura"],
     ["trail_thin_pct", "Thinner when long (%)", "rng", [0, 300, 1], "How much a long (fast) trail thins out against a short one"],
     ["trail_taper_pct", "Taper (%)", "rng", [0, 400, 1], "How quickly it narrows to a point at the tail (0 = even width)"],
-    ["trail_opacity_pct", "Opacity (%)", "rng", [0, 100, 1], ""]]],
+    ["trail_opacity_pct", "Opacity (%)", "rng", [0, 100, 1], ""],
+    ["trail_from", "Comes off", "sel", [["top", "the top · carries the swept-back flames on"], ["middle", "the middle of the body"]], ""],
+    ["trail_wave_pct", "Wave (%)", "rng", [0, 400, 1], "How far it ripples up and down, growing toward the tail (0 = follows the path exactly)"],
+    ["trail_wave_len_pct", "Wave length (%)", "rng", [10, 400, 1], "Longer = slower, wider swells"]]],
   ["Flames", [
     ["flame_count", "Flame tongues round it", "rng", [1, 24, 1], "How many tongues are torn out of it round the body"],
     ["flame_height_pct", "Tongue length (%)", "rng", [0, 300, 1], "How far the tongues shoot up past the top"],
