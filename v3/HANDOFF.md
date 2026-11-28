@@ -561,6 +561,10 @@ v3-animation skill ("Review questions").
 - Checked headless (Playwright + SwiftShader, thresholds lowered for the test, one fighter pinned high): Over the
   shoulder + Dynamic go in (orbit with pull-out) > hold > glide back, the camera ends behind the high fighter looking down
   at the low one, no errors. Cinematic: the AI jumped up to the pinned fighter so the gap closed (not reached in the test).
+- Fix round (Daniel's Training screenshot, Puck very high: "the character ends up past the camera"): the camera sat behind
+  the high fighter on the flat plane at its height, so looking steeply down lost it, and the globe bend doubled its side
+  offsets at altitude. Now: on the 3D line low -> high, past the high one, computed in bent space + `skyKeep`. Checked
+  headless per rendered frame (Training, heights 16 / 31 / 51 / 61 m): the high fighter stays in frame in every hold frame.
 - **Next:** Daniel's verdict in game (thresholds, swing time, pull away, whether the swing should always be a full 180).
 
 ## Next steps (agreed direction, not started)

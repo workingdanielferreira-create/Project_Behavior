@@ -83,13 +83,29 @@ const sky={ph:0,t:0,hi:null,lo:null,off:0,a0:0,r0:0,y0:0,da:0,p0:new THREE.Vecto
 function skyReset(){sky.ph=0;sky.t=0;sky.hi=sky.lo=null;sky.off=0;}
 function skyModeOk(){return settings.skyOn&&(camMode==='shoulder'||camMode==='dynamic'||camMode==='cinematic');}
 // the finished pose: behind the high fighter (away from the low one), skyShoulder to its right, skyUp above, looking at the low one
-function skyPose(rdt){const A=VA(sky.hi.x,sky.hi.y,sky.hi.z,1.2),B=VA(sky.lo.x,sky.lo.y,sky.lo.z,1.2);
+// drawn (globe-bent) space <-> flat: the pose is worked out where it is SEEN (high up, the bend stretches sideways offsets ~ (R+h)/R)
+const skyBd=q=>PLANET?bendP(q):q.clone(),skyUb=q=>PLANET?unbendP(q):q.clone();
+function skyPose(rdt){const A=skyBd(VA(sky.hi.x,sky.hi.y,sky.hi.z,1.2)),B=skyBd(VA(sky.lo.x,sky.lo.y,sky.lo.z,1.2));
   const hx=B.x-A.x,hz=B.z-A.z,hl=Math.hypot(hx,hz);
   if(hl>1){const k=rdt>0?1-Math.exp(-5*rdt):1;sky.h.x+=(hx/hl-sky.h.x)*k;sky.h.z+=(hz/hl-sky.h.z)*k;sky.h.y=0;sky.h.normalize();}   // straight above: keep the last line
-  const right=new THREE.Vector3(-sky.h.z,0,sky.h.x),sd=settings.skySide==='left'?-1:1;
-  sky.p.copy(A).addScaledVector(sky.h,-settings.skyBack).addScaledVector(right,sd*settings.skyShoulder);sky.p.y=A.y+settings.skyUp;
-  sky.l.copy(B);sky.l.y+=.4;
-  sky.fov=BASE_FOV*(1-settings.skyZoom/100);return A;}
+  // Fix (Daniel 2026-11-28, "the character ends up past the camera"): the camera sat behind A on the FLAT plane at A's
+  // height, so looking steeply down at B pushed A out above / behind the frame. Now it sits on the 3D line B -> A,
+  // past A: A is always between the camera and B; shoulder / up offsets are across that line.
+  const d=new THREE.Vector3().subVectors(B,A);if(d.lengthSq()<1e-6)d.copy(sky.h);d.normalize();   // view direction (camera -> B)
+  const W=new THREE.Vector3(0,1,0),up=W.clone().addScaledVector(d,-d.dot(W));
+  if(up.lengthSq()<.04)up.copy(sky.h).multiplyScalar(-1).addScaledVector(d,-d.dot(sky.h)*-1);   // looking straight down: screen up = away from the line
+  up.normalize();const right=new THREE.Vector3().crossVectors(d,up).normalize(),sd=settings.skySide==='left'?-1:1;
+  sky.p.copy(A).addScaledVector(d,-settings.skyBack).addScaledVector(right,sd*settings.skyShoulder).addScaledVector(up,settings.skyUp);
+  sky.p.copy(skyUb(sky.p));sky.l.copy(skyUb(B.addScaledVector(up,.4)));
+  sky.fov=BASE_FOV*(1-settings.skyZoom/100);}
+// keep the high fighter in the frame: if the aim from cam.position puts A further off than 75 % of the half view,
+// turn the aim toward A just enough
+const _sA=new THREE.Vector3(),_sL=new THREE.Vector3();
+function skyKeep(fov){if(!sky.hi)return;const c=skyBd(cam.position),A=skyBd(VA(sky.hi.x,sky.hi.y,sky.hi.z,1.2)),L=skyBd(camLookT);
+  _sA.subVectors(A,c);const dA=_sA.length();if(dA<.3)return;_sA.divideScalar(dA);
+  _sL.subVectors(L,c);const dL=_sL.length();if(dL<1e-3)return;_sL.divideScalar(dL);
+  const lim=.75*Math.atan(Math.tan(fov*Math.PI/360)*Math.min(1,cam.aspect||1)),ang=Math.acos(Math.max(-1,Math.min(1,_sA.dot(_sL))));
+  if(ang<=lim)return;const t=(ang-lim)/ang;_sL.lerp(_sA,t).normalize();camLookT.copy(skyUb(c.addScaledVector(_sL,dL)));}
 // is the gap wide enough? (m) -> [height gap, distance, high fighter, low fighter]
 function skyGap(a,b){if(!a||!b||a===b||!a.on||!b.on||a.phantom||b.phantom)return null;
   const hi=a.z>=b.z?a:b,lo=hi===a?b:a,pa=VA(a.x,a.y,a.z,0),pb=VA(b.x,b.y,b.z,0);return [Math.abs(a.z-b.z)*K,pa.distanceTo(pb),hi,lo];}
@@ -112,9 +128,9 @@ function skyStep(rdt,a,b,under){const g=skyGap(a,b);sky.t+=rdt*1000;
     const A=VA(sky.hi.x,sky.hi.y,sky.hi.z,1.2),a1=Math.atan2(sky.p.z-A.z,sky.p.x-A.x),r1=Math.hypot(sky.p.x-A.x,sky.p.z-A.z);
     let da=((a1-sky.a0+Math.PI)%TAU+TAU)%TAU-Math.PI;const ang=sky.a0+da*e,pull=settings.skyPull*Math.sin(Math.PI*e);
     const r=sky.r0+(r1-sky.r0)*e+pull;
-    cam.position.set(A.x+Math.cos(ang)*r,A.y+sky.y0+(settings.skyUp-sky.y0)*e+pull*.35,A.z+Math.sin(ang)*r);
-    camLookT.lerpVectors(sky.l0,sky.l,e);cam.fov=sky.f0+(sky.fov-sky.f0)*e;if(u>=1){sky.ph=2;sky.t=0;}}
-  else if(sky.ph===2){cam.position.copy(sky.p);camLookT.copy(sky.l);cam.fov=sky.fov;}
+    cam.position.set(A.x+Math.cos(ang)*r,A.y+sky.y0+(sky.p.y-A.y-sky.y0)*e+pull*.35,A.z+Math.sin(ang)*r);
+    camLookT.lerpVectors(sky.l0,sky.l,e);cam.fov=sky.f0+(sky.fov-sky.f0)*e;skyKeep(cam.fov);if(u>=1){sky.ph=2;sky.t=0;}}
+  else if(sky.ph===2){cam.position.copy(sky.p);camLookT.copy(sky.l);cam.fov=sky.fov;skyKeep(cam.fov);}
   else if(sky.ph===3){const u=Math.min(1,sky.t/Math.max(1,settings.skyOutMs)),e=ease(u);
     cam.position.lerpVectors(sky.p,cam.position,e);camLookT.lerpVectors(sky.l,camLookT,e);cam.fov=sky.f0+(under-sky.f0)*e;
     if(u>=1){skyReset();cam.fov=under;}}
