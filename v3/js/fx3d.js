@@ -244,6 +244,7 @@ const AURA_NOISE = [
 const AURA_VS = [
   'uniform float uR; uniform float uH; uniform float uBaseW; uniform float uTop; uniform float uFlames; uniform float uTongue;',
   'uniform float uT; uniform float uSpeed; uniform float uChaos; uniform float uSeed; uniform vec3 uLean; uniform vec4 uBend; uniform float uRing; uniform float uFlare; uniform float uSpike;',
+  'uniform float uClose; uniform float uBowl;',
   'varying float vY; varying float vAng; varying vec3 vN; varying vec3 vV; varying float vD; varying float vTip;',
   AURA_NOISE,
   'vec3 bendP( vec3 p ) {',
@@ -253,8 +254,10 @@ const AURA_VS = [
   '  return vec3( uBend.x + dir.x * sin( th ) * rr, cos( th ) * rr - uBend.w, uBend.z + dir.y * sin( th ) * rr );',
   '}',
   'float prof( float y ) {',   // the teardrop: from the feet out to the widest just below the chest, then closing over the head
-  '  float w = mix( uBaseW, 1.0, smoothstep( 0.0, 0.32, y ) );',
-  '  return w * ( 1.0 - uTop * pow( clamp( ( y - 0.38 ) / 0.62, 0.0, 1.0 ), 1.7 ) );',
+  '  float w = mix( mix( uBaseW, 1.0, uClose ), 1.0, smoothstep( 0.0, 0.32, y ) );',   // off the ground the feet widen ...
+  '  w *= 1.0 - uTop * pow( clamp( ( y - 0.38 ) / 0.62, 0.0, 1.0 ), 1.7 );',
+  '  if ( uBowl > 0.0 && y < uBowl ) { float q = 1.0 - y / uBowl; w *= 1.0 - uClose + uClose * sqrt( max( 0.0, 1.0 - q * q ) ); }',   // ... and close in a round bowl
+  '  return w;',
   '}',
   'void main() {',
   '  float y = position.y + 0.5, a = atan( position.z, position.x );',
@@ -268,7 +271,8 @@ const AURA_VS = [
   '  float yy = y + tongue * 0.6;',
   '  vec3 p = vec3( cos( a ) * r * uR, yy * uH, sin( a ) * r * uR ) + uLean * yy * yy;',
   '  vec4 wp = modelMatrix * vec4( p, 1.0 );',
-  '  vec3 nw = normalize( vec3( cos( a ), 0.35 * ( 0.5 - y ) + 0.4 * tongue, sin( a ) ) );',
+  '  float qb = uBowl > 0.0 && uRing < 0.5 ? uClose * clamp( 1.0 - y / uBowl, 0.0, 1.0 ) : 0.0;',   // the bowl faces down
+  '  vec3 nw = normalize( vec3( cos( a ) * ( 1.0 - qb ), 0.35 * ( 0.5 - y ) + 0.4 * tongue - 2.2 * qb, sin( a ) * ( 1.0 - qb ) ) );',
   '  vec3 bp = bendP( wp.xyz );',
   '  vec4 mv = viewMatrix * vec4( bp, 1.0 );',
   '  vN = normalize( ( viewMatrix * vec4( nw, 0.0 ) ).xyz ); vV = normalize( -mv.xyz ); vD = -mv.z;',
@@ -304,8 +308,76 @@ function makeAura(scene) {
   const U0 = () => ({uR: {value: 1}, uH: {value: 1}, uBaseW: {value: 0.6}, uTop: {value: 0.75}, uFlames: {value: 7}, uTongue: {value: 1},
     uT: {value: 0}, uSpeed: {value: 1}, uChaos: {value: 1}, uSeed: {value: 0}, uLean: {value: new THREE.Vector3()}, uBend: {value: bendRef()},
     uCol: {value: new THREE.Color()}, uHot: {value: new THREE.Color()}, uEdge: {value: new THREE.Color()}, uAlpha: {value: 1}, uRim: {value: 1},
-    uInner: {value: 0.2}, uBands: {value: 3}, uGaps: {value: 0.4}, uSharp: {value: 0.8}, uRing: {value: 0}, uFlare: {value: 0}, uSpike: {value: 0}});
+    uInner: {value: 0.2}, uBands: {value: 3}, uGaps: {value: 0.4}, uSharp: {value: 0.8}, uRing: {value: 0}, uFlare: {value: 0}, uSpike: {value: 0},
+    uClose: {value: 0}, uBowl: {value: 0}});
   const mat = new THREE.ShaderMaterial({uniforms: U0(), vertexShader: AURA_VS, fragmentShader: AURA_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide});
+  const m = new THREE.Mesh(AURA_GEO, mat); m.frustumCulled = false; m.renderOrder = 3; scene.add(m);
+  return {m, used: false};
+}
+/* ---- the aura's flame trail (Daniel 2026-11-28 sketch, hyperfx.js shape "trail"): a comet tail of the same flame along
+   the path the body took. One open unit cylinder bent in the vertex shader along TRAIL_N world points (uP, evenly spaced,
+   0 = the body .. last = the tail): radius uR0 at the body (a round nose there, uCap of the length), narrowing to a
+   point by pow(1 - s, uTaper), its edge torn by noise streaming back along it. The fragment shader cuts flame gaps,
+   cel-bands and rims it like the sheath and burns the tail off. Points are flat world space; the planet bend is applied after. */
+const TRAIL_N = 24;
+const TRAIL_VS = [
+  'uniform vec3 uP[' + TRAIL_N + ']; uniform float uR0; uniform float uTaper; uniform float uCap; uniform float uLen;',
+  'uniform float uT; uniform float uSpeed; uniform float uChaos; uniform float uSeed; uniform float uFlames; uniform vec4 uBend;',
+  'varying float vS; varying float vAng; varying vec3 vN; varying vec3 vV; varying float vD; varying float vL;',
+  AURA_NOISE,
+  'vec3 bendP( vec3 p ) {',
+  '  if ( uBend.w <= 0.0 ) return p;',
+  '  vec2 d = p.xz - uBend.xz; float r = length( d ); if ( r < 1e-5 ) return p;',
+  '  float th = r / uBend.w, rr = uBend.w + p.y; vec2 dir = d / r;',
+  '  return vec3( uBend.x + dir.x * sin( th ) * rr, cos( th ) * rr - uBend.w, uBend.z + dir.y * sin( th ) * rr );',
+  '}',
+  'void main() {',
+  '  float s = clamp( position.y + 0.5, 0.0, 1.0 ), a = atan( position.z, position.x );',
+  '  float f = s * ' + (TRAIL_N - 1).toFixed(1) + '; int i = int( min( floor( f ), ' + (TRAIL_N - 2).toFixed(1) + ' ) ); float u = f - float( i );',
+  '  vec3 A = uP[ 0 ], B = uP[ 1 ];',
+  '  for ( int k = 0; k < ' + (TRAIL_N - 1) + '; k++ ) { if ( k == i ) { A = uP[ k ]; B = uP[ k + 1 ]; } }',   // (constant-index loop: WebGL1 safe)
+  '  vec3 C = mix( A, B, u ), T = B - A; if ( dot( T, T ) < 1e-10 ) T = vec3( 1.0, 0.0, 0.0 ); T = normalize( T );',
+  '  vec3 N1 = cross( T, vec3( 0.0, 1.0, 0.0 ) ); if ( dot( N1, N1 ) < 1e-4 ) N1 = cross( T, vec3( 1.0, 0.0, 0.0 ) ); N1 = normalize( N1 );',
+  '  vec3 B1 = normalize( cross( T, N1 ) ), rad = cos( a ) * N1 + sin( a ) * B1;',
+  '  float tsp = uT * 0.045 * uSpeed, k = uFlames / 6.2832 * 1.6, sl = s * uLen;',
+  '  float n = fbm( fp( a, sl * 0.6, k, -tsp * 1.6 ) + uSeed + 2.3, uChaos );',
+  '  float nose = s < uCap ? sqrt( max( 0.0, 1.0 - pow( 1.0 - s / uCap, 2.0 ) ) ) : 1.0;',
+  '  float r = uR0 * pow( max( 0.0, 1.0 - s ), uTaper ) * nose * ( 1.0 + uChaos * 0.35 * ( n - 0.5 ) * smoothstep( 0.0, 0.3, s ) );',
+  '  vec3 bp = bendP( C + rad * r );',
+  '  vec4 mv = viewMatrix * vec4( bp, 1.0 );',
+  '  vN = normalize( ( viewMatrix * vec4( rad, 0.0 ) ).xyz ); vV = normalize( -mv.xyz ); vD = -mv.z;',
+  '  vS = s; vAng = a; vL = sl;',
+  '  gl_Position = projectionMatrix * mv;',
+  '}'].join('\n');
+const TRAIL_FS = [
+  'uniform vec3 uCol; uniform vec3 uHot; uniform vec3 uEdge; uniform float uAlpha; uniform float uRim; uniform float uInner; uniform float uBands;',
+  'uniform float uGaps; uniform float uSharp; uniform float uFlames; uniform float uT; uniform float uSpeed; uniform float uChaos; uniform float uSeed; uniform float uCap;',
+  'varying float vS; varying float vAng; varying vec3 vN; varying vec3 vV; varying float vD; varying float vL;',
+  AURA_NOISE,
+  'void main() {',
+  '  float nf = smoothstep( 0.35, 1.8, vD ); if ( nf <= 0.0 ) discard;',
+  '  float tsp = uT * 0.045 * uSpeed, k = uFlames / 6.2832 * 1.6;',
+  // flame density streaming back along the tail: solid near the body, breaking up into gaps and licks toward the tail
+  '  float n = fbm( fp( vAng, vL * 0.9, k * 1.4, -tsp * 2.0 ) + uSeed + 6.1, uChaos );',
+  '  float dens = n + ( 1.0 - vS ) * 0.6 - uGaps * 0.55 * ( 0.4 + vS ) + 0.1;',
+  '  float soft = mix( 0.22, 0.015, uSharp );',
+  '  float m = smoothstep( 0.5 - soft, 0.5 + soft, dens ) * ( 1.0 - smoothstep( 0.72, 1.0, vS ) );',
+  '  m *= smoothstep( 0.0, min( 0.4, uCap * 3.0 ), vS );',   // the head melts into the sheath (no ball showing inside it)
+  '  if ( m <= 0.01 ) discard;',
+  '  float f = 1.0 - abs( dot( normalize( vN ), normalize( vV ) ) );',
+  '  float i = clamp( mix( uInner, 1.0, pow( f, 1.6 ) ) * uRim + ( dens - 0.5 ) * 0.6 + ( 1.0 - vS ) * 0.25, 0.0, 1.0 );',
+  '  float b = uBands > 1.0 ? floor( i * uBands ) / ( uBands - 1.0 ) : 1.0; b = clamp( b, 0.0, 1.0 );',
+  '  vec3 c = b < 0.5 ? mix( uEdge, uCol, b * 2.0 ) : mix( uCol, uHot, ( b - 0.5 ) * 2.0 );',
+  '  float al = uAlpha * m * nf * mix( uInner, 1.0, pow( f, 1.2 ) );',
+  '  gl_FragColor = vec4( c, clamp( al, 0.0, 1.0 ) );',
+  '}'].join('\n');
+function makeTrail(scene) {
+  if (!AURA_GEO) AURA_GEO = new THREE.CylinderGeometry(1, 1, 1, 72, 48, true);
+  const P = []; for (let i = 0; i < TRAIL_N; i++) P.push(new THREE.Vector3());
+  const U = {uP: {value: P}, uR0: {value: 1}, uTaper: {value: 1}, uCap: {value: 0.1}, uLen: {value: 1}, uT: {value: 0}, uSpeed: {value: 1},
+    uChaos: {value: 1}, uSeed: {value: 0}, uFlames: {value: 7}, uBend: {value: bendRef()}, uCol: {value: new THREE.Color()}, uHot: {value: new THREE.Color()},
+    uEdge: {value: new THREE.Color()}, uAlpha: {value: 1}, uRim: {value: 1}, uInner: {value: 0.2}, uBands: {value: 3}, uGaps: {value: 0.4}, uSharp: {value: 0.8}};
+  const mat = new THREE.ShaderMaterial({uniforms: U, vertexShader: TRAIL_VS, fragmentShader: TRAIL_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide});
   const m = new THREE.Mesh(AURA_GEO, mat); m.frustumCulled = false; m.renderOrder = 3; scene.add(m);
   return {m, used: false};
 }
@@ -336,7 +408,7 @@ const UPV = new THREE.Vector3(0, 1, 0);
 /* o = {fx: fxkit json, palette {body, accent}, anchors3d: pb_rig3d anchors or null, scene,
         onHit(enemyRef, damage, knockback, inst), onHitstop(ticks), onShake(px)} */
 function Runner(o) {
-  this.o = o; this.by = byAction(o.fx); this.lanes = []; this.cards = []; this.toons = []; this.auras = []; this.ctx = null; this.cur = null;
+  this.o = o; this.by = byAction(o.fx); this.lanes = []; this.cards = []; this.toons = []; this.auras = []; this.trails = []; this.ctx = null; this.cur = null;
   this.hurtNow = null; this.curEnemy = null; this.laneId = 0; this.defended = 0; this.landed = 0;
   const F = o.fx || {}, pal = o.palette || {}, rgb = h => FXK.hexRgb(h || '#ffffff', [255, 255, 255]), sp = F.space || {};
   this.lut = FXK.buildLut([rgb(pal.body), rgb(pal.accent)]);
@@ -359,13 +431,14 @@ function Runner(o) {
       if (typeof r === 'number' && r > 0) R.defended = Math.max(R.defended, r); else R.landed++; }};
 }
 Runner.prototype.reload = function (fx) { this.o.fx = fx; this.by = byAction(fx); };
-Runner.prototype.reset = function () { this.lanes = []; this.cards.forEach(c => { c.mesh.visible = false; }); this.toons.forEach(t => { t.m.visible = t.h.visible = false; }); this.auras.forEach(a => { a.m.visible = false; }); };
+Runner.prototype.reset = function () { this.lanes = []; this.cards.forEach(c => { c.mesh.visible = false; }); this.toons.forEach(t => { t.m.visible = t.h.visible = false; }); this.auras.forEach(a => { a.m.visible = false; }); this.trails.forEach(a => { a.m.visible = false; }); };
 Runner.prototype.clear = function () {
   this.lanes = [];
   this.toons.forEach(t => { [t.m, t.h].forEach(x => { if (x.parent) x.parent.remove(x); x.material.dispose(); }); if (t.key === 'band0') t.m.geometry.dispose(); }); this.toons = [];
   this.cards.forEach(c => { if (c.mesh.parent) c.mesh.parent.remove(c.mesh); c.tex.dispose(); c.mat.dispose(); c.mesh.geometry.dispose(); });
   this.cards = [];
   this.auras.forEach(a => { if (a.m.parent) a.m.parent.remove(a.m); a.m.material.dispose(); }); this.auras = [];
+  this.trails.forEach(a => { if (a.m.parent) a.m.parent.remove(a.m); a.m.material.dispose(); }); this.trails = [];
 };
 Runner.prototype.liveCount = function () { let n = 0; this.lanes.forEach(l => { n += l.player.insts.length; }); return n; };
 // world point -> a lane's 2D frame (px, y down)
@@ -1326,22 +1399,30 @@ Runner.prototype.drawHyper = function (l, inst, xf) {
     const n = path.length; if (n > 1) sp = Math.hypot(path[n - 1][0] - path[n - 2][0], path[n - 1][1] - path[n - 2][1], path[n - 1][2] - path[n - 2][2]);
   }
   const gy = (num(l.groundY, 0) + 0.03 - O.y) / Us / Math.max(0.3, V.y);
-  let fy = null, vel = null, spot = null;
+  let fy = null, vel = null, spot = null, hist = null;
   if (tf) {   // the feet, and the body's move per tick (eased) so the flames stream behind a moving fighter
     fy = (ctx.feet.y - O.y) / Us;
     const h = inst._tv || (inst._tv = {age: -1, p: O.clone(), v: new THREE.Vector3()});
-    if (h.age !== inst.age) { if (h.age >= 0) { _hA.copy(O).sub(h.p).divideScalar(Math.max(1, inst.age - h.age)); if (_hA.lengthSq() > 4) _hA.set(0, 0, 0); h.v.lerp(_hA, 0.35); } h.p.copy(O); h.age = inst.age; }
+    if (h.age !== inst.age) {
+      let jump = false;
+      if (h.age >= 0) { _hA.copy(O).sub(h.p).divideScalar(Math.max(1, inst.age - h.age)); if (_hA.lengthSq() > 4) { _hA.set(0, 0, 0); jump = true; } h.v.lerp(_hA, 0.35); }
+      // the path the body centre took, one point per tick, newest first (the aura's flame trail); a teleport starts it over
+      const hs = h.hist || (h.hist = []); if (jump || inst.age < h.age) hs.length = 0;
+      hs.unshift(O.clone()); if (hs.length > 130) hs.length = 130;
+      h.p.copy(O); h.age = inst.age;
+    }
     vel = [h.v.dot(F) / Us, h.v.dot(V) / Us, h.v.dot(S) / Us];
+    hist = h.hist.map(q => { _hA.copy(q).sub(O); return [_hA.dot(F) / Us, _hA.dot(V) / Us, _hA.dot(S) / Us]; });
     // where the burst went off (followed until then): cracks / burst debris stay there
     if (!inst._tO || inst.age <= H.tfx(P).c + 1) inst._tO = (inst._tO || new THREE.Vector3()).copy(O);
     _hA.copy(inst._tO).sub(O); spot = [_hA.dot(F) / Us, 0, _hA.dot(S) / Us];   // level only: ground parts already sit on the floor (gy)
   }
-  const shapes = H.parts(inst, this.host, {t: inst.age, ps: 1, path, sp, gy, fy, vel, spot, solo: !ctx.target});
+  const shapes = H.parts(inst, this.host, {t: inst.age, ps: 1, path, sp, gy, fy, vel, spot, hist, solo: !ctx.target});
   const w = (p, out) => out.copy(O).addScaledVector(F, p[0] * Us).addScaledVector(V, p[1] * Us).addScaledVector(S, p[2] * Us);
   const dirW = (d, out) => out.set(0, 0, 0).addScaledVector(F, d[0]).addScaledVector(V, d[1]).addScaledVector(S, d[2]).normalize();
   for (const e of shapes) {
     const cc = e.core === false ? noCore(c) : c, ink = (e.ink == null ? 1 : e.ink) * c.toon_ink_m, P0 = w(e.p, new THREE.Vector3());
-    this.pt(e.k === 'sph' ? 'glows' : e.k === 'tube' ? 'streaks' : e.k === 'ring' ? 'rings' : e.k === 'aura' ? '' : 'debris', O);
+    this.pt(e.k === 'sph' ? 'glows' : e.k === 'tube' ? 'streaks' : e.k === 'ring' ? 'rings' : e.k === 'aura' || e.k === 'trail' ? '' : 'debris', O);
     if (e.k === 'sph') {
       let st = null;
       if (e.st > 1.01 && e.d) { const q = new THREE.Quaternion().setFromUnitVectors(XV, dirW(e.d, _hA)); st = {q, x: e.st, y: 1, z: 1}; }
@@ -1349,6 +1430,7 @@ Runner.prototype.drawHyper = function (l, inst, xf) {
     } else if (e.k === 'tube') this.tube(cc, P0, w(e.q, new THREE.Vector3()), e.r * Us, e.r1 * Us, e.c, e.a, ink);
     else if (e.k === 'ring') this.torus(cc, 'ring', P0, dirW(e.n, new THREE.Vector3()), e.r * Us, 1, 0, e.c, e.a, ink);
     else if (e.k === 'aura') this.aura3(c, P0, e, Us, inst.age, w);
+    else if (e.k === 'trail') this.trail3(c, e, Us, inst.age, w);
     else {   // a chunk (shard / cube / ball)
       const t = this.paint(this.toon(e.k, 0), cc, e.c, e.a, ink), rt = e.rot || [0, 0, 0];
       [t.m, t.h].forEach(x => { x.position.copy(P0); x.rotation.set(rt[0], rt[1], rt[2]); x.scale.setScalar(e.r * Us); x.material.uniforms.uTaper.value = 0; });
@@ -1369,7 +1451,25 @@ Runner.prototype.aura3 = function (c, P0, e, Us, age, w) {
     u.uChaos.value = num(L.chaos, 1); u.uSeed.value = num(L.seed, 0) + sd; u.uLean.value.copy(lean).multiplyScalar(k < 1 ? 0.8 : 1); u.uBend.value = bendRef();
     rgb01(cm, u.uCol.value); rgb01(ch, u.uHot.value); rgb01(ce, u.uEdge.value);
     u.uAlpha.value = Math.max(0, Math.min(1, e.a * num(L.opacity, 0.75) * ak * c.toon_alpha_pct / 100)); u.uRim.value = num(L.rim, 1);
+    u.uClose.value = Math.max(0, Math.min(1, num(L.close, 0))); u.uBowl.value = Math.max(0, Math.min(0.9, num(L.bowl, 0)));
     u.uRing.value = L.ring ? 1 : 0; u.uFlare.value = num(L.flare, 0); u.uSpike.value = Math.min(1, num(L.spike, 0));
+    u.uInner.value = Math.min(1, num(L.inner, 0.18)); u.uBands.value = Math.max(1, num(L.bands, 3)); u.uGaps.value = Math.min(1, num(L.gaps, 0.4)); u.uSharp.value = Math.min(1, num(L.sharp, 0.8));
+  }
+};
+// the aura's flame trail (+ a hot core inside it): e = hyperfx.js shape {pts [f, v, s] px body .. tail, r, len, c, hot, edge, a, look}
+Runner.prototype.trail3 = function (c, e, Us, age, w) {
+  const L = e.look || {}, n = Math.min(TRAIL_N, e.pts.length); if (n < 2) return;
+  const layers = L.layer2 ? [[1, e.c, e.edge || e.c, e.hot || e.c, 1, 0], [0.45, e.hot || e.c, e.c, [255, 255, 255], 0.4, 5.1]] : [[1, e.c, e.edge || e.c, e.hot || e.c, 1, 0]];
+  for (const [k, cm, ce, ch, ak, sd] of layers) {
+    let A = this.trails.find(x => !x.used); if (!A) { A = makeTrail(this.o.scene); this.trails.push(A); }
+    A.used = true; const m = A.m, u = m.material.uniforms; m.visible = true;
+    m.material.blending = L.additive ? THREE.AdditiveBlending : THREE.NormalBlending;
+    for (let i = 0; i < TRAIL_N; i++) w(e.pts[Math.round(i * (n - 1) / (TRAIL_N - 1))], u.uP.value[i]);
+    u.uR0.value = e.r * Us * k; u.uLen.value = Math.max(1, e.len / Math.max(1, e.r)); u.uCap.value = Math.min(0.5, e.r / Math.max(1, e.len));
+    u.uTaper.value = Math.max(0, num(L.taper, 1)) * (k < 1 ? 1.3 : 1); u.uBend.value = bendRef();
+    u.uT.value = age; u.uSpeed.value = num(L.speed, 1); u.uChaos.value = num(L.chaos, 1); u.uSeed.value = num(L.seed, 0) + sd; u.uFlames.value = num(L.flames, 7);
+    rgb01(cm, u.uCol.value); rgb01(ch, u.uHot.value); rgb01(ce, u.uEdge.value);
+    u.uAlpha.value = Math.max(0, Math.min(1, e.a * num(L.opacity, 0.75) * ak * c.toon_alpha_pct / 100)); u.uRim.value = num(L.rim, 1);
     u.uInner.value = Math.min(1, num(L.inner, 0.18)); u.uBands.value = Math.max(1, num(L.bands, 3)); u.uGaps.value = Math.min(1, num(L.gaps, 0.4)); u.uSharp.value = Math.min(1, num(L.sharp, 0.8));
   }
 };
@@ -2297,8 +2397,8 @@ Runner.prototype.drawKi = function (l, inst, xf) {
 /* Paint every live effect onto its card(s) and place them. cam = the THREE camera, H = drawing buffer height (px).
    opts.hidden: hide body-bound FX (blinked out). */
 Runner.prototype.draw = function (cam, H, opts) {
-  const ctx = this.ctx; this.cards.forEach(c => { c.used = false; }); this.toons.forEach(t => { t.used = false; }); this.auras.forEach(a => { a.used = false; });
-  if (!ctx) { this.cards.forEach(c => { c.mesh.visible = false; }); this.toons.forEach(t => { t.m.visible = t.h.visible = false; }); this.auras.forEach(a => { a.m.visible = false; }); return; }
+  const ctx = this.ctx; this.cards.forEach(c => { c.used = false; }); this.toons.forEach(t => { t.used = false; }); this.auras.forEach(a => { a.used = false; }); this.trails.forEach(a => { a.used = false; });
+  if (!ctx) { this.trails.forEach(a => { a.m.visible = false; }); this.cards.forEach(c => { c.mesh.visible = false; }); this.toons.forEach(t => { t.m.visible = t.h.visible = false; }); this.auras.forEach(a => { a.m.visible = false; }); return; }
   const hidden = !!(opts && opts.hidden), tanH = Math.tan(cam.fov * Math.PI / 360); this._camPos = cam.position;
   _cr.set(1, 0, 0).applyQuaternion(cam.quaternion); _cu.set(0, 1, 0).applyQuaternion(cam.quaternion); _cf.set(0, 0, 1).applyQuaternion(cam.quaternion);
   const groups = new Map(), solid = [];
@@ -2357,7 +2457,7 @@ Runner.prototype.draw = function (cam, H, opts) {
   this.cur = null;
   this.cards.forEach(c => { if (!c.used) c.mesh.visible = false; });
   this.toons.forEach(t => { if (!t.used) t.m.visible = t.h.visible = false; });
-  this.auras.forEach(a => { if (!a.used) a.m.visible = false; });
+  this.auras.forEach(a => { if (!a.used) a.m.visible = false; }); this.trails.forEach(a => { if (!a.used) a.m.visible = false; });
 };
 /* Debug outline of where each live effect lies (FX Studio 3D): [{P (pivot), ax, ay, w, h, lay}] */
 Runner.prototype.planes = function () {

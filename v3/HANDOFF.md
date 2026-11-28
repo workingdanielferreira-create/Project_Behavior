@@ -515,6 +515,19 @@ v3-animation skill ("Review questions").
 - **Next:** Daniel sets forms (and transform conditions) for the characters he wants; form clips (`idle@1` ...) authored
   per character.
 
+## Super Saiyan aura: round bottom in the air + flame trail (2026-11-28)
+
+- Daniel (sketch): off the ground the aura should close into a sphere-like bottom; moving should leave a trail, longer the
+  faster, thinner the longer. His picks: thinner = BOTH a taper to a point and a long trail thinner overall; trail on any
+  move (ground dashes too), round bottom only in the air.
+- Done: `hyperfx.js` (`air_close` / `air_round_pct`, `sheathW`, `auraTrail`, shape `trail`, panel groups "Aura shape" +
+  "Flame trail", 2D card glows) and `fx3d.js` (aura shader bowl `uClose` / `uBowl`, trail tube shader `makeTrail` /
+  `trail3`, path history in the transformation's `_tv`). README "Transformation FX".
+- Checked headless (Playwright + SwiftShader, stand-in body, golden ascension stage 1 aura only): ground still = unchanged
+  open sheath; in the air = closed round bowl; flying up-right / ground dash / fast curve = trail along the real path;
+  slow vs fast = short stub vs long thin streak; no errors. Not yet seen in the real game / studio.
+- **Next:** Daniel's verdict in game; tune defaults (trail_ms 260, taper 80, thin 100).
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,
