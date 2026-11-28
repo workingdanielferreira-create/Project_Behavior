@@ -645,6 +645,16 @@ with no damage; three stages.
   `outer_length_pct`, `outer_curl_pct` (0 = straight out, 100 = flare out then sweep up, 200 = shoot up), `outer_from_pct` /
   `outer_to_pct` (heights on the aura they are born between), `outer_width_pct`, `outer_jag_pct`, `outer_speed_pct`,
   `outer_color` hot / main / deep / white, `outer_opacity_pct`.
+- **Round bottom in the air** (Daniel 2026-11-28 sketch, group "Aura shape"): off the ground the sheath's bottom closes
+  into a round, sphere-like bowl hanging under the feet (eased in with the height over the floor, opens again on landing;
+  the flame layers / outer flames hug it, the low layers stop flaring out). `air_close`, `air_round_pct` (bowl depth).
+  Shader uniforms `uClose` / `uBowl` (`fx3d.js` AURA_VS `prof`), JS twin `hyperfx.js sheathW`.
+- **Flame trail** (Daniel 2026-11-28 sketch, group "Flame trail", Solo + Battle, ground moves too): a comet tail of the
+  same noise-torn flame along the path the body centre took (`fx3d.js` keeps one point per tick in `inst._tv.hist`,
+  a teleport starts it over; `hyperfx.js auraTrail` takes the last `trail_ms` of it, resampled to 24 even points, so the
+  faster the move the longer the tail). Aura-wide where it leaves the body, narrowing to a point (`trail_taper_pct`), and
+  a long trail is thinner overall (`trail_thin_pct`); `trail_width_pct`, `trail_opacity_pct`, `trail`. Drawn by
+  `fx3d.js makeTrail / trail3` (a tube bent along `uP[24]` in the vertex shader + a fainter hot core when Inner hot layer is on).
 - **Stages** (`stage`): 1 = gold flame aura; 2 = tighter, brighter, faster flicker + blue-white arcs crackling over the
   body the whole time; 3 = biggest (x1.4, taller crown, many more flames), heavy lightning, the ground breaking up and
   floating round the feet the whole time. A stage multiplies the panel's settings (size, height, flame length, speed, chaos).
