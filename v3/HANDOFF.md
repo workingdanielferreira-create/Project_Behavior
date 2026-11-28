@@ -654,3 +654,13 @@ merge it.
   kbDir maths (line / facing / angle / elevation, spread within +-20), a 25 s Watch fight with every effect on travel
   30 / 40 / 15: no errors; FX Studio 3D loads. No character file has it set yet.
 - **Next:** Daniel's verdict in game (vertical factor `KB_VK` 1.7, lift threshold 300 px/s).
+
+## FX Studio 3D: move / turn the fighter (2026-11-28)
+- Daniel: "in FX Studio 3D, add the function of letting me reposition and relocate the character as well".
+- His picks: **preview only** (nothing saved, game unaffected); arrows + sliders: stage dropdown `Drag: fighter`
+  (translate, height incl.) / `Turn: fighter` (Y rotate ring) + a "Fighter" panel (X, Z, Height, Turn, Back to the centre).
+- Done: `fxstudio3d.html` `FIG` (localStorage `pbFx3dFighter`) / `figFeet` feed `plan()` (move3d start), the stand spot,
+  `laneAxes`, Camera presets, trigger-distance rings + readout; Turn is added on top of the computed facing (`lastBase`).
+  Dummy stays measured from the stage centre. Checked headless (puck): sliders + both gizmos move / turn it, no errors.
+- **Next:** Daniel's verdict in the studio.
+

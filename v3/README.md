@@ -442,6 +442,10 @@ moves through the action. Daniel's choices: a new page that reads / writes the c
 - **Characters folder…** once (remembered; Reconnect on a new visit): every folder with a `.fxkit.json` is listed.
   The fighter wears the shared body (`ual_swordsman.glb`) with its own clips (`<name>.glb`, retargeted as in V3), in
   its palette colour; a grey dummy stands as the target (distance / angle / height, or drag it).
+- **Fighter** panel (preview only, never saved; remembered in the browser): X / Z / Height where the fighter stands
+  when the action begins and Turn (0 = faces the target or its travel as in the game, + = to its left); or on the stage
+  **Drag: fighter** (move arrows, height included) / **Turn: fighter** (a ring round the body). The action's movement
+  starts from there; the dummy's distance / angle stay measured from the stage centre; Back to the centre resets.
 - **Preview**: Play / scrub / ◀ ▶ frames / loop / speed; the timeline shows each effect's frames and the body
   movement; after the action it runs 0.7 s more so shots finish. Hits on the dummy flash it and show the damage.
   Stage toggles: **Planes** (an outline of the plane each live effect lies in: yellow side, green flat, blue ground,
