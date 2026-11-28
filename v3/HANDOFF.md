@@ -617,3 +617,12 @@ v3-animation skill ("Review questions").
 
 Follow `CLAUDE.md` session rules: ask before implementing (pop-up questions); push, open the PR and
 merge it.
+
+## Air pivot: face the target in 3D while acting in the air (2026-11-28)
+- Daniel's picks: in the air, an action also tilts the body up / down toward the target (on top of the existing yaw),
+  full angle (no cap), eased in and eased back upright when the action ends / the fighter lands / is hit; actions whose
+  FX Studio 3D movement is `face: travel` keep their travel facing.
+- Done: `v3/js/anim.js` `airPivot` (called from `sync`): `f.pitch` eases (`AIR_PIVOT_EASE`) to atan2(-dz, horizontal
+  distance); `f.g.rotation.order = 'YXZ'` so pitch is in the yawed frame; the group shifts so the body centre
+  (`AIR_PIVOT_C` 0.9 m) stays put. Paint only (hits / reach / sim untouched). Air = `f.z > 8`; skipped for `react`
+  actions, stun, KO, a phantom / KO'd target.
