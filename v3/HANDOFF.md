@@ -526,7 +526,11 @@ v3-animation skill ("Review questions").
 - Checked headless (Playwright + SwiftShader, stand-in body, golden ascension stage 1 aura only): ground still = unchanged
   open sheath; in the air = closed round bowl; flying up-right / ground dash / fast curve = trail along the real path;
   slow vs fast = short stub vs long thin streak; no errors. Not yet seen in the real game / studio.
-- **Next:** Daniel's verdict in game; tune defaults (trail_ms 260, taper 80, thin 100).
+- Round 2 (Daniel's marked screenshot): the straight tube out of the body's middle = wrong; the swept-back top flames
+  = right, carried on as a long wavy tail. Done: `trail_from` top (default) / middle, `trail_wave_pct`,
+  `trail_wave_len_pct`; narrower start (0.75 x aura width). Checked headless: fast flight + ground dash = wavy tail off
+  the top flames, no errors.
+- **Next:** Daniel's verdict in game; tune defaults (trail_ms 260, taper 80, thin 100, wave 100).
 
 ## Next steps (agreed direction, not started)
 
