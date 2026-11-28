@@ -140,7 +140,7 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
       <div class="hud" id="hud"></div>
       <div class="vbar">
         <select id="gizmo" aria-label="Drag with the mouse" title="What the arrows on the stage move">
-          <option value="">Drag: nothing</option><option value="fx">Drag: FX start spot</option><option value="dummy">Drag: target dummy</option>
+          <option value="">Drag: nothing</option><option value="fx">Drag: FX start spot</option><option value="dummy">Drag: target dummy</option><option value="fig">Drag: fighter</option><option value="figTurn">Turn: fighter</option>
         </select>
         <button id="vPlanes" type="button" aria-pressed="true" title="Outline the plane each live FX lies in">Planes</button>
         <button id="vAnchors" type="button" aria-pressed="false" title="Show the body's FX anchors">Anchors</button>
@@ -201,7 +201,17 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
       <div class="btns"><select id="cAdd" aria-label="Add a condition"><option value="">+ Add condition…</option></select><button id="cClear" type="button">Remove all</button></div>
     </section>
 
+    <section id="secFig"><h2>Fighter <small>preview only</small></h2>
+      <p class="note">Where your fighter stands on the stage when the action begins, and which way it is turned. Preview only: nothing is saved to the character and the game is not affected. Or pick Drag: fighter / Turn: fighter on the stage.</p>
+      <div class="row"><label for="fX">X (m)</label><div class="pair"><input id="fX" type="range" min="-14" max="14" step="0.1"><input id="fXN" type="number" step="0.1" aria-label="X (m)"></div></div>
+      <div class="row"><label for="fZ">Z (m)</label><div class="pair"><input id="fZ" type="range" min="-14" max="14" step="0.1"><input id="fZN" type="number" step="0.1" aria-label="Z (m)"></div></div>
+      <div class="row"><label for="fH">Height (m)</label><div class="pair"><input id="fH" type="range" min="0" max="8" step="0.1"><input id="fHN" type="number" step="0.1" aria-label="Height (m)"></div></div>
+      <div class="row"><label for="fT" title="0 = faces the target (or where it travels); + turns it to its left">Turn (°)</label><div class="pair"><input id="fT" type="range" min="-180" max="180" step="1"><input id="fTN" type="number" step="1" aria-label="Turn (°)"></div></div>
+      <div class="btns"><button id="fReset" type="button">Back to the centre</button></div>
+    </section>
+
     <section id="secDummy"><h2>Target dummy</h2>
+      <p class="note">Distance and angle are from the stage centre (the fighter's default spot).</p>
       <div class="row"><label>Distance (m)</label><div class="pair"><input id="dDist" type="range" min="0.5" max="14" step="0.1"><input id="dDistN" type="number" step="0.1"></div></div>
       <div class="row"><label>Angle (°)</label><div class="pair"><input id="dAng" type="range" min="-180" max="180" step="1"><input id="dAngN" type="number" step="1"></div></div>
       <div class="row"><label>Height (m)</label><div class="pair"><input id="dH" type="range" min="0" max="8" step="0.1"><input id="dHN" type="number" step="0.1"></div></div>
@@ -580,9 +590,9 @@ function putTd(k, v) { if (!S.F) return; pushUndo(); const as = aset(S.act, true
 $('aTd').onchange = function () { putTd('enabled', this.checked); };
 $('aTdMin').onchange = function () { putTd('min_m', Math.max(0, +this.value || 0)); };
 $('aTdMax').onchange = function () { putTd('max_m', Math.max(0, +this.value || 0)); };
-function dummyDist() { return Math.hypot(DUM.dist, DUM.h); }
+function dummyDist() { return dummyFeet().distanceTo(figFeet()); }
 function syncTd() {
-  if (!S.F) return; const td = tdOf(S.act), d = dummyDist();
+  if (!S.F) return; const td = tdOf(S.act), d = dummyDist(), F = figFeet(); ringTdMin.position.set(F.x, 0.02, F.z); ringTdMax.position.set(F.x, 0.02, F.z);
   ringTdMin.visible = td.enabled && td.min_m > 0; ringTdMax.visible = td.enabled && td.max_m > 0;
   ringTdMin.scale.setScalar(Math.max(0.01, td.min_m)); ringTdMax.scale.setScalar(Math.max(0.01, td.max_m));
   const ok = !td.enabled || (d >= td.min_m && (!td.max_m || d <= td.max_m));
@@ -1054,20 +1064,33 @@ function syncDummyUi() { [['dDist', 'dist'], ['dAng', 'ang'], ['dH', 'h']].forEa
 [['dDist', 'dist'], ['dAng', 'ang'], ['dH', 'h']].forEach(([id, k]) => { const f = v => { DUM[k] = +v || 0; syncDummyUi(); S.simK = -1; S.plan = null; S.tailMs = null; };
   $(id).oninput = function () { f(this.value); }; $(id + 'N').onchange = function () { f(this.value); }; });
 syncDummyUi();
+/* the fighter's preview stand spot + turn (Daniel 2026-11-28, preview only: never saved to the character) */
+const FIG = {x: 0, z: 0, h: 0, turn: 0};
+try { Object.assign(FIG, JSON.parse(localStorage.getItem('pbFx3dFighter') || '{}')); } catch (e) {}
+function figFeet() { return new THREE.Vector3(FIG.x, FIG.h, FIG.z); }
+const FIG_UI = [['fX', 'x', 1], ['fZ', 'z', 1], ['fH', 'h', 1], ['fT', 'turn', 0]];
+function syncFigUi() { FIG_UI.forEach(([id, k, d]) => { $(id).value = FIG[k]; $(id + 'N').value = (+FIG[k]).toFixed(d); });
+  try { localStorage.setItem('pbFx3dFighter', JSON.stringify(FIG)); } catch (e) {} if (typeof ringTdMin !== 'undefined') syncTd(); }
+function figMoved() { syncFigUi(); S.simK = -1; S.plan = null; S.tailMs = null; }
+FIG_UI.forEach(([id, k]) => { const f = v => { FIG[k] = k === 'h' ? Math.max(0, +v || 0) : (+v || 0); figMoved(); };
+  $(id).oninput = function () { f(this.value); }; $(id + 'N').onchange = function () { f(this.value); }; });
+$('fReset').onclick = () => { Object.assign(FIG, {x: 0, z: 0, h: 0, turn: 0}); figMoved(); };
+syncFigUi();
 function plan() {
   if (S.plan) return S.plan; const mv = aset(S.act) && aset(S.act).move3d, t = timing(S.act);
-  S.plan = mv && mv.enabled ? FX3D.movePlan(mv, new THREE.Vector3(0, 0, 0), dummyFeet(), t.frames, t.fms, () => 0.3) : null;
+  S.plan = mv && mv.enabled ? FX3D.movePlan(mv, figFeet(), dummyFeet(), t.frames, t.fms, () => 0.3) : null;
   return S.plan;
 }
-const _f = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3();
-let lastFace = 0;
+const _c = new THREE.Vector3(), _d = new THREE.Vector3();
+let lastFace = 0, lastBase = 0;
 function stepSim(k, fast) {   // tick k of the action (0 = its first)
   const B = S.fighter, Dm = S.dummy, ms = k * TICK, dur = actDur(S.act), P = plan(), T = dummyFeet();
-  const feet = P ? P.at(Math.min(ms, P.total)) : _f.set(0, 0, 0);
+  const feet = P ? P.at(Math.min(ms, P.total)) : figFeet();
   // facing
   let face;
   if (P && P.face === 'travel') { const a = P.at(Math.max(0, ms - TICK)), b = P.at(ms + TICK); const dx = b.x - a.x, dz = b.z - a.z; face = Math.hypot(dx, dz) > 1e-3 ? Math.atan2(dx, dz) : lastFace; }
   else { const dx = T.x - feet.x, dz = T.z - feet.z; face = Math.hypot(dx, dz) > 1e-3 ? Math.atan2(dx, dz) : lastFace; }
+  lastBase = face; face += FIG.turn * Math.PI / 180;   // the preview turn (0 = as the game would face it)
   lastFace = face;
   B.root.position.copy(feet); B.root.rotation.y = face;
   pose(B, S.act, Math.min(ms, dur), dur);   // past the action's end: hold its last pose (never idle)
@@ -1108,8 +1131,8 @@ $('scrub').oninput = function () { seek(+this.value); };
 $('vPlanes').onclick = function () { view.planes = !view.planes; this.setAttribute('aria-pressed', String(view.planes)); };
 $('vAnchors').onclick = function () { view.anchors = !view.anchors; this.setAttribute('aria-pressed', String(view.anchors)); };
 $('vPath').onclick = function () { view.path = !view.path; this.setAttribute('aria-pressed', String(view.path)); };
-$('camSel').onchange = function () { if (GC.on) gcSet(false); const T = dummyFeet(), m = new THREE.Vector3(T.x / 2, 1, T.z / 2), d = Math.max(4, T.length() * 1.6 + 3), v = this.value; this.value = '';
-  orbit.target.copy(m); const fwd = new THREE.Vector3(T.x, 0, T.z).normalize(); if (fwd.lengthSq() < 0.5) fwd.set(1, 0, 0); const side = new THREE.Vector3(-fwd.z, 0, fwd.x);
+$('camSel').onchange = function () { if (GC.on) gcSet(false); const T = dummyFeet(), F0 = figFeet(), m = new THREE.Vector3((T.x + F0.x) / 2, 1, (T.z + F0.z) / 2), d = Math.max(4, Math.hypot(T.x - F0.x, T.z - F0.z) * 1.6 + 3), v = this.value; this.value = '';
+  orbit.target.copy(m); const fwd = new THREE.Vector3(T.x - F0.x, 0, T.z - F0.z).normalize(); if (fwd.lengthSq() < 0.5) fwd.set(1, 0, 0); const side = new THREE.Vector3(-fwd.z, 0, fwd.x);
   if (v === 'side') cam.position.copy(m).addScaledVector(side, d).setY(1.4);
   else if (v === 'front') cam.position.copy(m).addScaledVector(fwd, -d).setY(2.2);
   else if (v === 'top') cam.position.copy(m).setY(d * 1.3).add(new THREE.Vector3(0.01, 0, 0));
@@ -1132,7 +1155,7 @@ window.addEventListener('beforeunload', e => { if (S.dirty) { e.preventDefault()
 /* ---------------------------------------------------------------- gizmo: FX start spot / dummy */
 function laneAxes() { const l = S.runner && S.runner.lanes.find(x => x.active) || (S.runner && S.runner.lanes[0]);
   if (l) return {X: l.X, Y: l.Y, L: l.L};
-  const T = dummyFeet(), X = new THREE.Vector3(T.x, 0, T.z).normalize(); const Y = new THREE.Vector3(0, 1, 0); return {X, Y, L: new THREE.Vector3().crossVectors(X, Y)}; }
+  const T = dummyFeet().sub(figFeet()), X = new THREE.Vector3(T.x, 0, T.z).normalize(); if (X.lengthSq() < 0.5) X.set(1, 0, 0); const Y = new THREE.Vector3(0, 1, 0); return {X, Y, L: new THREE.Vector3().crossVectors(X, Y)}; }
 function fxBase(e) {   // the selected effect's start point on the body now (before its offset)
   if (!S.runner || !S.runner.ctx) return null; const c = FX3D.cfg3d(e), id = c.anchor || e.anchor || 'figure';
   if (id === 'target') return dummyFeet().setY(dummyFeet().y + 0.9);
@@ -1140,7 +1163,10 @@ function fxBase(e) {   // the selected effect's start point on the body now (bef
 }
 function syncGizmo() {
   const g = $('gizmo').value, e = curFx();
-  if (g === 'dummy' && S.dummy) { gizmoObj.position.copy(dummyFeet()); tc.attach(gizmoObj); tc.showY = true; return; }
+  tc.setMode(g === 'figTurn' ? 'rotate' : 'translate'); tc.showX = tc.showZ = g !== 'figTurn'; tc.showY = true; gizmoObj.rotation.set(0, 0, 0);
+  if (g === 'dummy' && S.dummy) { gizmoObj.position.copy(dummyFeet()); tc.attach(gizmoObj); return; }
+  if ((g === 'fig' || g === 'figTurn') && S.fighter) { gizmoObj.position.copy(g === 'fig' ? figFeet() : S.fighter.root.position);
+    if (g === 'figTurn') { gizmoObj.rotation.order = 'YXZ'; gizmoObj.rotation.y = S.fighter.root.rotation.y; } tc.attach(gizmoObj); return; }
   if (g === 'fx' && e) { const b = fxBase(e); if (!b) { tc.detach(); return; } const c = FX3D.cfg3d(e), A = laneAxes();
     gizmoObj.position.copy(b).addScaledVector(A.X, c.offset[0]).addScaledVector(A.Y, c.offset[1]).addScaledVector(A.L, c.offset[2]); tc.attach(gizmoObj); return; }
   tc.detach();
@@ -1148,6 +1174,8 @@ function syncGizmo() {
 tc.addEventListener('objectChange', () => {
   const g = $('gizmo').value;
   if (g === 'dummy') { const p = gizmoObj.position; DUM.dist = Math.max(0.3, Math.hypot(p.x, p.z)); DUM.ang = Math.round(Math.atan2(-p.z, p.x) * 180 / Math.PI); DUM.h = Math.max(0, p.y); syncDummyUi(); S.simK = -1; S.plan = null; S.tailMs = null; return; }
+  if (g === 'fig') { const p = gizmoObj.position, r1 = v => Math.round(v * 100) / 100; FIG.x = r1(p.x); FIG.z = r1(p.z); FIG.h = r1(Math.max(0, p.y)); figMoved(); return; }
+  if (g === 'figTurn') { let t = Math.round((gizmoObj.rotation.y - lastBase) * 180 / Math.PI); t = ((t + 540) % 360) - 180; FIG.turn = t; figMoved(); return; }
   const e = curFx(); if (!e) return; const b = fxBase(e); if (!b) return; const A = laneAxes(), d = gizmoObj.position.clone().sub(b);
   const off = [d.dot(A.X), d.dot(A.Y), d.dot(A.L)].map(v => Math.round(v * 1000) / 1000);
   e.fx3d = Object.assign({}, e.fx3d || {}, {offset: off}); S.dirty = true; syncUndo(); if (S.runner) S.runner.reload(previewF(S.F)); S.simK = -1;
