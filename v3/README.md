@@ -711,6 +711,13 @@ from: strokes, impact rays, star spikes, crater cracks (punch / kick); clouds, s
 (slash / straight slash); flame tongues, afterimages (crescents); muzzle prongs, rocket fins, drill grooves, bolt arcs,
 star spikes, rail rings, gatling barrels (guns).
 
+**Action order (Daniel 2026-11-28).** Drag a row in the Actions list (here or in Rig Forge 3D) to move it. The order is
+saved in the fxkit as `action_order` (Rig Forge 3D also keeps it in its .glb, `pb_rig3d.order`, and writes it to the fxkit
+when the characters folder is connected; on open the fxkit's order wins). The game follows it (`realkits.js`): the normal
+combo plays the `attack_normal*` actions in list order (else by their `_N` number), and when several triggered actions are
+ready on the same tick the one higher in the list fires first. No `action_order` = the old order. Shared helper
+`mergeOrder(base, sub)` in both tools: names not in the other tool's list keep their place.
+
 **Trigger distance (Daniel 2026-11-26).** Actions panel row **Trigger distance**: on / closest / farthest (m, 0 = no
 limit), saved as `action_settings[a].trigger_dist {enabled, min_m, max_m}`. The AI and FX Studio condition triggers start
 the action only while the target's body centre is in that range (3D, height included; `realkits.js trigDist` ->

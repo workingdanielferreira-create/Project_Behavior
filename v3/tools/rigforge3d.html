@@ -2882,6 +2882,20 @@ details.adv[open] > summary { margin-bottom: 6px; }
     var top = row.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop, bot = top + row.offsetHeight;
     if (top < box.scrollTop) box.scrollTop = top; else if (bot > box.scrollTop + box.clientHeight) box.scrollTop = bot - box.clientHeight;
   }
+  /* Action order (Daniel 2026-11-28): fxkit "action_order" = the list order set by drag & drop in Rig Forge 3D / FX Studio 3D;
+     the game plays the normal combo and checks triggered actions in it (js/realkits.js). base's slots held by names in sub
+     are refilled in sub's order; the rest stay where they are; sub names missing from base go at the end. */
+  function mergeOrder(base, sub) {
+    var want = {}, out = [], i = 0; sub.forEach(function (n) { want[n] = 1; });
+    base.forEach(function (n) { if (!want[n]) out.push(n); else { while (i < sub.length && out.indexOf(sub[i]) >= 0) i++; if (i < sub.length) out.push(sub[i++]); } });
+    sub.forEach(function (n) { if (out.indexOf(n) < 0) out.push(n); });
+    return out;
+  }
+  function syncFxOrder() {   /* the list order into the character's FX file (FX Studio 3D + the game read it) */
+    if (!CF.fx) return; var cur = S.order.filter(function (n) { return n.indexOf("@") < 0; });
+    CF.fx.action_order = mergeOrder(Array.isArray(CF.fx.action_order) ? CF.fx.action_order : cur, cur).filter(function (n) { return S.order.indexOf(n) >= 0 || (CF.fx.timing && n in CF.fx.timing); });
+    CF.dirty = true;
+  }
   var ACT_DRAG = null;   /* name of the action row being dragged */
   function buildActs() {
     var box = $("acts"); if (!box) return;
@@ -2907,8 +2921,8 @@ details.adv[open] > summary { margin-bottom: 6px; }
         var b = r.getBoundingClientRect(), below = e.clientY > b.top + b.height / 2;
         S.order.splice(S.order.indexOf(from), 1);
         S.order.splice(S.order.indexOf(to) + (below ? 1 : 0), 0, from);
-        ACT_DRAG = null; fillClipSelect(); markDirty();
-        status("Moved " + from + (below ? " below " : " above ") + to + " (Save to keep the order).");
+        ACT_DRAG = null; syncFxOrder(); fillClipSelect(); markDirty();
+        status("Moved " + from + (below ? " below " : " above ") + to + " (Save to keep the order" + (CF.fx ? "; the game and FX Studio 3D use it" : "") + ").");
       };
     });
     syncActFields(); fillSpecMiss();
@@ -2939,6 +2953,10 @@ details.adv[open] > summary { margin-bottom: 6px; }
       try { CF.ch = JSON.parse(await (await (await d.getFileHandle("character.json")).getFile()).text()); } catch (e) { CF.ch = null; }
       REF.geo = null;
     } catch (e) { CF.dir = null; }
+    if (CF.fx && Array.isArray(CF.fx.action_order)) {   /* the FX file's order wins (FX Studio 3D may have changed it) */
+      var fo = CF.fx.action_order.filter(function (n) { return S.order.indexOf(n) >= 0; });
+      S.order = mergeOrder(S.order, fo); fillClipSelect();
+    }
     buildActs(); REF.shown = ""; refSync();
   }
   async function writeJson(name, obj) {
@@ -2957,6 +2975,7 @@ details.adv[open] > summary { margin-bottom: 6px; }
         if (a) { a.frame_ms = t.frame_ms; if (a.duration_ms != null) a.duration_ms = Math.round(M.timing[n]); }
       });
       Object.keys(M.cool).forEach(function (n) { (CF.fx.action_settings[n] || (CF.fx.action_settings[n] = {})).cooldown_ms = M.cool[n]; });
+      if (Array.isArray(CF.fx.action_order)) syncFxOrder();   /* keeps up with added / renamed / removed actions */
       await writeJson(CF.name + ".fxkit.json", CF.fx);
     }
     if (CF.ch) {

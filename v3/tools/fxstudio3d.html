@@ -97,6 +97,9 @@ input[type=color] { width: 44px; height: 26px; padding: 0; border: 1px solid var
 .list .it { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 4px; cursor: pointer; font-size: 13px; }
 .list .it:hover { background: var(--accent-soft); }
 .list .it.sel { background: var(--accent); color: var(--bg); }
+.list .it.dragging { opacity: .45; }
+.list .it.drop-above { box-shadow: inset 0 2px 0 var(--accent); }
+.list .it.drop-below { box-shadow: inset 0 -2px 0 var(--accent); }
 .list .it .m { font-family: var(--mono); font-size: 11px; opacity: .75; margin-left: auto; white-space: nowrap; }
 .list .it input { margin: 0; }
 .cond { border: 1px solid var(--line); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 5px; margin-bottom: 6px; }
@@ -566,7 +569,24 @@ $('spLv3').onchange = function () { putSprint('lv3', this.checked); };
 $('spLv3Pct').onchange = function () { putSprint('lv3_pct', Math.max(100, +this.value || SPRINT_DEF.lv3_pct)); };
 
 /* ---------------------------------------------------------------- actions */
-function actions() { const T = (S.F && S.F.timing) || {}; return Object.keys(T); }
+/* Action order (Daniel 2026-11-28): fxkit "action_order" = the list order set by drag & drop in Rig Forge 3D / FX Studio 3D;
+   the game plays the normal combo and checks triggered actions in it (js/realkits.js). base's slots held by names in sub
+   are refilled in sub's order; the rest stay where they are; sub names missing from base go at the end. */
+function mergeOrder(base, sub) {
+  var want = {}, out = [], i = 0; sub.forEach(function (n) { want[n] = 1; });
+  base.forEach(function (n) { if (!want[n]) out.push(n); else { while (i < sub.length && out.indexOf(sub[i]) >= 0) i++; if (i < sub.length) out.push(sub[i++]); } });
+  sub.forEach(function (n) { if (out.indexOf(n) < 0) out.push(n); });
+  return out;
+}
+function actions() { const T = (S.F && S.F.timing) || {}, k = Object.keys(T), o = S.F && Array.isArray(S.F.action_order) ? S.F.action_order.filter(n => n in T) : [];
+  return o.length ? mergeOrder(k, o) : k; }
+let ACT_DRAG = null;   // the action row being dragged
+function moveAct(from, to, below) {
+  const L = actions(); if (from === to || L.indexOf(from) < 0 || L.indexOf(to) < 0) return;
+  pushUndo(); L.splice(L.indexOf(from), 1); L.splice(L.indexOf(to) + (below ? 1 : 0), 0, from);
+  S.F.action_order = mergeOrder(Array.isArray(S.F.action_order) ? S.F.action_order : L, L);   // keeps Rig Forge 3D's clip-only names in place
+  changed(true); status('Moved ' + from + (below ? ' below ' : ' above ') + to + ': the combo and trigger priority follow this list.');
+}
 function timing(a) { const t = ((S.F && S.F.timing) || {})[a] || {}; return {frames: Math.max(1, +t.frames || 1), fms: Math.max(1, +t.frame_ms || TICK)}; }
 function actDur(a) { const t = timing(a); return Math.round(t.frames * t.fms); }
 function aset(a, make) { const A = S.F.action_settings || (make ? (S.F.action_settings = {}) : {}); return A[a] || (make ? (A[a] = {}) : null); }
@@ -576,7 +596,17 @@ function buildActs() {
   actions().forEach(a => { const n = fxOf(a).length, m = aset(a) && aset(a).move3d && aset(a).move3d.enabled;
     const d = document.createElement('div'); d.className = 'it' + (a === S.act ? ' sel' : ''); d.tabIndex = 0;
     d.innerHTML = '<span>' + esc(a) + '</span><span class="m">' + (m ? '↝ ' : '') + n + ' fx · ' + actDur(a) + ' ms</span>';
-    d.onclick = () => selAction(a); d.onkeydown = e => { if (e.key === 'Enter') selAction(a); }; box.appendChild(d); });
+    d.onclick = () => selAction(a); d.onkeydown = e => { if (e.key === 'Enter') selAction(a); };
+    d.draggable = true; d.dataset.n = a; d.title = 'Drag to move it in the list (sets the combo order and trigger priority)';
+    d.ondragstart = e => { ACT_DRAG = a; d.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', a); } catch (x) {} };
+    d.ondragend = () => { ACT_DRAG = null; box.querySelectorAll('.it').forEach(o => o.classList.remove('dragging', 'drop-above', 'drop-below')); };
+    d.ondragover = e => { if (!ACT_DRAG || ACT_DRAG === a) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+      const b = d.getBoundingClientRect(), below = e.clientY > b.top + b.height / 2;
+      box.querySelectorAll('.it').forEach(o => o.classList.remove('drop-above', 'drop-below')); d.classList.add(below ? 'drop-below' : 'drop-above');
+      const bb = box.getBoundingClientRect(); if (e.clientY < bb.top + 18) box.scrollTop -= 8; else if (e.clientY > bb.bottom - 18) box.scrollTop += 8; };
+    d.ondragleave = () => d.classList.remove('drop-above', 'drop-below');
+    d.ondrop = e => { e.preventDefault(); const from = ACT_DRAG, b = d.getBoundingClientRect(); ACT_DRAG = null; if (from) moveAct(from, a, e.clientY > b.top + b.height / 2); };
+    box.appendChild(d); });
   $('actOut').textContent = actions().length + ' actions';
   const t = timing(S.act); $('aFrames').value = t.frames; $('aFms').value = t.fms;
   const as = aset(S.act); $('aCool').value = as ? +as.cooldown_ms || 0 : 0;
