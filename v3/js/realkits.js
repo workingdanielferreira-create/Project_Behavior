@@ -32,7 +32,9 @@ function realKit(R){
     normals:[],triggers:[],flight:!!(F.flight&&F.flight.enabled),
     sprint:F.sprint?{lv3:!!F.sprint.lv3,lv2Pct:+F.sprint.lv2_pct||0,lv3Pct:+F.sprint.lv3_pct||0}:null};   // sprint levels (sprint.js; FX Studio 3D)   // can fly (gravity.js); set by the future FX Studio 3D
   // normals: attack_normal, _2, _3 ... in chain order (those with their own conditions become triggers)
-  const normals=acts.filter(a=>/^attack_normal(_\d+)?$/.test(a)).sort((a,b)=>(+(a.split('_')[2]||1))-(+(b.split('_')[2]||1)));
+  // action_order (Rig Forge 3D / FX Studio 3D list, drag & drop, Daniel 2026-11-28): the combo plays in it, triggers are checked in it
+  const AO=Array.isArray(F.action_order)?F.action_order:[],rank=a=>{const i=AO.indexOf(a);return i<0?1e4:i;};
+  const normals=acts.filter(a=>/^attack_normal(_\d+)?$/.test(a)).sort((a,b)=>rank(a)-rank(b)||(+(a.split('_')[2]||1))-(+(b.split('_')[2]||1)));
   for(const a of normals){const c=cfg(a);const lunge=melee?[[0,Math.min(260,(+c.attack_px||120))]]:null;
     if((c.conditions||[]).length&&a!=='attack_normal')addTrigger(k,'x:'+a,def(a,{lunge}),c);else k.normals.push(def(a,{lunge}));}
   if(!k.normals.length)k.normals.push({name:'—',dur:400,hits:[],fx:[],none:true});
@@ -63,6 +65,8 @@ function realKit(R){
   if(MS&&MS.enabled&&MS.phases&&MS.phases.length){const orb=MS.phases.find(p=>p.pattern==='orbit'),ch=MS.phases.find(p=>p.pattern==='chase');
     k.style={orbit:orb?clamp((+((orb.params||{}).radius_px)||130)*PX2D*.5,90,600):null,orbitSpd:orb?clamp(((orb.modifiers||{}).speed_pct||100)/100,.5,3):1,
       chaseSpd:ch?clamp(((ch.modifiers||{}).speed_pct||100)/100,.5,3):1};}
+  // trigger priority: when several are ready on the same tick the first in action_order fires (stable sort: unlisted keep the old order)
+  if(AO.length){const nm=tr=>(k[tr.slot]&&k[tr.slot].n2d)||tr.slot;k.triggers.sort((a,b)=>rank(nm(a))-rank(nm(b)));}
   return k;}
 function prettyName(F,a){// an action's FX name (first enabled damaging effect), else the action id
   const e=(F.effects||[]).find(x=>x.action===a&&x.enabled!==false&&(x.battle||{}).deals_damage&&x.name);

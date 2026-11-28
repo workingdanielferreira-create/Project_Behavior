@@ -44,7 +44,7 @@ WORLD_OUT = os.path.join(V3, "data", "world.gen.js")
 FX_KEYS = ("timing", "action_settings", "effects", "anchors", "entry_sets", "paths", "space",
            "character_scale", "palette_lut", "dodge", "movement_style", "targeting", "unique_ability",
            "states", "retreat", "damaged", "aim", "fight_rhythm", "guard", "flight", "sprint",
-           "transform3d")   # transform3d: V3 forms (FX Studio 3D Transformations, js/realkits.js)
+           "transform3d", "action_order")   # action_order: list order = combo / trigger priority (js/realkits.js); transform3d: V3 forms (FX Studio 3D Transformations, js/realkits.js)
 CH_KEYS = ("name", "display_name", "description", "predicates", "stats", "palette")
 
 
