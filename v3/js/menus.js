@@ -79,6 +79,20 @@ const Menu=(function(){
       num('trackLeadMs','Ease out early',0,1000,25,' ms','Start the glide back this long before the knockback ends.')+
       num('trackMaxS','Longest track',.5,6,.25,' s','Ends sooner when the fighter lands and stops.')+
       num('trackCdS','Cooldown',0,30,.5,' s','Least time between two tracking shots.')+
+      '<h3 class="sgroup">Sky shot</h3>'+
+      row('Sky shot',tog('skyOn'),'Over the shoulder, Dynamic and Cinematic: when one fighter is high in the sky and far from the other, the camera pulls away, swings round to behind the higher fighter and looks down over its shoulder at the lower one. Wins over every other shot.')+
+      num('skyGapM','Least height gap',1,40,.5,' m','One body = 1.8 m.')+
+      num('skyDistM','Least distance',2,80,1,' m','Between the two fighters.')+
+      num('skyEndPct','Ends under',30,100,5,'%','Ends once the height gap or distance drops under this share of its start value...')+
+      num('skyEndMs','... for',0,2000,50,' ms','...for this long (a bobbing jump does not flicker the shot).')+
+      num('skyBack','Distance behind',1,15,.5,' m','')+
+      num('skyShoulder','Shoulder offset',0,5,.25,' m','')+
+      row('Shoulder',seg('skySide',[['right','Right'],['left','Left']]),'')+
+      num('skyUp','Height above',-2,6,.25,' m','Above the high fighter\'s chest.')+
+      num('skyZoom','Zoom in',0,60,5,'%','')+
+      num('skyPull','Pull away',0,20,.5,' m','How far the camera pulls out mid-swing on the way in.')+
+      num('skyInMs','Swing-in time',200,4000,50,' ms','The gradual pull away + turn round to behind the high fighter.')+
+      num('skyOutMs','Glide-back time',100,3000,50,' ms','')+
       '<h3 class="sgroup">Knockback combos</h3>'+
       row('Combos',tog('comboOn'),'A fighter still stunned by a hit can be hit again. Each hit redirects its flight: a light hit holds it near you, a heavy one throws it the new way. You and the AI.')+
       row('Auto chase',tog('comboChase'),'A melee attacker snaps after the fighter it knocked back. Off: catch it yourself with Space (no WASD) or the lock-on.')+

@@ -900,6 +900,20 @@ aims so the flying fighter sits on the top-right crossing of the golden-ratio gr
 `goldenLook`, worked out in drawn space on the planet via `planet.js unbendP`). Off = centred as before. The swoop in /
 glide back blend into and out of it.
 
+## Sky shot (Daniel 2026-11-28)
+
+`js/camera.js` (`skyStep` / `skyPose`), Over the shoulder, Dynamic and Cinematic. When one on-field fighter is high in the
+sky AND far from the other (height gap >= **Least height gap**, 6 m, and 3D distance >= **Least distance**, 10 m), the
+camera goes over the HIGHER fighter's shoulder (**Distance behind** 4 m, **Shoulder offset** 1.3 m on the **Shoulder**
+side, **Height above** its chest 1.1 m, **Zoom in** 10 %) and looks down at the lower fighter. It wins over every other
+shot (knockback tracking shot, lock-on, Cinematic event / destruction shots, Dynamic cuts); those keep running underneath
+so the glide back lands on them.
+- In: a gradual pull away that orbits round the high fighter, from where the camera was to behind it (the short way,
+  up to 180 deg), pulling out up to **Pull away** (6 m) mid-swing, over **Swing-in time** (1.4 s).
+- Out: once the gap or distance stays under **Ends under** (75 %) of its start value for **... for** (350 ms), or the
+  on-field pair changes, it glides back to the shot underneath over **Glide-back time** (0.7 s).
+- View only: the sim never reads it. Settings screen group "Sky shot".
+
 ## Knockback combos + lock-on (Daniel 2026-11-26)
 
 `js/combo.js`, Battle + Training, you and the AI. A fighter still in the stun a landed hit left is **juggled**

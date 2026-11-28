@@ -71,9 +71,57 @@ function trackStep(rdt){if(!track.ph)return false;const f=track.f;track.t+=rdt*1
   cam.updateProjectionMatrix();return true;}
 const camLookT=new THREE.Vector3();
 let camBaseFov=BASE_FOV;   // the fov the shot underneath wants (cinecam.js sets it in the Cinematic mode); the tracking shot glides back to it
-function trackReset(){track.ph=0;track.f=null;track.frozen=false;track.next=0;cam.fov=BASE_FOV;cam.updateProjectionMatrix();}
+function trackReset(){track.ph=0;track.f=null;track.frozen=false;track.next=0;skyReset();cam.fov=BASE_FOV;cam.updateProjectionMatrix();}
+/* Sky shot (Daniel 2026-11-28): one fighter high in the sky AND far from the other -> over the HIGH fighter's shoulder,
+   looking down at the lower one. Over the shoulder, Dynamic and Cinematic; owns the camera over everything (tracking
+   shot, lock-on, cinematic event shots keep running underneath for the glide back). Entry = a gradual pull away that
+   orbits round the high fighter (the short way, up to 180 deg) and ends behind it; exit = a glide back to the shot
+   underneath. Starts when the height gap >= skyGapM and the distance >= skyDistM; ends once either drops under
+   skyEndPct % of its start value for skyEndMs (no flicker on a bobbing jump). View only: never touches the sim. */
+const sky={ph:0,t:0,hi:null,lo:null,off:0,a0:0,r0:0,y0:0,da:0,p0:new THREE.Vector3(),l0:new THREE.Vector3(),f0:56,
+  h:new THREE.Vector3(0,0,-1),p:new THREE.Vector3(),l:new THREE.Vector3(),fov:56};
+function skyReset(){sky.ph=0;sky.t=0;sky.hi=sky.lo=null;sky.off=0;}
+function skyModeOk(){return settings.skyOn&&(camMode==='shoulder'||camMode==='dynamic'||camMode==='cinematic');}
+// the finished pose: behind the high fighter (away from the low one), skyShoulder to its right, skyUp above, looking at the low one
+function skyPose(rdt){const A=VA(sky.hi.x,sky.hi.y,sky.hi.z,1.2),B=VA(sky.lo.x,sky.lo.y,sky.lo.z,1.2);
+  const hx=B.x-A.x,hz=B.z-A.z,hl=Math.hypot(hx,hz);
+  if(hl>1){const k=rdt>0?1-Math.exp(-5*rdt):1;sky.h.x+=(hx/hl-sky.h.x)*k;sky.h.z+=(hz/hl-sky.h.z)*k;sky.h.y=0;sky.h.normalize();}   // straight above: keep the last line
+  const right=new THREE.Vector3(-sky.h.z,0,sky.h.x),sd=settings.skySide==='left'?-1:1;
+  sky.p.copy(A).addScaledVector(sky.h,-settings.skyBack).addScaledVector(right,sd*settings.skyShoulder);sky.p.y=A.y+settings.skyUp;
+  sky.l.copy(B);sky.l.y+=.4;
+  sky.fov=BASE_FOV*(1-settings.skyZoom/100);return A;}
+// is the gap wide enough? (m) -> [height gap, distance, high fighter, low fighter]
+function skyGap(a,b){if(!a||!b||a===b||!a.on||!b.on||a.phantom||b.phantom)return null;
+  const hi=a.z>=b.z?a:b,lo=hi===a?b:a,pa=VA(a.x,a.y,a.z,0),pb=VA(b.x,b.y,b.z,0);return [Math.abs(a.z-b.z)*K,pa.distanceTo(pb),hi,lo];}
+// runs after the normal shot / tracking shot placed cam.position + camLookT; under = the fov the shot underneath wants.
+// Returns true while the sky shot owns the camera.
+function skyStep(rdt,a,b,under){const g=skyGap(a,b);sky.t+=rdt*1000;
+  const ok=skyModeOk()&&running&&!ended;
+  if(!sky.ph){if(!ok||!g||g[0]<settings.skyGapM||g[1]<settings.skyDistM)return false;
+    sky.ph=1;sky.t=0;sky.off=0;sky.hi=g[2];sky.lo=g[3];sky.p0.copy(cam.position);sky.l0.copy(camLookT);sky.f0=cam.fov;
+    const A=VA(sky.hi.x,sky.hi.y,sky.hi.z,1.2);sky.h.set(sky.lo.x-sky.hi.x,0,sky.lo.y-sky.hi.y);if(sky.h.lengthSq()<1e-6)sky.h.set(Math.cos(sky.hi.face),0,Math.sin(sky.hi.face));sky.h.normalize();
+    const dx=sky.p0.x-A.x,dz=sky.p0.z-A.z;sky.a0=Math.atan2(dz,dx);sky.r0=Math.max(.5,Math.hypot(dx,dz));sky.y0=sky.p0.y-A.y;}
+  // still the same pair? (a tag-in / K.O. swaps who is on the field) -> glide back
+  const same=g&&((g[2]===sky.hi&&g[3]===sky.lo)||(g[2]===sky.lo&&g[3]===sky.hi));
+  if(sky.ph<3){const k=settings.skyEndPct/100;
+    if(!ok||!same)sky.off=1e9;else if(g[0]<settings.skyGapM*k||g[1]<settings.skyDistM*k)sky.off+=rdt*1000;else sky.off=0;
+    if(sky.off>=settings.skyEndMs){sky.ph=3;sky.t=0;sky.f0=cam.fov;}}
+  if(sky.ph<3||same)skyPose(rdt);   // live pose (the glide back leaves from it)
+  if(sky.ph===1){const u=Math.min(1,sky.t/Math.max(1,settings.skyInMs)),e=ease(u);
+    // orbit round the high fighter: bearing from where the camera was to behind it (short way), pulling away mid-swing
+    const A=VA(sky.hi.x,sky.hi.y,sky.hi.z,1.2),a1=Math.atan2(sky.p.z-A.z,sky.p.x-A.x),r1=Math.hypot(sky.p.x-A.x,sky.p.z-A.z);
+    let da=((a1-sky.a0+Math.PI)%TAU+TAU)%TAU-Math.PI;const ang=sky.a0+da*e,pull=settings.skyPull*Math.sin(Math.PI*e);
+    const r=sky.r0+(r1-sky.r0)*e+pull;
+    cam.position.set(A.x+Math.cos(ang)*r,A.y+sky.y0+(settings.skyUp-sky.y0)*e+pull*.35,A.z+Math.sin(ang)*r);
+    camLookT.lerpVectors(sky.l0,sky.l,e);cam.fov=sky.f0+(sky.fov-sky.f0)*e;if(u>=1){sky.ph=2;sky.t=0;}}
+  else if(sky.ph===2){cam.position.copy(sky.p);camLookT.copy(sky.l);cam.fov=sky.fov;}
+  else if(sky.ph===3){const u=Math.min(1,sky.t/Math.max(1,settings.skyOutMs)),e=ease(u);
+    cam.position.lerpVectors(sky.p,cam.position,e);camLookT.lerpVectors(sky.l,camLookT,e);cam.fov=sky.f0+(under-sky.f0)*e;
+    if(u>=1){skyReset();cam.fov=under;}}
+  if(cam.position.y<.4)cam.position.y=.4;
+  cam.updateProjectionMatrix();return !!sky.ph;}
 function camStep(rdt,idle){sightFrame++;
-  if(idle){sightClear();cineReset();camBaseFov=BASE_FOV;if(cam.fov!==BASE_FOV){cam.fov=BASE_FOV;cam.updateProjectionMatrix();}cam.up.set(0,1,0);
+  if(idle){sightClear();cineReset();skyReset();camBaseFov=BASE_FOV;if(cam.fov!==BASE_FOV){cam.fov=BASE_FOV;cam.updateProjectionMatrix();}cam.up.set(0,1,0);
     if(PLANET&&world){planetIdleCam();return;}const t=performance.now()/1000*.1;cam.position.set(Math.sin(t)*40,24,Math.cos(t)*40);cam.lookAt(0,6,0);return;}
   const [a,b]=onField();const pa=VA(a.x,a.y,a.z,1.2),pb=VA(b.x,b.y,b.z,1.2);const sep=pa.distanceTo(pb);
   // Cinematic (cinecam.js, Daniel 2026-11-26): its own director + spring rig write camPos / camLook; lock-on still wins
@@ -89,9 +137,12 @@ function camStep(rdt,idle){sightFrame++;
   if(cut.snap&&!track.ph){camPos.copy(tgt);camLook.copy(look);cut.snap=false;}
   else{camPos.lerp(tgt,1-Math.exp(-(mode==='wide'?3:5.5)*rdt));camLook.lerp(look,1-Math.exp(-9*rdt));}}
   // the knockback tracking shot owns the camera while it runs (the normal shot keeps updating underneath, for the glide back)
-  if(trackStep(rdt)){}else{cam.position.copy(camPos);camLookT.copy(camLook);}if(!reduce&&shake>0){const j=(Math.random()-.5);cam.position.x+=shakeDir[0]*j*shake*.9+(Math.random()-.5)*shake*.3;cam.position.z+=shakeDir[1]*j*shake*.9;cam.position.y+=(Math.random()-.5)*shake*.35;}
+  const tracked=trackStep(rdt);if(!tracked){cam.position.copy(camPos);camLookT.copy(camLook);}
+  // the sky shot owns the camera over everything (Daniel 2026-11-28)
+  const skyed=skyStep(rdt,a,b,tracked?cam.fov:cineOn?camBaseFov:BASE_FOV);
+  if(!reduce&&shake>0){const j=(Math.random()-.5);cam.position.x+=shakeDir[0]*j*shake*.9+(Math.random()-.5)*shake*.3;cam.position.z+=shakeDir[1]*j*shake*.9;cam.position.y+=(Math.random()-.5)*shake*.35;}
   if(camPunch>0){cam.position.lerp(camLookT,camPunch);camPunch=Math.max(0,camPunch-rdt*.6);}
   cam.up.set(0,1,0);cam.lookAt(camLookT);if(PLANET)planetCam(camLookT);
-  if(!track.ph){if(cineOn)cineFinish(rdt,sep);else if(cam.fov!==BASE_FOV){cam.fov=BASE_FOV;cam.updateProjectionMatrix();}}
+  if(!track.ph&&!skyed){if(cineOn)cineFinish(rdt,sep);else if(cam.fov!==BASE_FOV){cam.fov=BASE_FOV;cam.updateProjectionMatrix();}}
   sightFade(rdt);   // cinecam.js: anything still between the camera and the fighters dithers out; X-ray gate
   shake=Math.max(0,shake-rdt*3.2);}
