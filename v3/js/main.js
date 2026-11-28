@@ -35,7 +35,7 @@ let last=performance.now(),acc2=0;
 function frame(now){requestAnimationFrame(frame);const rdt=Math.min(.05,(now-last)/1000);last=now;
   try{
     if(running&&!paused&&!ended){
-      let sp=pace;if(slowmo>0){sp*=.35;}
+      let sp=pace*acamSlow();if(slowmo>0){sp*=.35;}   // acamSlow: an action camera shot's slow-mo (camera.js)
       if(hitstopMs>0){hitstopMs-=rdt*1000;}else{acc2+=rdt*1000*sp;let n=0;while(acc2>=TICK&&n<4){acc2-=TICK;simTick();n++;if(slowmo>0)slowmo--;}if(n>=4)acc2=0;}
       stepFx(rdt*Math.max(.4,sp));stepNums(rdt);sides.forEach(s=>s.team.forEach(f=>sync(f,rdt)));planetFrame(rdt*Math.max(.4,sp));camStep(rdt);fxDraw();lockDraw();hud(rdt);
     }else if(!running){planetFrame(rdt,true);camStep(rdt,true);}

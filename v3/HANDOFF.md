@@ -567,6 +567,23 @@ v3-animation skill ("Review questions").
   headless per rendered frame (Training, heights 16 / 31 / 51 / 61 m): the high fighter stays in frame in every hold frame.
 - **Next:** Daniel's verdict in game (thresholds, swing time, pull away, whether the swing should always be a full 180).
 
+## Action camera shots (2026-11-28)
+
+- Daniel: "add a camera setting to FX too in the FX Studio ... preview the camera angle and movement within the studio ... to
+  mold how the game should maintain its specific art direction and cinematography"; then "it allows me to set how the camera
+  will behave when the action is used so that it plays out to the best shot of each effect".
+- His picks: preview every game camera behaviour (over the shoulder, Dynamic + Wide, Cinematic director, event shots +
+  shake); a Game cam / Free toggle; per-action shot = a preset + a few sliders (no keys); plays for your fighter AND the
+  opponent, in every camera mode; a per-shot priority; extras slow-mo, shake + crash zoom, letterbox.
+- Done: `js/actcam.js` (data + pose; `camShot`, `cinePose` and the fighter event poses moved there unchanged so the studio
+  runs the game's own code), camera.js `actCamStart` / `acamStep` / `acamFinish` / `acamSlow`, realkits `cam3d`, game
+  letterbox `#lbox`, FX Studio 3D section "Camera shot" + stage Game camera / mode / Action shot / Hit feel. README "Action
+  camera shots".
+- Checked headless (Playwright + SwiftShader): studio opens puck, sets a shot on attack_special, plays it through all four
+  modes, Take from view, no errors; a Watch fight (puck v ronin_copy, Cinematic, shots injected in memory) plays the shots
+  with letterbox + slow-mo, low and high priority, no new errors. No character file has a shot yet.
+- **Next:** Daniel sets shots per action in the studio and judges them in game.
+
 ## Next steps (agreed direction, not started)
 
 1. **Done (2026-11-22):** `v3/RIG_SPEC.md` + `v3/rig_spec.json`. Mixamo-compatible skeleton,

@@ -80,7 +80,8 @@ Settings and teams are saved between sessions.
 | `fighter.js` | fighter creation, per-tick update, altitude, wall / ground splats |
 | `training.js` | training mode: dummies (stand / guard / fight back), target pick, HP refill, combo readout |
 | `input.js` | keyboard commands |
-| `camera.js` | camera modes (over the shoulder / dynamic / wide / cinematic), cuts, shake, punch, knockback tracking shot |
+| `camera.js` | camera modes (over the shoulder / dynamic / wide / cinematic), cuts, shake, punch, knockback tracking shot, sky shot, **action camera shots** (plays `cam3d`) |
+| `actcam.js` | **action camera shots** (data + pose, shared with FX Studio 3D) + the game's shot poses (`gameShot`, `cinePose`, `evPose`) so the studio previews the same shots |
 | `cinecam.js` | **cinematic camera** (director, event + destruction shots, spring rig, composed framing) + **clear sight lines** (move round obstacles, dither fade, X-ray) |
 | `anim.js` | **animations**: pose, swing, lean, legs, recoil, flashes, shadows |
 | `hud.js` | HUD, callouts, command bar, damage numbers, feel panel |
@@ -911,6 +912,42 @@ Golden-ratio framing (Daniel 2026-11-24, setting **Golden-ratio framing**, on by
 aims so the flying fighter sits on the top-right crossing of the golden-ratio grid (61.8 % across, 38.2 % down;
 `goldenLook`, worked out in drawn space on the planet via `planet.js unbendP`). Off = centred as before. The swoop in /
 glide back blend into and out of it.
+
+## Action camera shots (Daniel 2026-11-28)
+
+"Set how the camera will behave when the action is used so that it plays out to the best shot of each effect." Each action
+can carry its own camera shot, `action_settings[a].cam3d` in `<name>.fxkit.json`, made in FX Studio 3D section
+**Camera shot**. Maths in `js/actcam.js` (shared), played by `js/camera.js` (`actCamStart` from `combat.js startAct`,
+`acamStep` / `acamFinish` in `camStep`, `acamSlow` in `main.js`).
+
+- **When:** an on-field fighter starts an action with a shot (your fighter AND the opponent), in every camera mode
+  (over the shoulder, Dynamic, Wide, Cinematic). It blends in over **Blend in** (0 = a cut), holds for the action's length
+  (or **Length**) + **Hold after**, then glides back over **Blend out** to whatever shot is underneath. Cut short when the
+  action is (hit / stun / K.O.).
+- **Framing** (a preset fills the sliders, the sliders are what plays). Measured from the line fighter -> target:
+  **Around** fighter / target / midpoint, **Angle** (0 = on the fighter's side of the pivot = behind the fighter when it
+  is the pivot, 90 = right of the line, 180 = the far side), **Distance**, **Height** above the pivot's feet, **Side**
+  (the camera's own right, the over-the-shoulder offset), **Looks at** + **Look height**, **Zoom** (fov; the game's
+  normal camera is 56), **Dutch tilt**, **Flip** (never / always / random each use: mirrors angle + side), **Lock the line**
+  (taken once at the start, else it follows both fighters). Presets: over the shoulder, over the target's shoulder, side
+  on, 3/4 front, close-up face on, low hero, high crane, straight down, on the target (impact), long lens, wide.
+- **Movement over the shot:** **Orbit** (deg/s round the pivot), **Push in** (% of the distance by the end; negative pulls
+  out), **Rise** (m), **End zoom** (fov, 0 = keep). Eased over the shot.
+- **Priority** against the game's own shots: low = yields to lock-on, Cinematic event shots, the knockback tracking shot,
+  the sky shot and the K.O.; normal = beats lock-on + Cinematic event shots (ultimate / launch / crash / break); high =
+  also beats the tracking + sky shots; always = beats everything. A new action's shot replaces the running one unless the
+  running one has a higher priority.
+- **Extras** (times in ms from the action's start, on the sim clock): **Slow-mo** (game speed %, for **Slow-mo for** ms of
+  screen time), **Shake** (1 = a K.O.'s), **Crash zoom** (fov narrower by %, eases back), **Letterbox bars** while it plays.
+- The authored spot is played as set: sight lines don't move it (what blocks still dithers out and the X-ray still shows).
+- **FX Studio 3D:** stage button **Game camera** = the preview through the game's camera: the mode underneath (Over the
+  shoulder / Dynamic / Wide / Cinematic, the game's own pose code), **Action shot** (this shot over it, with its slow-mo
+  slowing the playback, shake, crash zoom, letterbox) and **Hit feel** (shake + punch-in on hits; Cinematic: crash zoom on
+  heavy hits and the ultimate's hero shot). Off = the free orbit, back where it was, with the shot's camera drawn as a
+  frustum. **Take from view** fills angle / distance / height / look height / zoom from the free view at the current
+  frame (side 0, flip off). **Watch it** turns the Game camera on and plays. The timeline grows to show the hold + glide
+  out. Not previewed (flat floor, the dummy never flies or falls): the planet, the knockback tracking / sky / K.O. /
+  destruction shots, sight lines, the Cinematic lead room, priority; the Cinematic director is taken as calm.
 
 ## Sky shot (Daniel 2026-11-28)
 

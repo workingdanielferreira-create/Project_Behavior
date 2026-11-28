@@ -147,31 +147,11 @@ function cineShot(sep,first){const ph=director.phase,burst=ph==='burst',I=direct
     dolly:rnd(-.025,.06),truck:rnd(-.06,.06),orbitW:rnd(.18,.42)*(Math.random()<.5?1:-1),th0:rnd(-.6,.6),
     roll:(kind==='low'||kind==='orbit'||burst)?(Math.random()<.5?-1:1)*dz*rnd(.35,1)*(.4+.6*I):0};}
 // where the current shot wants the camera: writes cine.want
-function cinePose(S,ctx,age){const {pa,pb,mid,dir,right,sep}=ctx,W=cine.want,side=cine.side,up=new V3c(0,1,0);let p,l,fov=50;
-  const k=S.kind;
-  if(k==='two'){const d=(4.2+sep*.55)*S.dk;p=mid.clone().addScaledVector(right,side*d*.87).addScaledVector(dir,-S.fb*d*.42);p.y=mid.y+1.1+sep*.08*S.hk;l=mid.clone().addScaledVector(up,.75);fov=50;}
-  else if(k==='ots'){const A=S.subj?pb:pa,B=S.subj?pa:pb,dd=B.clone().sub(A);dd.y=0;if(dd.lengthSq()<1e-4)dd.copy(dir);dd.normalize();
-    const back=3.2+sep*.22;p=A.clone().addScaledVector(dd,-back).addScaledVector(right,side*(1.25+sep*.05));p.y=A.y+.9+sep*.08;l=A.clone().lerp(B,.62).addScaledVector(up,.3);fov=46;}
-  else if(k==='low'){p=mid.clone().addScaledVector(right,side*(3.2+sep*.42)*S.dk).addScaledVector(dir,-S.fb*1.6);p.y=Math.max(.75,Math.min(pa.y,pb.y)-.45);l=mid.clone().addScaledVector(up,1.25);fov=60;}   // low, but above crater lips
-  else if(k==='high'){p=mid.clone().addScaledVector(right,side*(5+sep*.4)).addScaledVector(dir,-S.fb*3);p.y=mid.y+(7+sep*.35)*S.hk;l=mid.clone();fov=52;}
-  else if(k==='orbit'){const th=S.th0+S.orbitW*age,c=Math.cos(th),s=Math.sin(th),r=(5+sep*.55)*S.dk;
-    const off=new V3c(right.x*c-right.z*s,0,right.x*s+right.z*c).multiplyScalar(side*r);p=mid.clone().add(off);p.y=mid.y+1.4+sep*.1;l=mid.clone().addScaledVector(up,.7);fov=50;}
-  else if(k==='tele'){const d=(16+sep*1.1)*S.dk;p=mid.clone().addScaledVector(right,side*d).addScaledVector(dir,-S.fb*d*.25);p.y=mid.y+2.2*S.hk;l=mid.clone().addScaledVector(up,.7);
-    fov=Math.max(14,Math.min(40,2*Math.atan((sep*.62+2.4)/d)*180/Math.PI));}
-  else{p=mid.clone().addScaledVector(right,side*(9+sep*.5)).addScaledVector(dir,-S.fb*(6+sep*.3));p.y=mid.y+8+sep*.3;l=mid.clone();fov=54;}   // wide
-  // the shot's own drift: dolly in / out, truck round the look point
-  const dl=Math.max(.6,1-S.dolly*age),tr=S.truck*age,dx=p.x-l.x,dz=p.z-l.z,c=Math.cos(tr),s=Math.sin(tr);
-  p.set(l.x+(dx*c-dz*s)*dl,l.y+(p.y-l.y)*dl,l.z+(dx*s+dz*c)*dl);
-  W.p.copy(p);W.l.copy(l);W.fov=fov;W.roll=S.roll;}
+function cinePose(S,ctx,age){ACTCAM.cinePose(S,ctx,age,cine.side,cine.want);}   // actcam.js (shared with FX Studio 3D)
 // event shot poses (fighter-based)
 function cineEvPose(E,ctx,age){const W=cine.want,side=cine.side,up=new V3c(0,1,0),u=Math.min(1,age/Math.max(.1,E.until-E.t0));
-  if(E.kind==='ult'||E.kind==='launch'||E.kind==='ko'){const f=E.f;const P=VA(f.x,f.y,f.z,0);
-    if(E.kind==='ult'){const fd=new V3c(Math.cos(f.face),0,Math.sin(f.face)),pr=new V3c(-fd.z,0,fd.x);const d=2.9*(1-.2*u);
-      W.p.copy(P).addScaledVector(fd,d).addScaledVector(pr,side*1.4);W.p.y=P.y+.75;W.l.copy(P).addScaledVector(up,1.45).addScaledVector(fd,.2);W.fov=52;W.roll=side*settings.cineDutch*.8*Math.PI/180;}
-    else if(E.kind==='launch'){const o=ctx.pa.distanceToSquared(P)<ctx.pb.distanceToSquared(P)?ctx.pb:ctx.pa;const ln=P.clone().sub(o);ln.y=0;if(ln.lengthSq()<1e-4)ln.copy(ctx.dir);ln.normalize();
-      const pr=new V3c(-ln.z,0,ln.x);W.p.copy(P).addScaledVector(pr,side*(6.5+P.y*.4)).addScaledVector(ln,-2);W.p.y=Math.max(.6,P.y*.45+.8);W.l.copy(P).addScaledVector(up,1);W.fov=54;W.roll=0;}
-    else{const th=E.th0+.35*age,r=4.2;W.p.set(P.x+Math.cos(th)*r,P.y+.9,P.z+Math.sin(th)*r);W.l.copy(P).addScaledVector(up,.6);W.fov=48;W.roll=side*settings.cineDutch*.5*Math.PI/180;}
-    return;}
+  if(E.kind==='ult'||E.kind==='launch'||E.kind==='ko'){const f=E.f;   // actcam.js evPose (shared with FX Studio 3D)
+    ACTCAM.evPose(E.kind,VA(f.x,f.y,f.z,0),new V3c(Math.cos(f.face),0,Math.sin(f.face)),ctx,age,u,side,E.th0,settings.cineDutch,W);return;}
   if(E.kind==='break'){const P=E.at,F=ctx.pa.distanceToSquared(P)<ctx.pb.distanceToSquared(P)?ctx.pa:ctx.pb;const ln=F.clone().sub(P);ln.y=0;const dl=Math.max(.5,ln.length());ln.divideScalar(dl);
     const pr=new V3c(-ln.z,0,ln.x).multiplyScalar(side),look=P.clone().lerp(F,.35);look.y=Math.max(.6,E.h*.4);const d=(6+E.h*.8+dl*.4)*(1-.1*u);
     W.p.copy(look).addScaledVector(pr,d*.9).addScaledVector(ln,-d*.35);W.p.y=look.y+1.2;W.l.copy(look);W.fov=54;W.roll=0;}}
