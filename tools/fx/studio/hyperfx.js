@@ -54,7 +54,7 @@ DEFAULTS.ifx_thunderclap.hold_ticks = 24; DEFAULTS.ifx_ripple_dome.shake_px = 4;
 DEFAULTS.tfx_golden_ascension = {stage: 1, charge: true, burst: true, aura: true, swing_ticks: 70, aura_s: 20, radius: 60,
   length: 110, density: 1, hitstop_ticks: 0, shake_px: 9,
   // aura shape (the flame sheath round the body)
-  aura_size_pct: 100, aura_width_pct: 100, aura_height_pct: 100, aura_base_pct: 60, aura_top_pct: 75, lean_pct: 100, pulse_pct: 30,
+  aura_size_pct: 100, aura_width_pct: 100, aura_height_pct: 100, aura_base_pct: 60, aura_top_pct: 75, lean_pct: 100, pulse_pct: 30, aura_raise_pct: 50,
   // flames (torn into the sheath by moving noise)
   flame_count: 7, flame_height_pct: 100, flame_speed_pct: 100, flame_chaos_pct: 100, flame_gaps_pct: 40, flame_sharp_pct: 80,
   // colour & glow
@@ -567,11 +567,16 @@ function auraBody(sh, inst, C, P, K, Sg, z, A, fy, d, boltK, grounded) {
   var close = pv(P, "air_close") !== false ? cl((fy - C.gy - 3 * C.ps) / (12 * C.ps)) : 0, rnd0 = pc(P, "air_round_pct");
   var drop = close * rw * 0.75 * rnd0, fy0 = fy;
   fy -= drop; H += drop;
+  // Raise (Daniel 2026-11-28: "move the centre of it up a bit"): the trail's centre line moves up by aura_raise_pct x 8 px x
+  // size, so the stretched flame is centred on the body; the sheath and its layers rise with it only off the ground
+  // (eased in with the round bottom), so on the floor the aura still stands on the feet
+  var lift = pc(P, "aura_raise_pct") * 8 * z * (+pv(P, "aura_raise_pct") < 0 ? -1 : 1);
+  fy += lift * close;
   var cb = close > 0 ? Math.min(0.55, rw * (0.35 + 0.75 * rnd0) / Math.max(1, H)) : 0;
   var v = C.vel || [0, 0, 0], lk = 5 * pc(P, "lean_pct"), lean = [-v[0] * lk, 0, -v[2] * lk], lm = Math.hypot(lean[0], lean[2]), lmax = 22 * z;
   if (lm > lmax) lean = scl(lean, lmax / lm);
   var breathe = 1 + 0.06 * pc(P, "pulse_pct") * Math.sin(t * 0.21) + 0.03 * pc(P, "pulse_pct") * Math.sin(t * 0.67 + 1.3);
-  var tr = auraTrail(C, P, rw * breathe);
+  var tr = auraTrail(C, P, rw * breathe, lift);
   sh.aura([0, fy - 1.5 * z, 0], rw * breathe, H * breathe, lean, K.m, A, {hot: K.h, edge: K.d, look: {close: close, bowl: cb, trail: tr,
     base: pc(P, "aura_base_pct"), top: pc(P, "aura_top_pct"), flames: Math.max(1, +pv(P, "flame_count") || 1),
     tongue: pc(P, "flame_height_pct") * Sg.flame, speed: pc(P, "flame_speed_pct") * Sg.speed, chaos: pc(P, "flame_chaos_pct") * Sg.chaos,
@@ -609,7 +614,7 @@ function sheathW(hk, base, top, close, cb) {
 // frame, newest first; fx3d.js keeps it). The last trail_ms of it, resampled evenly, is the path, so its length = speed x
 // time. A wave (trail_wave_pct, wave length trail_wave_len_pct) ripples it up / down, growing toward the tail and
 // travelling back like a flag. Returns {pts, k (fades it in with the length), taper, thin (width far down the tail)}.
-function auraTrail(C, P, rw) {
+function auraTrail(C, P, rw, lift) {
   var hs = C.hist; if (pv(P, "trail") === false || !hs || hs.length < 2) return null;
   var TM = (FXK() && FXK().TICK_MS) || 16, n = Math.max(1, Math.round(Math.max(0, +pv(P, "trail_ms") || 0) / TM));
   var src = [[0, 0, 0]], cum = [0], i;
@@ -638,6 +643,7 @@ function auraTrail(C, P, rw) {
     pts = wp;
   }
   var thin = Math.max(0.3, Math.pow(Math.max(1, L / (rw * 4)), -0.35 * pc(P, "trail_thin_pct")));
+  if (lift) pts = pts.map(function (q) { return [q[0], q[1] + lift, q[2]]; });   // the raised centre line
   return {pts: pts, k: cl(L / (rw * 2.5)), taper: pc(P, "trail_taper_pct"), thin: Math.min(2, thin * pc(P, "trail_width_pct"))};
 }
 // Outer flames: strands born on the sheath's side at a new random spot each cycle (height between outer_from / to % of the
@@ -867,6 +873,7 @@ var UI = {tfx_golden_ascension: [
     ["aura_size_pct", "Size (%)", "rng", [20, 300, 1], "Everything about the aura, scaled"],
     ["aura_width_pct", "Width (%)", "rng", [20, 300, 1], "How far it stands off the body"],
     ["aura_height_pct", "Height (%)", "rng", [20, 300, 1], "How far above the head it reaches"],
+    ["aura_raise_pct", "Raise (%)", "rng", [-100, 300, 1], "Moves the trail's centre line up the body (and the whole aura while off the ground); negative = down"],
     ["aura_base_pct", "Width at the feet (%)", "rng", [0, 150, 1], "0 = pinched to a point under the feet, 100 = as wide as the middle"],
     ["aura_top_pct", "Top closes (%)", "rng", [0, 100, 1], "0 = open column, 100 = closes to a flame point over the head"],
     ["lean_pct", "Trails when moving (%)", "rng", [0, 300, 1], "How much the top streams behind a moving fighter"],

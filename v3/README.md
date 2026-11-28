@@ -658,6 +658,9 @@ with no damage; three stages.
   is pulled down it by sT (front / sides stay, the very back = the tail tip), its width scaled by (1 - sT)^taper
   (`trail_taper_pct`) and thinned toward `thin` (a long trail is thinner: `trail_thin_pct`, `trail_width_pct`); the
   fragment shader burns the tail's end off and damps the overlap so it doesn't add up to flat white. `trail` = on / off.
+- **Raise** (`aura_raise_pct`, default 50, Daniel 2026-11-28 "move the centre of it up a bit"): moves the trail's centre
+  line up by pct x 8 px x size so the stretched flame is centred on the body; off the ground the sheath and its layers
+  rise with it (eased in with the round bottom), on the floor the aura still stands on the feet. Negative = down.
 - **Stages** (`stage`): 1 = gold flame aura; 2 = tighter, brighter, faster flicker + blue-white arcs crackling over the
   body the whole time; 3 = biggest (x1.4, taller crown, many more flames), heavy lightning, the ground breaking up and
   floating round the feet the whole time. A stage multiplies the panel's settings (size, height, flame length, speed, chaos).
