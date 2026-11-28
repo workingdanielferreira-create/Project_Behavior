@@ -535,7 +535,10 @@ v3-animation skill ("Review questions").
   along the path (`fx3d.js` AURA_VS comet stretch, `uP[24]` / `uTrailOn` / `uTrailK` / `uTTaper` / `uThin`; `hyperfx.js
   auraTrail` now returns the path as `look.trail` for the sheath + layers). `trail_from` and `trail_opacity_pct` dropped.
   Checked headless: side / top-down / rising / ground dash = one continuous tapering flame, no seam, no errors.
-- **Next:** Daniel's verdict in game; tune defaults (trail_ms 260, taper 80, thin 100, wave 100).
+- Round 4 (Daniel: "move the centre of it up a bit"): `aura_raise_pct` (default 50) raises the trail's centre line, and
+  the whole sheath while off the ground (on the floor it stays on the feet). Checked headless: fast flight centred on the
+  body, ground still / ground dash unchanged at the feet, no errors.
+- **Next:** Daniel's verdict in game; tune defaults (trail_ms 260, taper 80, thin 100, wave 100, raise 50).
 
 ## Next steps (agreed direction, not started)
 
