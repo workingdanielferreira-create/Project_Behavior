@@ -7,12 +7,7 @@ const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').m
 let camMode='shoulder';const cut={t:0,kind:'shoulder',snap:false,hold:0};
 function camEvent(kind,f,by){if(camMode==='cinematic'){cineEvent(kind,f,by);return;}if(camMode!=='dynamic'||kind==='heavy')return;const now=performance.now()/1000;if(now<cut.hold)return;
   cut.kind=kind==='ult'?(Math.random()<.5?'low':'side'):kind==='launch'?'side':kind==='ko'?'side':cut.kind;cut.t=now+rnd(1.6,2.6);cut.hold=now+.9;cut.snap=true;}
-function camShot(mode,pa,pb,sep){const dir=new THREE.Vector3().subVectors(pb,pa);dir.y*=.35;if(dir.lengthSq()<1e-4)dir.set(0,0,-1);dir.normalize();const right=new THREE.Vector3(-dir.z,0,dir.x).normalize();
-  if(mode==='shoulder'||mode==='reverse'){const A=mode==='shoulder'?pa:pb,B=mode==='shoulder'?pb:pa,dd=mode==='shoulder'?dir:dir.clone().negate();const r2=mode==='shoulder'?right:right.clone().negate();
-    const back=3.6+sep*.24;const t=A.clone().addScaledVector(dd,-back).addScaledVector(r2,1.25+sep*.05);t.y=A.y+.9+sep*.1;return [t,A.clone().lerp(B,.6).add(new THREE.Vector3(0,.35,0))];}
-  if(mode==='side'){const m=pa.clone().lerp(pb,.5);const t=m.clone().addScaledVector(right,5.5+sep*.75);t.y=m.y+1.2+sep*.12;return [t,m];}
-  if(mode==='low'){const t=pa.clone().addScaledVector(dir,-2.6).addScaledVector(right,1.9);t.y=Math.max(.35,pa.y-1.3);return [t,pb.clone().add(new THREE.Vector3(0,.8,0))];}
-  const m=pa.clone().lerp(pb,.5);const t=m.clone().add(new THREE.Vector3(0,13+sep*.35,19+sep*.4));return [t,m];}
+function camShot(mode,pa,pb,sep){return ACTCAM.gameShot(mode,pa,pb,sep);}   // actcam.js (shared with FX Studio 3D's Game camera preview)
 /* Knockback tracking shot (Daniel 2026-11-24; over the shoulder + dynamic, either on-field fighter):
    a single hit that will carry a fighter at least settings.trackMinPx -> ONE continuous move: the camera swoops from
    where it is to just behind the flying fighter, facing the way it travels, and zooms in (fov); then it rides rigidly
@@ -71,7 +66,7 @@ function trackStep(rdt){if(!track.ph)return false;const f=track.f;track.t+=rdt*1
   cam.updateProjectionMatrix();return true;}
 const camLookT=new THREE.Vector3();
 let camBaseFov=BASE_FOV;   // the fov the shot underneath wants (cinecam.js sets it in the Cinematic mode); the tracking shot glides back to it
-function trackReset(){track.ph=0;track.f=null;track.frozen=false;track.next=0;skyReset();cam.fov=BASE_FOV;cam.updateProjectionMatrix();}
+function trackReset(){track.ph=0;track.f=null;track.frozen=false;track.next=0;skyReset();acamReset();cam.fov=BASE_FOV;cam.updateProjectionMatrix();}
 /* Sky shot (Daniel 2026-11-28): one fighter high in the sky AND far from the other -> over the HIGH fighter's shoulder,
    looking down at the lower one. Over the shoulder, Dynamic and Cinematic; owns the camera over everything (tracking
    shot, lock-on, cinematic event shots keep running underneath for the glide back). Entry = a gradual pull away that
@@ -137,7 +132,7 @@ function skyStep(rdt,a,b,under){const g=skyGap(a,b);sky.t+=rdt*1000;
   if(cam.position.y<.4)cam.position.y=.4;
   cam.updateProjectionMatrix();return !!sky.ph;}
 function camStep(rdt,idle){sightFrame++;
-  if(idle){sightClear();cineReset();skyReset();camBaseFov=BASE_FOV;if(cam.fov!==BASE_FOV){cam.fov=BASE_FOV;cam.updateProjectionMatrix();}cam.up.set(0,1,0);
+  if(idle){sightClear();cineReset();skyReset();acamReset();camBaseFov=BASE_FOV;if(cam.fov!==BASE_FOV){cam.fov=BASE_FOV;cam.updateProjectionMatrix();}cam.up.set(0,1,0);
     if(PLANET&&world){planetIdleCam();return;}const t=performance.now()/1000*.1;cam.position.set(Math.sin(t)*40,24,Math.cos(t)*40);cam.lookAt(0,6,0);return;}
   const [a,b]=onField();const pa=VA(a.x,a.y,a.z,1.2),pb=VA(b.x,b.y,b.z,1.2);const sep=pa.distanceTo(pb);
   // Cinematic (cinecam.js, Daniel 2026-11-26): its own director + spring rig write camPos / camLook; lock-on still wins
@@ -156,9 +151,63 @@ function camStep(rdt,idle){sightFrame++;
   const tracked=trackStep(rdt);if(!tracked){cam.position.copy(camPos);camLookT.copy(camLook);}
   // the sky shot owns the camera over everything (Daniel 2026-11-28)
   const skyed=skyStep(rdt,a,b,tracked?cam.fov:cineOn?camBaseFov:BASE_FOV);
+  const aw=acamStep(rdt);   // an action's own camera shot (FX Studio 3D), blended over whatever shot is underneath
   if(!reduce&&shake>0){const j=(Math.random()-.5);cam.position.x+=shakeDir[0]*j*shake*.9+(Math.random()-.5)*shake*.3;cam.position.z+=shakeDir[1]*j*shake*.9;cam.position.y+=(Math.random()-.5)*shake*.35;}
   if(camPunch>0){cam.position.lerp(camLookT,camPunch);camPunch=Math.max(0,camPunch-rdt*.6);}
   cam.up.set(0,1,0);cam.lookAt(camLookT);if(PLANET)planetCam(camLookT);
   if(!track.ph&&!skyed){if(cineOn)cineFinish(rdt,sep);else if(cam.fov!==BASE_FOV){cam.fov=BASE_FOV;cam.updateProjectionMatrix();}}
+  if(aw>0)acamFinish(aw);
   sightFade(rdt);   // cinecam.js: anything still between the camera and the fighters dithers out; X-ray gate
   shake=Math.max(0,shake-rdt*3.2);}
+/* Action camera shots (Daniel 2026-11-28; data action_settings[a].cam3d, made in FX Studio 3D "Camera shot", pose maths in
+   actcam.js). An action with a shot, started by an on-field fighter (yours or the opponent, any camera mode), takes the
+   camera: blended in over In (0 = a cut), held for the action (or Length) + Hold, blended back out over Out. Cut short
+   when the action is (hit / stunned / K.O.). Priority against the game's shots:
+     low    = yields to lock-on, the Cinematic event shots, the knockback tracking shot, the sky shot and the K.O.
+     normal = beats lock-on + the Cinematic event shots (ultimate / launch / crash / break); yields to tracking, sky, K.O.
+     high   = also beats the tracking + sky shots; yields only to the K.O.
+     always = beats everything.
+   A new action's shot replaces the running one unless the running one has a higher priority. The shot clock is the sim's
+   (hit-stop / slow-mo slow it with the action). Extras: Slow-mo (sim pace x Slow % for Slow ms of screen time, from
+   Slow at), Shake, Crash zoom (fov narrower by Crash %, eases back), Letterbox bars while it plays. View only, except
+   the slow-mo. The authored spot is played as set: sight lines don't move it, but what blocks still dithers out. */
+const acam={c:null,f:null,act:null,dur:0,tick0:0,len:0,w:0,prio:0,flip:1,line:null,last:-1,out:false,crash:0,crashHold:0,slowUntil:0,pose:{}};
+function acamReset(){acam.c=null;acam.f=null;acam.act=null;acam.w=0;acam.crash=0;acam.slowUntil=0;acamBars(false);}
+function acamMs(){return (tick-acam.tick0+Math.max(0,Math.min(1,acc2/TICK)))*TICK;}
+function acamFeet(f){return VA(f.x,f.y,f.z,0);}
+// combat.js startAct: an action with a shot started
+function actCamStart(f,def,a){const c=def&&def.cam3d;if(!c||!running||ended||!f||f.phantom||!f.on)return;
+  const [p,q]=onField();if(f!==p&&f!==q)return;const e=enemyOf(f);if(!e)return;
+  const pr=ACTCAM.PRIO[c.priority]||2;if(acam.c&&!acam.out&&pr<acam.prio)return;   // a stronger shot is playing
+  acam.c=c;acam.f=f;acam.e=e;acam.act=a;acam.dur=def.dur;acam.tick0=tick;acam.len=ACTCAM.lenOf(c,def.dur);acam.prio=pr;acam.out=false;acam.last=-1;
+  acam.flip=c.flip==='always'?-1:c.flip==='random'?(Math.random()<.5?-1:1):1;
+  acam.line=c.lock_line?ACTCAM.lineOf(acamFeet(f),acamFeet(e),{x:Math.cos(f.face),z:Math.sin(f.face)}):null;
+  if(c.in_ms<=0)acam.w=1;}
+function acamBlocked(){const p=acam.prio;if(p>=4)return false;
+  const ko=camMode==='cinematic'&&cine.ev&&cine.ev.kind==='ko'&&cineNow()<cine.ev.until;if(ko)return true;
+  if(p>=3)return false;if(track.ph||sky.ph)return true;
+  if(p>=2)return false;return !!(lockTarget()||(camMode==='cinematic'&&cine.ev&&cineNow()<cine.ev.until));}
+// after the normal / tracking / sky shot placed cam.position + camLookT: blend toward the action's shot. Returns its weight.
+function acamStep(rdt){if(!acam.c)return 0;const c=acam.c,f=acam.f,e=acam.e,ms=acamMs();
+  if(!acam.out){const cut=!f.on||f.ko||!e||!e.on||(f.act!==acam.act&&ms<acam.dur-TICK);if(cut||ms>=acam.len||!running||ended)acam.out=true;}
+  // one-off moments
+  if(!acam.out){for(const m of ACTCAM.moments(c,acam.last,ms)){
+      if(m==='slow')acam.slowUntil=performance.now()+c.slow_ms;
+      else if(m==='shake')shake=Math.max(shake,c.shake);
+      else if(m==='crash'){acam.crash=Math.min(.8,c.crash_pct/100);acam.crashHold=performance.now()+70;}}
+    acam.last=ms;}
+  const want=!acam.out&&!acamBlocked()?1:0;
+  if(want>acam.w)acam.w=c.in_ms<=0?1:Math.min(1,acam.w+rdt*1000/c.in_ms);
+  else if(want<acam.w)acam.w=Math.max(0,acam.w-rdt*1000/Math.max(1,c.out_ms));
+  if(acam.out&&acam.w<=0){acam.c=null;acam.slowUntil=0;acamBars(false);return 0;}
+  if(e&&e.on)ACTCAM.pose(c,acamFeet(f),acamFeet(e),{x:Math.cos(f.face),z:Math.sin(f.face)},Math.min(ms,acam.len),acam.len,acam.flip,acam.line,acam.pose);
+  const k=ACTCAM.ease(acam.w);if(!acam.pose.p)return 0;
+  cam.position.lerp(acam.pose.p,k);camLookT.lerp(acam.pose.l,k);if(cam.position.y<.35)cam.position.y=.35;
+  acamBars(c.letterbox&&k>.5);return k;}
+// after the look / planet bend: the shot's fov (with its crash zoom) and dutch tilt
+function acamFinish(k){const P=acam.pose;if(!P||!P.p)return;
+  if(performance.now()>acam.crashHold)acam.crash*=.95;
+  const fov=P.fov*(1-acam.crash);cam.fov=cam.fov+(fov-cam.fov)*k;cam.updateProjectionMatrix();if(P.roll)cam.rotateZ(P.roll*k);}
+// main.js: sim pace while the shot's slow-mo runs
+function acamSlow(){return acam.c&&performance.now()<acam.slowUntil?acam.c.slow_pct/100:1;}
+let _acamBarsOn=false;function acamBars(on){if(on===_acamBarsOn)return;_acamBarsOn=on;const el=document.getElementById('lbox');if(el)el.classList.toggle('on',on);}

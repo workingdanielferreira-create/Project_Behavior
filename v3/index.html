@@ -22,6 +22,7 @@
     <div class="cmdbar" id="cmdbar"></div>
     <div class="feel" id="feel"></div>
     <div class="vig" id="vig"></div>
+    <div class="lbox" id="lbox"><i></i><i></i></div>
     <div class="flash" id="flash"></div>
   </div>
   <div class="menu" id="menu" hidden></div>
@@ -31,6 +32,7 @@
 <script src="lib/three.min.js"></script>
 <script src="data/world.gen.js"></script> <!-- world settings (characters/world3d.json, World Studio 3D), packed by tools/build_kits.py -->
 <script src="js/world3d.js"></script>    <!-- the little planet: settings, globe bend, environment, destructibles (shared with World Studio 3D) -->
+<script src="js/actcam.js"></script>     <!-- action camera shots (FX Studio 3D "Camera shot") + the game's shot poses, shared with FX Studio 3D -->
 <script src="js/core.js"></script>       <!-- constants, maths helpers -->
 <script src="js/settings.js"></script>   <!-- saved settings -->
 <script src="js/kits.js"></script>       <!-- stand-in kits (used only if data/kits.gen.js is missing) -->

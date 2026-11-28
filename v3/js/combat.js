@@ -4,7 +4,7 @@
 function onField(){return [sides[0].team[sides[0].on],sides[1].team[sides[1].on]];}
 function enemyOf(f){return sides[1-f.side].team[sides[1-f.side].on];}
 function startAct(f,def,kind,name){if(kind==='ult')camEvent('ult',f);const a={def,kind,name,t:0,hi:0,fi:0,li:0};if(def.n2d){f.lastAct2d=def.n2d;f.lastActTick=tick;}
-  if(f.stateUntil>tick&&['normal','special','special2'].includes(kind)){const e=enemyOf(f);[0,180,360].forEach(ms=>later(ms,()=>{if(f.on&&!f.ko&&!e.ko)heavenBlade(f,e);}));}f.act=a;mv3Start(f,def);f.armor=def.armor||0;f.landedThisAct=false;stats.starts[f.side]++;if(kind!=='react')f.nStarts=(f.nStarts||0)+1;metr.starts.push(tick);
+  if(f.stateUntil>tick&&['normal','special','special2'].includes(kind)){const e=enemyOf(f);[0,180,360].forEach(ms=>later(ms,()=>{if(f.on&&!f.ko&&!e.ko)heavenBlade(f,e);}));}f.act=a;mv3Start(f,def);actCamStart(f,def,a);f.armor=def.armor||0;f.landedThisAct=false;stats.starts[f.side]++;if(kind!=='react')f.nStarts=(f.nStarts||0)+1;metr.starts.push(tick);
   if(f.on&&f.side===0)stats.actions++;return a;}
 function endAct(f){if(!f.act)return;
   {const n=f.act.def&&f.act.def.n2d;if(n){(f.endAt||(f.endAt={}))[n]=tick;const h=f.hist||(f.hist=[]);h.push(n);if(h.length>8)h.shift();}}   // conditions since_action / after_actions

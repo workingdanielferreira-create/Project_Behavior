@@ -21,7 +21,7 @@ function realKit(R){
   const dur=a=>Math.max(120,Math.round((T[a].frames||1)*(T[a].frame_ms||16)));
   const cfg=a=>AS[a]||{};
   const def=(a,extra)=>Object.assign({n2d:a,name:a.replace(/_/g,' '),dur:dur(a),hits:[],fx:[],fx2d:true,frames:T[a].frames||1,frameMs:T[a].frame_ms||16,
-    mcd:+cfg(a).cooldown_ms||0,inForms:inForms(cfg(a).in_forms),move3d:cfg(a).move3d&&cfg(a).move3d.enabled?cfg(a).move3d:null,tdist:trigDist(cfg(a).trigger_dist)},extra||{});   // move3d: FX Studio 3D movement (fxlive.js); tdist: trigger distance (combat.js inTrigDist)
+    mcd:+cfg(a).cooldown_ms||0,inForms:inForms(cfg(a).in_forms),move3d:cfg(a).move3d&&cfg(a).move3d.enabled?cfg(a).move3d:null,tdist:trigDist(cfg(a).trigger_dist),cam3d:ACTCAM.cfg(cfg(a).cam3d)},extra||{});   // cam3d: the action's camera shot (actcam.js, camera.js)   // move3d: FX Studio 3D movement (fxlive.js); tdist: trigger distance (combat.js inTrigDist)
   const melee=pr.uses_melee!==false;
   const reach=clamp((+st.basic_attack_radius||(melee?120:400))*(melee?1:PX2D*.5),70,melee?260:900);
   const acts=Object.keys(T).filter(a=>!SKIP_ACTIONS[a]&&!TFORM_RE.test(a));

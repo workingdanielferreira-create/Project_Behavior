@@ -113,6 +113,9 @@ input[type=color] { width: 44px; height: 26px; padding: 0; border: 1px solid var
 #partsBox summary button { padding: 0 8px; line-height: 18px; font-size: 11px; }
 #partsBox summary button[aria-pressed=true] { outline: 2px solid var(--key); }
 textarea { width: 100%; box-sizing: border-box; min-height: 180px; resize: vertical; }
+.lbox { position: absolute; inset: 0; pointer-events: none; }
+.lbox i { position: absolute; left: 0; right: 0; height: 0; background: #000; transition: height .25s ease; }
+.lbox i:first-child { top: 0; } .lbox i:last-child { bottom: 0; } .lbox.on i { height: 10.5%; }
 h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 4px 0 0; font-weight: 600; }
 </style>
 </head>
@@ -143,7 +146,12 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
         <button id="vAnchors" type="button" aria-pressed="false" title="Show the body's FX anchors">Anchors</button>
         <button id="vPath" type="button" aria-pressed="true" title="Show the body's movement path">Path</button>
         <select id="camSel" aria-label="Camera"><option value="">Camera…</option><option value="side">Side</option><option value="front">Behind fighter</option><option value="top">Top</option><option value="three">3/4</option></select>
+        <button id="gcOn" type="button" aria-pressed="false" title="See the action through the game's camera: its angle, movement and this action's camera shot. Off = the free orbit (left where you had it)">Game camera</button>
+        <select id="gcMode" aria-label="Game camera mode" title="The game's camera mode underneath the action's shot (C in the game)" hidden><option value="shoulder">Over the shoulder</option><option value="dynamic">Dynamic</option><option value="wide">Wide</option><option value="cinematic">Cinematic</option></select>
+        <button id="gcShot" type="button" aria-pressed="true" title="Play this action's camera shot (section Camera shot) over the mode" hidden>Action shot</button>
+        <button id="gcFeel" type="button" aria-pressed="true" title="As in the game: shake + punch-in on hits; Cinematic also the crash zoom on heavy hits and the ultimate's hero shot" hidden>Hit feel</button>
       </div>
+      <div class="lbox" id="lbox"><i></i><i></i></div>
       <div class="drop" id="drop">Pick the <b>characters</b> folder (top left) — every character with an FX file is listed.<br>Then choose a character and an action.</div>
     </div>
     <div class="timeline">
@@ -203,6 +211,13 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
     <section id="secMove"><h2>Action movement <small>body, in 3D</small></h2>
       <p class="note">Where the fighter stands when the action begins and where it ends up, round the target. Angle 0 = on the fighter's side of the target, 180 = behind it.</p>
       <div id="moveForm"></div>
+    </section>
+
+    <section id="secCam"><h2>Camera shot <small id="camOut"></small></h2>
+      <p class="note">How the game's camera plays this action, for your fighter and the opponent, in every camera mode. Pick a framing, then tune it; the line fighter → target is the reference (angle 0 = on the fighter's side of the pivot, 90 = to the right of the line, 180 = the far side). Turn on <b>Game camera</b> on the stage to watch it; with it off, the shot's camera shows as a frustum.</p>
+      <div id="camForm"></div>
+      <div class="btns"><button id="camTake" type="button" title="Frame the shot with the free orbit (Game camera off), then press this: the angle, distance, height, look height and zoom are taken from the view at the current frame">Take from view</button><button id="camWatch" type="button" title="Turn on the Game camera with this shot and play">Watch it</button></div>
+      <p class="note" id="camNote"></p>
     </section>
 
     <section id="secFx"><h2>FX of this action <small id="fxCount"></small></h2>
@@ -275,6 +290,7 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
 <script src="../../tools/fx/studio/defendfx.js"></script>
 <script src="../../tools/fx/studio/presets.js"></script>
 <script src="../../tools/fx/studio/hyperfx.js"></script>   <!-- punching FX + impact FX (V3, Daniel 2026-11-26) -->
+<script src="../js/actcam.js"></script>   <!-- action camera shots + the game camera's shot poses (shared with the game's camera.js) -->
 <script src="../js/fx3d.js"></script>
 <script src="../js/conds3d.js"></script>   <!-- action trigger conditions (shared with the game's realkits.js) -->
 <script>
@@ -306,7 +322,7 @@ grad.minFilter = grad.magFilter = THREE.NearestFilter; grad.needsUpdate = true;
 function resize() { const r = cvs.parentElement.getBoundingClientRect(); if (!r.width) return; renderer.setSize(r.width, r.height, false); cam.aspect = r.width / r.height; cam.updateProjectionMatrix(); }
 new ResizeObserver(resize).observe(cvs.parentElement); resize();
 const tc = new THREE.TransformControls(cam, cvs); tc.setSize(0.8); scene.add(tc);
-tc.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if (e.value) beginEdit(); });
+tc.addEventListener('dragging-changed', e => { orbit.enabled = !e.value && !GC.on; if (e.value) beginEdit(); });
 const gizmoObj = new THREE.Object3D(); scene.add(gizmoObj);
 // helpers: ring markers, path line, plane outlines, anchor dots
 function ring(col, r) { const m = new THREE.Mesh(new THREE.RingGeometry(r * 0.82, r, 40), new THREE.MeshBasicMaterial({color: col, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false}));
@@ -890,6 +906,7 @@ function buildForms() {
     const mv = FX3D.moveCfg(aset(S.act) && aset(S.act).move3d);
     form($('moveForm'), MOVE, mv, (p, v) => { const as = aset(S.act, true); as.move3d = Object.assign(FX3D.moveCfg(as.move3d), as.move3d || {}); as.move3d[p] = v; }, r => { if (r.s) { buildForms(); buildActs(); } });
   } else $('moveForm').innerHTML = '';
+  buildCam();
   if (!has) { $('secParts').hidden = true; if (S.runner) S.runner.o.solo = null; ['placeForm', 'toonForm', 'lookForm', 'motionForm', 'hitForm', 'params'].forEach(id => { $(id).innerHTML = '<p class="note">' + (S.F ? 'Pick or add an effect.' : '') + '</p>'; }); $('json').value = ''; buildBars(); return; }
   const v = fxView(e);
   form($('placeForm'), PLACE, v, writeFx, () => syncGizmo());
@@ -997,7 +1014,7 @@ document.querySelectorAll('section > h2').forEach(h => { h.tabIndex = 0; h.oncli
 /* ---------------------------------------------------------------- timeline bars */
 /* timeline = the action's own length (the body's clip fills it), plus only as long as FX it spawned are still alive
    (Daniel 2026-11-24: no fixed 700 ms tail with the body snapped to idle; the body holds its last pose there) */
-function totalMs() { if (S.tailMs == null) measureTail(); return actDur(S.act) + (S.tailMs || 0); }
+function totalMs() { if (S.tailMs == null) measureTail(); return Math.max(actDur(S.act) + (S.tailMs || 0), camEndMs()); }
 function measureTail() {
   if (!S.runner || !S.fighter) return;
   const dur = actDur(S.act), cap = Math.ceil((dur + TAIL_MS) / TICK), k0 = S.k; let last = -1;
@@ -1057,6 +1074,7 @@ function stepSim(k, fast) {   // tick k of the action (0 = its first)
     target: {centre: _d.copy(T).setY(T.y + 0.9)}, enemies: [{centre: _d.clone(), r: 0.45, ref: 'dummy'}],
     action: ms < dur ? {key: S.actKey, name: S.act, frames: t.frames, frameMs: t.fms} : null, moving: false, gone: false,
     frame: Math.min(t.frames - 1, Math.floor(ms / t.fms)), groundY: 0});
+  if (k === 0 && !S.measuring) gcActionStart(feet, T, face);   // camera: the action (re)starts
   pbwFxHeld(B.model, S.runner.lanes, B);   // one of each blade: the held keyblade hides while its FX copy is out (as in V3)
 }
 function simTo(k) {
@@ -1070,6 +1088,7 @@ function seek(k) { setPlaying(false); simTo(Math.max(0, Math.min(k, Math.ceil(to
 function onHit(dmg, kb, inst) {
   S.hits.push({k: S.simK, dmg, kb, name: (inst.src || inst.fx).name}); S.dmg += dmg;
   S.flash = 0.18;
+  if (!S.fast && !S.measuring) gcHit(kb);
   if (!S.fast && !S.measuring) { const n = document.createElement('div'); n.className = 'num'; n.textContent = dmg > 0 || !(kb > 0) ? Math.round(dmg * 10) / 10 : 'PUSH'; n.dataset.t0 = performance.now(); $('over').appendChild(n); }
 }
 
@@ -1082,7 +1101,7 @@ $('scrub').oninput = function () { seek(+this.value); };
 $('vPlanes').onclick = function () { view.planes = !view.planes; this.setAttribute('aria-pressed', String(view.planes)); };
 $('vAnchors').onclick = function () { view.anchors = !view.anchors; this.setAttribute('aria-pressed', String(view.anchors)); };
 $('vPath').onclick = function () { view.path = !view.path; this.setAttribute('aria-pressed', String(view.path)); };
-$('camSel').onchange = function () { const T = dummyFeet(), m = new THREE.Vector3(T.x / 2, 1, T.z / 2), d = Math.max(4, T.length() * 1.6 + 3), v = this.value; this.value = '';
+$('camSel').onchange = function () { if (GC.on) gcSet(false); const T = dummyFeet(), m = new THREE.Vector3(T.x / 2, 1, T.z / 2), d = Math.max(4, T.length() * 1.6 + 3), v = this.value; this.value = '';
   orbit.target.copy(m); const fwd = new THREE.Vector3(T.x, 0, T.z).normalize(); if (fwd.lengthSq() < 0.5) fwd.set(1, 0, 0); const side = new THREE.Vector3(-fwd.z, 0, fwd.x);
   if (v === 'side') cam.position.copy(m).addScaledVector(side, d).setY(1.4);
   else if (v === 'front') cam.position.copy(m).addScaledVector(fwd, -d).setY(2.2);
@@ -1164,6 +1183,163 @@ function drawNums() {
     const s = toScreen(head); n.style.left = (s[0] + (i % 3 - 1) * 18) + 'px'; n.style.top = (s[1] - age * 50) + 'px'; n.style.opacity = String(1 - age / 0.9); });
 }
 
+/* ---------------------------------------------------------------- camera shot + game camera preview (Daniel 2026-11-28)
+   action_settings[a].cam3d = the action's camera shot (js/actcam.js: data, pose; the game plays it in camera.js). The
+   Game camera toggle shows the action through the game's own camera: the mode underneath (actcam.js gameShot /
+   cinePose / evPose = the game's own code), this action's shot blended over it, hit feel (shake, punch-in, Cinematic
+   crash zoom + ultimate hero shot) and the shot's extras (slow-mo slows the playback, shake, crash zoom, letterbox).
+   No planet: flat floor. Not previewed: the knockback tracking / sky / K.O. / destruction shots and sight lines (the
+   dummy never flies or falls), the Cinematic lead room, and priority (only one action plays here). */
+const CAM_PRESETS = Object.keys(ACTCAM.PRESETS).map(k => [k, ACTCAM.PRESETS[k][0]]);
+const AT3 = [['fighter', 'the fighter'], ['target', 'the target'], ['mid', 'the midpoint']];
+const camOn = v => v.enabled;
+const CAMS = [
+  {l: 'Plays a shot', p: 'enabled', t: 'chk', s: true, h: 'On = the game\'s camera plays this shot when the action starts'},
+  {l: 'Framing', t: 'h', show: camOn},
+  {l: 'Preset', p: 'shot', t: 'sel', o: CAM_PRESETS, s: true, show: camOn, h: 'Fills the framing sliders below (the sliders are what plays)'},
+  {l: 'Around', p: 'pivot', t: 'sel', o: AT3, show: camOn, h: 'The point the camera is placed round'},
+  {l: 'Angle (°)', p: 'angle_deg', t: 'rng', min: -180, max: 180, show: camOn, h: '0 = on the fighter\'s side of the pivot (behind the fighter when it is the pivot), 90 = right of the line fighter → target, 180 = the far side'},
+  {l: 'Distance (m)', p: 'dist_m', t: 'rng', min: 0, max: 30, step: 0.1, show: camOn},
+  {l: 'Height (m)', p: 'height_m', t: 'rng', min: 0, max: 20, step: 0.05, show: camOn, h: 'Above the pivot\'s feet (never under 0.35 m)'},
+  {l: 'Side (m)', p: 'side_m', t: 'rng', min: -6, max: 6, step: 0.05, show: camOn, h: 'Slides the camera to its own right (+) / left (-): over-the-shoulder offset'},
+  {l: 'Looks at', p: 'look', t: 'sel', o: AT3, show: camOn},
+  {l: 'Look height (m)', p: 'look_h_m', t: 'rng', min: -1, max: 4, step: 0.05, show: camOn},
+  {l: 'Zoom (fov °)', p: 'fov', t: 'rng', min: 10, max: 100, show: camOn, h: 'Smaller = tighter (long lens). The game\'s normal camera is 56'},
+  {l: 'Dutch tilt (°)', p: 'dutch_deg', t: 'rng', min: -35, max: 35, show: camOn},
+  {l: 'Flip', p: 'flip', t: 'sel', o: [['none', 'never'], ['always', 'always (mirror the angle + side)'], ['random', 'random each use']], show: camOn},
+  {l: 'Lock the line', p: 'lock_line', t: 'chk', show: camOn, h: 'On = the line fighter → target is taken once at the start; off = the shot follows both as they move'},
+  {l: 'Movement over the shot', t: 'h', show: camOn},
+  {l: 'Orbit (°/s)', p: 'orbit_dps', t: 'rng', min: -180, max: 180, show: camOn, h: 'Turns round the pivot while it plays'},
+  {l: 'Push in (%)', p: 'push_pct', t: 'rng', min: -150, max: 90, show: camOn, h: 'Distance closed by the end of the shot; negative pulls out'},
+  {l: 'Rise (m)', p: 'rise_m', t: 'rng', min: -8, max: 12, step: 0.1, show: camOn, h: 'Height gained (lost) by the end of the shot'},
+  {l: 'End zoom (fov °)', p: 'fov_end', t: 'rng', min: 0, max: 100, show: camOn, h: '0 = keeps its zoom; else eases to this fov by the end'},
+  {l: 'Timing', t: 'h', show: camOn},
+  {l: 'Length (ms)', p: 'length_ms', t: 'num', step: 10, min: 0, show: camOn, h: '0 = the action\'s own length'},
+  {l: 'Hold after (ms)', p: 'hold_ms', t: 'num', step: 10, min: 0, show: camOn, h: 'Keeps the shot this long after the action (or Length)'},
+  {l: 'Blend in (ms)', p: 'in_ms', t: 'num', step: 10, min: 0, show: camOn, h: '0 = a hard cut into the shot'},
+  {l: 'Blend out (ms)', p: 'out_ms', t: 'num', step: 10, min: 0, show: camOn, h: 'Glide back to the game\'s shot'},
+  {l: 'Priority', p: 'priority', t: 'sel', o: [['low', 'low (yields to lock-on, Cinematic event, tracking, sky, K.O. shots)'], ['normal', 'normal (beats lock-on + Cinematic event shots)'], ['high', 'high (also beats the tracking + sky shots)'], ['always', 'always (beats everything, the K.O. too)']], show: camOn, h: 'Against the game\'s own shots and other actions\' shots (game only)'},
+  {l: 'Extras', t: 'h', show: camOn},
+  {l: 'Slow-mo (%)', p: 'slow_pct', t: 'rng', min: 5, max: 100, show: camOn, h: 'Game speed while it runs; 100 = off'},
+  {l: 'Slow-mo at (ms)', p: 'slow_at_ms', t: 'num', step: 10, min: 0, show: v => v.enabled && v.slow_pct < 100, h: 'From the action\'s start'},
+  {l: 'Slow-mo for (ms)', p: 'slow_ms', t: 'num', step: 10, min: 0, show: v => v.enabled && v.slow_pct < 100, h: 'Screen time'},
+  {l: 'Shake', p: 'shake', t: 'rng', min: 0, max: 1.5, step: 0.05, show: camOn, h: '0 = none; a K.O. is 1'},
+  {l: 'Shake at (ms)', p: 'shake_at_ms', t: 'num', step: 10, min: 0, show: v => v.enabled && v.shake > 0},
+  {l: 'Crash zoom (%)', p: 'crash_pct', t: 'rng', min: 0, max: 60, show: camOn, h: 'A sudden zoom-in (narrower by this %) that eases back'},
+  {l: 'Crash at (ms)', p: 'crash_at_ms', t: 'num', step: 10, min: 0, show: v => v.enabled && v.crash_pct > 0},
+  {l: 'Letterbox bars', p: 'letterbox', t: 'chk', show: camOn},
+];
+function camCfgView() { return ACTCAM.view(S.F && aset(S.act) && aset(S.act).cam3d); }
+function camEndMs() { const c = S.F && ACTCAM.cfg(aset(S.act) && aset(S.act).cam3d); return c ? Math.min(ACTCAM.lenOf(c, actDur(S.act)) + c.out_ms, actDur(S.act) + 4000) : 0; }
+function buildCam() {
+  if (!S.F) { $('camForm').innerHTML = ''; $('camOut').textContent = ''; return; }
+  const v = camCfgView();
+  form($('camForm'), CAMS, v, (p, val) => { const as = aset(S.act, true); as.cam3d = Object.assign(ACTCAM.view(as.cam3d), as.cam3d || {}); as.cam3d[p] = val;
+      if (p === 'shot' && ACTCAM.PRESETS[val]) Object.assign(as.cam3d, ACTCAM.PRESETS[val][1]);
+      if (p === 'enabled' && val && !(aset(S.act).cam3d.shot in ACTCAM.PRESETS)) as.cam3d.shot = 'shoulder'; },
+    r => { if (r.s) buildForms(); else buildBars(); });
+  $('camOut').textContent = v.enabled ? (ACTCAM.PRESETS[v.shot] ? ACTCAM.PRESETS[v.shot][0] : v.shot) : 'off';
+  const c = ACTCAM.cfg(v);
+  $('camNote').textContent = c ? 'Plays ' + ACTCAM.lenOf(c, actDur(S.act)) + ' ms (action ' + actDur(S.act) + ' + hold ' + c.hold_ms + '), ' + (c.in_ms ? 'blends in over ' + c.in_ms + ' ms' : 'cuts in') + ', out over ' + c.out_ms + ' ms. Moments are in ms from the action start (frame ' + timing(S.act).fms + ' ms each).' : '';
+}
+const GC = {on: false, mode: 'shoulder', shot: true, feel: true, save: null, snap: true, p: new THREE.Vector3(), l: new THREE.Vector3(),
+  cut: {t: 0, kind: 'shoulder'}, shake: 0, sdir: [1, 0], punch: 0, crash: 0, crashHold: 0, lastMs: -1, flip: 1, line: null, pose: {},
+  cine: {shot: null, side: 1, last: '', p: new THREE.Vector3(), v: new THREE.Vector3(), l: new THREE.Vector3(), lv: new THREE.Vector3(), fov: 50, fv: 0, roll: 0, ev: null, zoom: 0, zoomHold: 0, kick: 0}};
+// the game's Settings defaults (js/settings.js) for the Cinematic camera; the fight director is taken as calm
+const CINE = {min: 2.4, max: 5.2, cut: 55, weight: 45, damp: 80, dutch: 9, crash: 25}, BASE_FOV = 56;
+const rnd = (a, b) => a + Math.random() * (b - a);
+const shotCam = new THREE.PerspectiveCamera(50, 16 / 9, 0.1, 1.2), shotHelp = new THREE.CameraHelper(shotCam); shotHelp.visible = false; scene.add(shotHelp);
+function gcSet(on) {
+  if (on === GC.on) return; GC.on = on; $('gcOn').setAttribute('aria-pressed', String(on)); ['gcMode', 'gcShot', 'gcFeel'].forEach(id => { $(id).hidden = !on; });
+  if (on) { GC.save = {p: cam.position.clone(), t: orbit.target.clone(), fov: cam.fov}; orbit.enabled = false; GC.snap = true; GC.cine.shot = null; GC.cine.ev = null; }
+  else { orbit.enabled = true; if (GC.save) { cam.position.copy(GC.save.p); orbit.target.copy(GC.save.t); cam.fov = GC.save.fov; } cam.up.set(0, 1, 0); cam.updateProjectionMatrix(); orbit.update(); $('lbox').classList.remove('on'); }
+}
+$('gcOn').onclick = () => gcSet(!GC.on);
+$('gcMode').onchange = function () { GC.mode = this.value; GC.snap = true; GC.cine.shot = null; GC.cine.ev = null; };
+$('gcShot').onclick = function () { GC.shot = !GC.shot; this.setAttribute('aria-pressed', String(GC.shot)); };
+$('gcFeel').onclick = function () { GC.feel = !GC.feel; this.setAttribute('aria-pressed', String(GC.feel)); };
+$('camWatch').onclick = () => { if (!S.runner) return; gcSet(true); if (!GC.shot) $('gcShot').onclick(); simTo(0); setPlaying(true); };
+const fdOf = face => new THREE.Vector3(Math.sin(face), 0, Math.cos(face));
+// stepSim k = 0: the action (re)starts
+function gcActionStart(F, T, face) {
+  const c = ACTCAM.cfg(aset(S.act) && aset(S.act).cam3d); GC.lastMs = -1; GC.crash = 0;
+  GC.flip = c && c.flip === 'always' ? -1 : c && c.flip === 'random' ? (Math.random() < .5 ? -1 : 1) : 1;
+  GC.line = ACTCAM.lineOf(F, T, fdOf(face));
+  if (GC.on && GC.feel && GC.mode === 'cinematic' && /^ultimate/.test(S.act)) { const n = performance.now() / 1000; GC.cine.ev = {t0: n, until: n + 1.9}; GC.snap = true; }   // cinecam.js camEvent('ult')
+}
+function gcHit(kb) { if (!GC.on || !GC.feel) return; const wv = kb >= 20 ? 4 : kb >= 13 ? 3 : kb >= 7 ? 2 : 1;   // fxlive.js fxHit weights
+  GC.shake = Math.max(GC.shake, .16 * wv + .08); GC.punch = Math.max(GC.punch, .035 * wv);
+  if (wv >= 3 && GC.mode === 'cinematic') { const C = GC.cine; C.zoom = Math.max(C.zoom, CINE.crash / 100); C.zoomHold = performance.now() / 1000 + .07; C.kick = (Math.random() < .5 ? -1 : 1) * Math.min(4, CINE.dutch * .4) * Math.PI / 180; } }
+// the shot's slow-mo (playback speed): slow_ms of screen time at slow_pct = slow_ms x pct of the action's time
+function gcSlow() { const c = GC.on && GC.shot && S.F && ACTCAM.cfg(aset(S.act) && aset(S.act).cam3d); if (!c || c.slow_pct >= 100) return 1;
+  const ms = S.k * TICK; return ms >= c.slow_at_ms && ms < c.slow_at_ms + c.slow_ms * c.slow_pct / 100 ? c.slow_pct / 100 : 1; }
+function cineShotS(sep, first) { const C = GC.cine, W = sep > 22 ? {wide: 3, tele: 2, high: 2, two: 1.2, orbit: .6} : {two: 3, ots: 2.4, low: 1.4, high: 1.1, orbit: 1.1, tele: 1.3, wide: .4};   // cinecam.js cineShot, calm
+  delete W[C.last]; let tot = 0; for (const k in W) tot += W[k]; let r = Math.random() * tot, kind = 'two'; for (const k in W) { r -= W[k]; if (r <= 0) { kind = k; break; } }
+  const now = performance.now() / 1000, cutK = first || Math.random() * 100 < CINE.cut; if (cutK && Math.random() < .15) C.side *= -1; C.last = kind; const dz = CINE.dutch * Math.PI / 180;
+  return {kind, t0: now, until: now + rnd(CINE.min, CINE.max), cut: cutK, fb: Math.random() < .5 ? 1 : -1, subj: Math.random() < .5 ? 0 : 1, dk: rnd(.85, 1.2), hk: rnd(.7, 1.4),
+    dolly: rnd(-.025, .06), truck: rnd(-.06, .06), orbitW: rnd(.18, .42) * (Math.random() < .5 ? 1 : -1), th0: rnd(-.6, .6), roll: (kind === 'low' || kind === 'orbit') ? (Math.random() < .5 ? -1 : 1) * dz * rnd(.35, 1) * .4 : 0}; }
+function spring(p, v, t, w, z, dt) { const n = Math.max(1, Math.ceil(dt / .0167)), h = dt / n;
+  for (let i = 0; i < n; i++) { v.x += (w * w * (t.x - p.x) - 2 * z * w * v.x) * h; v.y += (w * w * (t.y - p.y) - 2 * z * w * v.y) * h; v.z += (w * w * (t.z - p.z) - 2 * z * w * v.z) * h; p.addScaledVector(v, h); } }
+function gcStep(dt) {
+  const F = S.fighter.root.position.clone(), T = S.dummy.root.position.clone(), face = S.fighter.root.rotation.y, fd = fdOf(face), ms = S.k * TICK;
+  const c = ACTCAM.cfg(aset(S.act) && aset(S.act).cam3d), len = c ? ACTCAM.lenOf(c, actDur(S.act)) : 0;
+  if (!GC.on) {   // free orbit: the shot's camera as a frustum
+    shotHelp.visible = !!c; if (c) { ACTCAM.pose(c, F, T, fd, Math.min(ms, len), len, GC.flip, c.lock_line ? GC.line : null, GC.pose);
+      shotCam.position.copy(GC.pose.p); shotCam.up.set(0, 1, 0); shotCam.lookAt(GC.pose.l); shotCam.rotateZ(GC.pose.roll); shotCam.fov = GC.pose.fov; shotCam.aspect = cam.aspect; shotCam.updateProjectionMatrix(); shotCam.updateMatrixWorld(); shotHelp.update(); }
+    return; }
+  shotHelp.visible = false;
+  const pa = F.clone().setY(F.y + 1.2), pb = T.clone().setY(T.y + 1.2), sep = pa.distanceTo(pb), now = performance.now() / 1000;
+  let fov = BASE_FOV, roll = 0, tilt = 0, snap = GC.snap; GC.snap = false;
+  if (GC.mode === 'cinematic') { const C = GC.cine, mid = pa.clone().lerp(pb, .5), dir = pb.clone().sub(pa); dir.y = 0; if (dir.lengthSq() < 1e-4) dir.set(0, 0, -1); dir.normalize();
+    const ctx = {pa, pb, mid, dir, right: new THREE.Vector3(-dir.z, 0, dir.x), sep}, first = !C.shot; let cutNow = snap;
+    if (C.ev && now >= C.ev.until) { C.ev = null; C.shot = cineShotS(sep, false); C.shot.cut = false; }
+    if (!C.shot || now >= C.shot.until) { C.shot = cineShotS(sep, first); if (C.shot.cut) cutNow = true; }
+    const W = {p: new THREE.Vector3(), l: new THREE.Vector3(), fov: 50, roll: 0};
+    if (C.ev) ACTCAM.evPose('ult', F, fd, ctx, now - C.ev.t0, Math.min(1, (now - C.ev.t0) / 1.9), C.side, 0, CINE.dutch, W); else ACTCAM.cinePose(C.shot, ctx, now - C.shot.t0, C.side, W);
+    if (W.p.y < .3) W.p.y = .3;
+    if (cutNow || first) { C.p.copy(W.p); C.v.set(0, 0, 0); C.l.copy(W.l); C.lv.set(0, 0, 0); C.fov = W.fov; C.fv = 0; C.roll = W.roll; }
+    else { const fe = C.ev ? 1.8 : 1, w = (1.5 + CINE.weight / 100 * 6) * fe, z = Math.max(.3, Math.min(1.2, CINE.damp / 100));
+      spring(C.p, C.v, W.p, w, z, dt); spring(C.l, C.lv, W.l, w * 1.8, Math.max(z, .75), dt); C.fv += (w * w * (W.fov - C.fov) - 2 * z * w * C.fv) * dt; C.fov += C.fv * dt; C.roll += (W.roll - C.roll) * (1 - Math.exp(-3 * dt)); }
+    if (now > C.zoomHold) C.zoom *= Math.exp(-3.2 * dt); C.kick *= Math.exp(-4 * dt);
+    GC.p.copy(C.p); GC.l.copy(C.l); fov = Math.max(10, Math.min(80, C.fov)) * (1 - Math.min(.6, C.zoom)); roll = C.roll + C.kick; tilt = .07; }
+  else { let mode = GC.mode;
+    if (mode === 'dynamic') { if (now > GC.cut.t) { const r = Math.random(); GC.cut.kind = sep > 28 ? (r < .6 ? 'side' : 'wide') : (r < .45 ? 'shoulder' : r < .7 ? 'side' : r < .85 ? 'reverse' : 'low'); GC.cut.t = now + rnd(2.4, 4.8); snap = true; } mode = GC.cut.kind; }
+    const [tgt, look] = ACTCAM.gameShot(mode, pa, pb, sep); if (tgt.y < .4) tgt.y = .4;
+    if (snap) { GC.p.copy(tgt); GC.l.copy(look); } else { GC.p.lerp(tgt, 1 - Math.exp(-(mode === 'wide' ? 3 : 5.5) * dt)); GC.l.lerp(look, 1 - Math.exp(-9 * dt)); } }
+  const P = GC.p.clone(), L = GC.l.clone();
+  // the action's shot over it (camera.js acamStep / acamFinish)
+  let k = 0;
+  if (c && GC.shot) { let w = c.in_ms > 0 ? Math.min(1, ms / c.in_ms) : 1; if (ms > len) w = Math.max(0, 1 - (ms - len) / Math.max(1, c.out_ms));
+    if (S.playing && ms > GC.lastMs) { for (const m of ACTCAM.moments(c, GC.lastMs, ms)) { if (m === 'shake') GC.shake = Math.max(GC.shake, c.shake); else if (m === 'crash') { GC.crash = Math.min(.8, c.crash_pct / 100); GC.crashHold = now + .07; } } }
+    GC.lastMs = ms;
+    ACTCAM.pose(c, F, T, fd, Math.min(ms, len), len, GC.flip, c.lock_line ? GC.line : null, GC.pose);
+    k = ACTCAM.ease(w); P.lerp(GC.pose.p, k); L.lerp(GC.pose.l, k); if (P.y < .35) P.y = .35;
+    if (now > GC.crashHold) GC.crash *= Math.exp(-3.2 * dt);
+    fov += (GC.pose.fov * (1 - GC.crash) - fov) * k; roll += (GC.pose.roll - roll) * k; tilt *= 1 - k; }
+  $('lbox').classList.toggle('on', !!(c && GC.shot && c.letterbox && k > .5));
+  // shake + punch-in (camera.js)
+  const dx = T.x - F.x, dz = T.z - F.z, dl = Math.hypot(dx, dz) || 1; GC.sdir = [dx / dl, dz / dl];
+  if (GC.shake > 0) { const j = Math.random() - .5; P.x += GC.sdir[0] * j * GC.shake * .9 + (Math.random() - .5) * GC.shake * .3; P.z += GC.sdir[1] * j * GC.shake * .9; P.y += (Math.random() - .5) * GC.shake * .35; }
+  if (GC.punch > 0) { P.lerp(L, GC.punch); GC.punch = Math.max(0, GC.punch - dt * .6); }
+  GC.shake = Math.max(0, GC.shake - dt * 3.2);
+  cam.position.copy(P); cam.up.set(0, 1, 0); cam.lookAt(L); cam.fov = fov; cam.updateProjectionMatrix();
+  if (tilt) cam.rotateX(-Math.atan(tilt * Math.tan(cam.fov * Math.PI / 360)));
+  if (roll) cam.rotateZ(roll);
+}
+$('camTake').onclick = () => {
+  if (!S.F || !S.fighter) return; if (GC.on) { status('Turn the Game camera off, frame the shot with the free orbit, then Take from view.', true); return; }
+  pushUndo(); const as = aset(S.act, true); as.cam3d = Object.assign(ACTCAM.view(as.cam3d), as.cam3d || {}, {enabled: true}); const c = ACTCAM.cfg(as.cam3d);
+  const F = S.fighter.root.position, T = S.dummy.root.position, face = S.fighter.root.rotation.y, ms = S.k * TICK, len = ACTCAM.lenOf(c, actDur(S.act));
+  const u = ACTCAM.ease(Math.max(0, Math.min(1, ms / len))), d = c.lock_line && GC.line ? GC.line.clone() : ACTCAM.lineOf(F, T, fdOf(face)), right = new THREE.Vector3(-d.z, 0, d.x);
+  const at = w => w === 'target' ? T : w === 'fighter' ? F : new THREE.Vector3().lerpVectors(F, T, .5), Pv = at(c.pivot), Lp = at(c.look);
+  const v = cam.position.clone().sub(Pv), fl = Math.hypot(v.x, v.z);
+  const ang = Math.atan2(v.x * right.x + v.z * right.z, -(v.x * d.x + v.z * d.z)) * 180 / Math.PI - c.orbit_dps * ms / 1000;
+  const r1 = x => Math.round(x * 100) / 100;
+  Object.assign(as.cam3d, {angle_deg: Math.round(((ang + 540) % 360) - 180), dist_m: r1(fl / Math.max(.05, 1 - c.push_pct / 100 * u)), height_m: r1(Math.max(0, cam.position.y - Pv.y - c.rise_m * u)), side_m: 0,
+    look_h_m: r1(orbit.target.y - Lp.y), fov: Math.round(cam.fov), flip: 'none'});
+  changed(false); buildForms(); status('Camera shot taken from the view (side offset 0, flip off; the look point stays ' + c.look + ').');
+};
+
 /* ---------------------------------------------------------------- loop */
 let last = performance.now();
 function frame(now) {
@@ -1171,7 +1347,7 @@ function frame(now) {
   try {
     if (S.runner && S.fighter) {
       const end = Math.ceil(totalMs() / TICK);
-      if (S.playing) { S.acc += dt * 1000 * (+$('speed').value || 1); let n = 0; while (S.acc >= TICK && n < 6) { S.acc -= TICK; n++;
+      if (S.playing) { S.acc += dt * 1000 * (+$('speed').value || 1) * gcSlow(); let n = 0; while (S.acc >= TICK && n < 6) { S.acc -= TICK; n++;
           if (S.k >= end) { if ($('loop').checked) { S.simK = -1; simTo(0); } else { setPlaying(false); break; } } else simTo(S.k + 1); } }
       else if (S.simK !== S.k || S.simK < 0) simTo(S.k);
       $('scrub').value = S.k;
@@ -1179,6 +1355,7 @@ function frame(now) {
       $('frameOut').textContent = ms < dur ? 'frame ' + Math.floor(ms / t.fms) + ' / ' + t.frames + ' · ' + ms + ' ms' : 'after the action · +' + Math.round(ms - dur) + ' ms';
       const ph = $('ph'); if (ph) ph.style.left = (ms / totalMs() * 100).toFixed(2) + '%';
       if (S.flash > 0) { S.flash -= dt; S.dummy.mat.color.setHex(0xff5a6a); } else S.dummy.mat.color.setHex(0x6a7088);
+      gcStep(dt);   // the game camera (when on) / the shot's frustum (when off)
       S.runner.draw(cam, renderer.domElement.height, {});
       drawPlanes(); drawPath(); drawAnchors(); drawNums();
       if ($('gizmo').value && !tc.dragging) syncGizmo();
