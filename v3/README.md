@@ -484,6 +484,18 @@ Hits: every enemy within `depth_m` (+ its body) of the plane is tested in that p
 (`FXK.resolveHits`, exported for this), each enemy with its own hit count, so a slash can cut through a crowd and a
 non-piercing shot stops at the first. In training every dummy can be hit.
 
+**Knockback angle (Daniel 2026-11-28).** FX Studio 3D Hit panel, per damaging effect (`fx3d.kb_*`): **Knockback
+direction** auto (default = as before: away from the attacker, heavy hits may LAUNCH / SPIKE / blowback-lift at random) /
+angle from the attacker -> target line / from the attacker's facing / from the effect's own travel or swing at the hit
+(FX Studio's 2D hit direction turned into its plane; falls back to the line). **Angle** (0 = along it, 90 = its right,
+-90 = left, 180 = back), **Elevation** (-90..90: + launches, - spikes a target in the air; on the ground it only holds
+it), **Spread** (+- deg, random per hit on both). `fx3d.js Runner.kbDir` -> `onHit(..., dir)` -> `fxlive.js fxHit` ->
+`damage(..., fx3 = {dir})`: the push the hit adds keeps its strength (knockback + weight) and is turned onto the angle
+(`combat.js kbAim`); the random launch / spike branches are skipped; the up / down part = push x `KB_VK` 1.7 (x launch
+power when up) via `kbLift` (> 300 px/s up = stunned in the air; LAUNCH / SPIKE callout on heavy hits). Blocked /
+parried / armoured hits are turned but never lifted. Transformation pushes (`fxShove`) use it too. Studio: a gold
+arrow out of the dummy shows each hit's direction (~0.8 s).
+
 **Hit fixes (Daniel 2026-11-26, "FX are simply phasing through the target").** Measured in headless AI battles: 6-29 %
 of the effects that touched a target never dealt damage. Fixed in `fx3d.js` / `fxlive.js` / `combat.js`:
 - **Aim:** an action's lane no longer stays locked toward where the target stood when the action began. It turns

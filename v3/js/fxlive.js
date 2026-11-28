@@ -8,17 +8,18 @@
 function fxRunner(f){if(f.fx3)return f.fx3;if(!f.k.fx2d||!window.FX3D||!window.FXK)return null;
   const src=f.k.src||{};const own=f.glb&&f.glb.body;
   const run=new FX3D.Runner({fx:src.fxkit||{},palette:src.palette||{},anchors3d:(own&&own.anchors3d)||null,scene,
-    onHit:(e,dmg,kb,inst)=>fxHit(f,e,dmg,kb,inst),
+    onHit:(e,dmg,kb,inst,dir)=>fxHit(f,e,dmg,kb,inst,dir),
     onHitstop:n=>{hitstopMs=Math.max(hitstopMs,n*TICK);},onShake:px=>{shake=Math.max(shake,Math.min(1.2,px*.05));}});
   const bones={};const bone=n=>{if(!f.glb)return null;if(!(n in bones))bones[n]=f.glb.model.getObjectByName(n)||null;return bones[n];};
   f.fx3={run,bone};return f.fx3;}
-function fxHit(f,e,dmg,kb,inst){if(!e||e.ko||!e.on)return;const fx=inst.fx||{};
+// dir = fx3d.js kbDir: the effect's knockback angle (world unit vector, y up) or null; to sim axes [x, y, z up]
+function fxHit(f,e,dmg,kb,inst,dir){if(!e||e.ko||!e.on)return;const fx=inst.fx||{};const kd=dir?[dir.x,dir.z,dir.y]:null;
   // a transformation burst with no damage (hyperfx.js, Daniel 2026-11-26 "knockback, no damage"): a pure push
-  if(!(dmg>0)&&window.HYPERFX&&HYPERFX.isTransform((fx.params||{}).style)){fxShove(f,e,kb);return;}
+  if(!(dmg>0)&&window.HYPERFX&&HYPERFX.isTransform((fx.params||{}).style)){fxShove(f,e,kb,kd);return;}
   const w=kb>=20?'B':kb>=13?'H':kb>=7?'M':'L';const shot=fx.motion&&fx.motion.kind!=='attached'&&fx.motion.kind!=='orbit';
   const w0=fxDefendTicks(e),dodging=e.iframe>0;
   HIT_TAG=String(fx.tag||fx.prim||'fx').toLowerCase();   // condition hit_by_fx (realkits.js)
-  if(damage(f,e,dmg,w,shot,null,kb>0?kb*PX2D*.35:0,false,true)!==false)return;
+  if(damage(f,e,dmg,w,shot,null,kb>0?kb*PX2D*.35:0,false,kd?{dir:kd}:true)!==false)return;
   // Defended (dodge i-frames, a parry window, a blink): the effect keeps its hit (fx3d.js tryHit) and may land once the
   // defence is over (Daniel 2026-11-26: FX phasing through the body). The dodge shows, so it never reads as a miss.
   if(e.ko||!e.on)return;
@@ -27,8 +28,9 @@ function fxHit(f,e,dmg,kb,inst){if(!e||e.ko||!e.on)return;const fx=inst.fx||{};
 // How many more ticks a target's defences last: dodge i-frames, an old-style parry, the parry window (parry.js), a blink.
 function fxDefendTicks(t){const pw=t.pw;return Math.max(Math.ceil(t.iframe||0),Math.ceil(t.parry||0),t.gone>0?Math.ceil(t.gone):0,pw&&pw.until>=tick?pw.until-tick+1:0);}
 // Pushed away from the fighter (kb = FX Studio knockback px): no damage, no hit flash, a short stagger so it reads.
-function fxShove(f,e,kb){if(!(kb>0)||e.gone>0)return;const dx=e.x-f.x,dy=e.y-f.y,d=Math.hypot(dx,dy)||1,v=kb*PX2D*6;
-  const kvx=e.vx,kvy=e.vy;e.vx+=dx/d*v;e.vy+=dy/d*v;if(!e.dummy||e.dummy.beh!=='stand')stun(e,280,'stag');
+// kd = the effect's knockback angle (sim [x, y, z up]) or null = straight away from the fighter.
+function fxShove(f,e,kb,kd){if(!(kb>0)||e.gone>0)return;const dx=e.x-f.x,dy=e.y-f.y,d=Math.hypot(dx,dy)||1,v=kb*PX2D*6;
+  const kvx=e.vx,kvy=e.vy;if(kd){e.vx+=kd[0]*v;e.vy+=kd[1]*v;kbLift(e,kd[2]*v*KB_VK,false);}else{e.vx+=dx/d*v;e.vy+=dy/d*v;}if(!e.dummy||e.dummy.beh!=='stand')stun(e,280,'stag');
   fx_dust(e.x,e.y,4);if(typeof camKnock==='function')camKnock(e,e.vx-kvx,e.vy-kvy);}
 // Sim tick (main.js / training.js), each fielded fighter: advance its FX one 16 ms tick.
 function fxTick(f){const S=fxRunner(f);if(!S)return;
